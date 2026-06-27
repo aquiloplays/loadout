@@ -38,6 +38,15 @@ OBS_WS_PORT_DEFAULT = 4455
 AITUM_VENDOR = "aitum-stream-suite"
 RELOAD_PROFILE_NAME = "AquiloStreamkeyReload"   # transient, deleted after use
 
+# Profile-scoped config files OBS reads on SetCurrentProfile. Copying these
+# from the user profile to the helper profile BEFORE the bounce makes the
+# switch visually a no-op (docks + encoder + service stay identical) while
+# still tripping Aitum's profile-changed handler. Without this sync, OBS
+# rearranges every dock + restarts the encoder during the bounce -- that's
+# the flicker users see. aitum.json is intentionally excluded (we want
+# Aitum to read fresh creds from the user profile's file mid-bounce).
+PROFILE_MIRROR_FILES = ("basic.ini", "service.json", "streamEncoder.json")
+
 
 def _config_path():
     base = os.environ.get("APPDATA") or os.path.expanduser("~")
@@ -182,6 +191,56 @@ def aitum_get_outputs():
     return {"ok": True, "outputs": r["data"].get("outputs", [])}
 
 
+def _profile_dir(profile_name):
+    base = os.environ.get("APPDATA")
+    if not base or not profile_name:
+        return None
+    return os.path.join(base, "obs-studio", "basic", "profiles", profile_name)
+
+
+def _mirror_helper_to(user_profile_name):
+    """Copy basic.ini + service.json + streamEncoder.json from `user_profile_name`
+    into the helper profile so OBS sees identical settings on the bounce
+    switch. Best-effort: any per-file copy failure is logged and skipped
+    (the bounce still works, just with more visual flicker). atomic via
+    tmp + rename so a half-flushed file can't break OBS's load.
+
+    Excludes aitum.json on purpose -- we want Aitum to re-read the user
+    profile's aitum.json mid-bounce, which only happens because the
+    profile-changed event fires; helper having its own aitum.json content
+    is fine since we never write to it during the user-targeted push."""
+    src_dir = _profile_dir(user_profile_name)
+    dst_dir = _profile_dir(RELOAD_PROFILE_NAME)
+    if not src_dir or not dst_dir:
+        return {"ok": False, "reason": "profile dir not found"}
+    if not os.path.isdir(src_dir):
+        return {"ok": False, "reason": f"source profile dir missing: {src_dir}"}
+    if not os.path.isdir(dst_dir):
+        return {"ok": False, "reason": f"helper profile dir missing: {dst_dir}"}
+    copied = []
+    errors = []
+    for fname in PROFILE_MIRROR_FILES:
+        src = os.path.join(src_dir, fname)
+        dst = os.path.join(dst_dir, fname)
+        if not os.path.isfile(src):
+            continue
+        tmp = dst + ".aquilo-tmp"
+        try:
+            with open(src, "rb") as r:
+                data = r.read()
+            with open(tmp, "wb") as w:
+                w.write(data)
+            os.replace(tmp, dst)
+            copied.append(fname)
+        except OSError as e:
+            errors.append(f"{fname}: {e}")
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+    return {"ok": not errors, "copied": copied, "errors": errors}
+
+
 def ensure_reload_helper_profile():
     """Make sure the persistent OBS profile we use for force-reload bounces
     exists. Called once at companion startup so per-Go-Live reloads can be
@@ -205,6 +264,17 @@ def ensure_reload_helper_profile():
         time.sleep(0.6)  # OBS needs a moment to finalize before next call
         return {"ok": True, "created": True}
     return _safe_session(run)
+
+
+def push_creds_and_reload_for(platform, stream_server, stream_key, configs=None):
+    """Platform-aware variant of push_creds_and_reload. `platform` is one of
+    'tiktok' (default) or 'youtube' -- routes the write through
+    aitum_writer.update_destination so YouTube outputs use the YouTube
+    matcher. Same bounce + verify sequence as the TikTok-only path."""
+    import aitum_writer
+    return _push_with_writer(
+        lambda: aitum_writer.update_destination(platform, stream_server, stream_key, configs),
+    )
 
 
 def push_creds_and_reload(stream_server, stream_key, configs=None):
@@ -231,7 +301,15 @@ def push_creds_and_reload(stream_server, stream_key, configs=None):
     """
     # Lazy import keeps obs_ws importable in CI without aitum_writer's deps.
     import aitum_writer
+    return _push_with_writer(
+        lambda: aitum_writer.update_tiktok(stream_server, stream_key, configs),
+    )
 
+
+def _push_with_writer(writer_fn):
+    """Shared bounce sequence parameterized by which writer to call mid-bounce.
+    See push_creds_and_reload for the long explanation of why the write
+    has to happen between the two SetCurrentProfile calls."""
     def run(s):
         t0 = time.time()
         pl = s.request("GetProfileList")
@@ -264,6 +342,19 @@ def push_creds_and_reload(stream_server, stream_key, configs=None):
                 other = RELOAD_PROFILE_NAME
                 method = "created-helper"
 
+        # 0. Mirror the user's basic.ini / service.json / streamEncoder.json
+        # into the helper profile. With identical OBS-level settings on
+        # both profiles, the visible UI rebuild (docks + encoder) during
+        # the bounce becomes a no-op while Aitum's profile-changed handler
+        # still fires. Only fires when we're actually going to use the
+        # helper (which is the common case).
+        mirror = None
+        if other == RELOAD_PROFILE_NAME:
+            try:
+                mirror = _mirror_helper_to(current)
+            except Exception as e:  # noqa: BLE001
+                log(f"obs-ws: helper mirror error: {str(e)[:120]}", "warning")
+
         # 1. Switch away. Aitum dumps its stale cache to user/aitum.json.
         sw1 = s.request("SetCurrentProfile", {"profileName": other}, timeout=8)
         if not sw1.get("ok"):
@@ -272,7 +363,7 @@ def push_creds_and_reload(stream_server, stream_key, configs=None):
 
         # 2. NOW write the fresh creds. Aitum can't undo this -- it's on the helper.
         try:
-            w = aitum_writer.update_tiktok(stream_server, stream_key, configs)
+            w = writer_fn()
         except Exception as e:  # noqa: BLE001
             # Try to put the user back on their profile anyway.
             s.request("SetCurrentProfile", {"profileName": current}, timeout=8)
@@ -295,6 +386,7 @@ def push_creds_and_reload(stream_server, stream_key, configs=None):
             "currentProfile": current,
             "elapsedMs": int((time.time() - t0) * 1000),
             "reason": (w.get("errors") or [None])[0] if not w.get("ok") else None,
+            "mirror": mirror,
         }
 
     return _safe_session(run)
@@ -358,6 +450,14 @@ def force_aitum_reload(session=None):
                 time.sleep(0.6)
                 other = RELOAD_PROFILE_NAME
                 method = "created-helper"
+
+        # Mirror user profile -> helper profile so OBS sees identical
+        # settings on the bounce switch (kills the dock-rearrange flicker).
+        if other == RELOAD_PROFILE_NAME:
+            try:
+                _mirror_helper_to(current)
+            except Exception as e:  # noqa: BLE001
+                log(f"obs-ws: helper mirror error: {str(e)[:120]}", "warning")
 
         sw1 = s.request("SetCurrentProfile", {"profileName": other}, timeout=8)
         if not sw1.get("ok"):
