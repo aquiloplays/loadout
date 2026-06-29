@@ -1051,10 +1051,15 @@ async function handleCfg(env, body) {
 
 async function handleRecent(env, url) {
   const ch = chanName(url.searchParams.get('ch'));
-  const chan = await authedChan(env, ch, String(url.searchParams.get('k') || ''));
-  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  const chan = await loadChan(env, ch);
+  if (!chan) return json({ ok: false, error: 'unknown-channel' }, 404);
   const recent = (await kvGet(env, KEY.recent(ch))) || [];
-  return json({ ok: true, recent, blocked: chan.blocked || [] });
+  // Authed (mod UI, with k) → include the blocklist. Public (e.g. the
+  // StreamFusion check-in panel, no k) → just the recent check-ins, which
+  // are shown on stream anyway.
+  const k = String(url.searchParams.get('k') || '');
+  if (k && chan.k === k) return json({ ok: true, recent, blocked: chan.blocked || [] });
+  return json({ ok: true, recent });
 }
 
 // Mod targets arrive as stored viewer keys (possibly yt:/kk: prefixed,
