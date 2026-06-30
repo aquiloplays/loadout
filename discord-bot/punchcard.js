@@ -81,6 +81,7 @@ const KEY = {
   av: (l) => `pc:av:${l}`,
   gif: (h) => `pc:gif:${h}`,
   emotes: (l) => `pc:emotes:${l}`,
+  stv: (ch) => `pc:stv:${ch}`,
   sub: (ch, v) => `pc:sub:${ch}:${v}`,
   tts: (h) => `pc:tts:${h}`,
   ttsrl: (ip) => `pc:ttsrl:${ip}`,
@@ -457,6 +458,53 @@ async function fetchUserEmotes(env, accessToken, userId) {
   return out;
 }
 
+// The channel's + global 7TV emotes, so messages render those inline too
+// (most typed custom emotes are 7TV, and these need no viewer login —
+// they're per-channel, matched for everyone). Public API, no auth. Shape
+// matches the card's emoteUrl 7TV branch: { i, n, src:'7tv' }.
+async function load7tvEmotes(twitchId) {
+  const out = [];
+  const seen = new Set();
+  const add = (arr) => {
+    for (const e of (arr || [])) {
+      const name = e && e.name, id = e && e.id;
+      if (name && id && /^[a-zA-Z0-9]{1,40}$/.test(String(id)) && !seen.has(name)) {
+        seen.add(name);
+        out.push({ i: String(id), n: String(name).slice(0, 30), src: '7tv' });
+        if (out.length >= 1200) return;   // room for big channel sets + global
+      }
+    }
+  };
+  // Channel set first (so a channel alias wins over a global of the same name)
+  try {
+    const r = await fetch('https://7tv.io/v3/users/twitch/' + encodeURIComponent(twitchId), { cf: { cacheTtl: 3600 } });
+    if (r.ok) { const j = await r.json(); add(j && j.emote_set && j.emote_set.emotes); }
+  } catch { /* non-fatal — 7TV down just means no 7TV emotes this round */ }
+  try {
+    const r = await fetch('https://7tv.io/v3/emote-sets/global', { cf: { cacheTtl: 3600 } });
+    if (r.ok) { const j = await r.json(); add(j && j.emotes); }
+  } catch { /* non-fatal */ }
+  return out;
+}
+
+// Cached name→emote map of the channel's 7TV set. Cache hit avoids hitting
+// 7TV on every check-in; an empty result is negatively cached briefly so a
+// 7TV outage doesn't trigger a refetch storm.
+async function fetchChannel7tv(env, ch, chan) {
+  try {
+    if (!chan || !/^\d{1,20}$/.test(String(chan.userId || ''))) return new Map();
+    const cached = await kvGet(env, KEY.stv(ch));
+    let list;
+    if (cached && Array.isArray(cached.list)) {
+      list = cached.list;
+    } else {
+      list = await load7tvEmotes(String(chan.userId));
+      try { await kvPut(env, KEY.stv(ch), { ts: Date.now(), list }, { expirationTtl: list.length ? 6 * 3600 : 1800 }); } catch { /* best effort */ }
+    }
+    return new Map(list.map((e) => [e.n, e]));
+  } catch { return new Map(); }
+}
+
 // ── OAuth ─────────────────────────────────────────────────────────────
 // read:subscriptions powers per-viewer sub-tier card effects. Claims
 // made before it was added simply skip tier lookups (the Helix call
@@ -780,10 +828,10 @@ async function handleCheckin(env, body) {
     }
   } catch { /* best effort */ }
 
-  // Mod feed ring.
+  // Mod feed ring — loaded here, written after the card-enrichment block below
+  // so each recent entry also carries avatar / total / best / emotes for the
+  // StreamFusion events-feed check-in card.
   const recent = (await kvGet(env, KEY.recent(ch))) || [];
-  recent.unshift({ v: vk, display, msg, day: today, ts: now, s: next.s, dup: next.dup });
-  await kvPut(env, KEY.recent(ch), recent.slice(0, RECENT_CAP));
 
   // Leaderboard upsert (current streak, total tiebreak).
   let lbRank = 0;
@@ -840,21 +888,31 @@ async function handleCheckin(env, body) {
     avatar = info.url;
     subTier = await subTierFor(env, ch, chan, vk, body.viewerId || info.id);
     if (msg) {
+      // Match each word against the viewer's own Twitch emotes (global + sub +
+      // follower, snapshotted at login) first, then the channel's 7TV set
+      // (no login needed, so it works for every viewer). The card renders
+      // whatever lands here; the overlay's TTS skips exactly these tokens.
       const rec = await kvGet(env, KEY.emotes(vk));
-      if (rec && Array.isArray(rec.list) && rec.list.length) {
-        const byName = new Map(rec.list.map((e) => [e.n, e]));
-        const seen = new Set();
-        for (const w of msg.split(/\s+/)) {
-          const e = byName.get(w);
-          if (e && !seen.has(w)) {
-            seen.add(w);
-            msgEmotes.push(e);
-            if (msgEmotes.length >= 12) break;
-          }
-        }
+      const tw = (rec && Array.isArray(rec.list) && rec.list.length) ? new Map(rec.list.map((e) => [e.n, e])) : null;
+      const stv = await fetchChannel7tv(env, ch, chan);
+      const seen = new Set();
+      for (const w of msg.split(/\s+/)) {
+        if (seen.has(w) || msgEmotes.length >= 12) continue;
+        const e = (tw && tw.get(w)) || stv.get(w);
+        if (e) { seen.add(w); msgEmotes.push(e); }
       }
     }
   }
+
+  // Now that avatar / subTier / emotes are resolved, write the enriched recent
+  // entry. SF renders a check-in card from these; the mod UI ignores the extras.
+  recent.unshift({
+    v: vk, display, msg, day: today, ts: now, s: next.s, dup: next.dup,
+    t: next.t, b: next.b, av: avatar, st: subTier, em: msgEmotes,
+    ring: ringFor(next.b), crown: !!crown,
+  });
+  await kvPut(env, KEY.recent(ch), recent.slice(0, RECENT_CAP));
+
   return json({
     ok: true,
     viewer: vk, display, msg,
