@@ -408,6 +408,24 @@ async function subTierFor(env, ch, chan, vk, viewerId) {
   return t;
 }
 
+// Sub tier (0..3) for a RAW Twitch user id on a channel, via the channel's
+// stored token. Used by the supporter gate (patreon-link.js userIsSub) so a
+// Twitch sub = supporter. Returns -1 when it can't be determined (no channel
+// token / Helix scope error) so the caller can fail closed. Not cached here —
+// userIsSub owns the tw_sub:<id> cache.
+export async function viewerSubTierById(env, ch, twitchUserId) {
+  if (!ch || !twitchUserId || !/^\d{1,20}$/.test(String(twitchUserId))) return -1;
+  const chan = await loadChan(env, ch);
+  if (!chan || !chan.userId) return -1;
+  const j = await chanHelix(env, ch, chan, '/subscriptions', { broadcaster_id: chan.userId, user_id: String(twitchUserId) });
+  if (j && j._error) {
+    if (j.status === 404) return 0;   // no sub relationship → not subbed
+    return -1;                         // 401/403 scope, token, or other → unknown
+  }
+  const d = j && j.data && j.data[0];
+  return d ? Math.max(1, Math.min(3, Math.round(Number(d.tier) / 1000) || 1)) : 0;
+}
+
 // Settle a redemption on Twitch: FULFILLED clears the queue, CANCELED
 // refunds the points. Only legal for the reward PunchCard created
 // (Twitch rejects PATCHes on rewards from other apps); silently false

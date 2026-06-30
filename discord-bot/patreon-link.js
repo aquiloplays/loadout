@@ -25,8 +25,35 @@
 // might check the same user in one flow). TTL is short (60s), KV is
 // already fast and we don't want to mask a freshly-linked user.
 
+import { viewerSubTierById } from './punchcard.js';
+
 const _cache = new Map();   // key: g|u → { value, expiresAt }
 const CACHE_TTL_MS = 60 * 1000;
+
+// Supporter = an active Twitch sub (the Patreon-replacement model, 2026-06-30).
+// `userId` is the account id; for Twitch-anchored web users it IS the Twitch
+// user id, so we ask Helix directly via the channel token. The result is cached
+// in `tw_sub:<userId>` KV — the SAME flag the aquilo.gg session mint reads — so
+// this also bootstraps the site's supporter flag. Fail-closed: an indeterminate
+// check (no channel token / scope error) returns false, and the legacy Patreon
+// signals below still grant access to existing patrons.
+export async function userIsSub(env, userId) {
+  if (!env?.LOADOUT_BOLTS || !userId) return false;
+  try {
+    const cached = await env.LOADOUT_BOLTS.get(`tw_sub:${userId}`);
+    if (cached === '0') return false;
+    if (cached) return true;
+  } catch { /* ignore */ }
+  let tier = -1;
+  try { tier = await viewerSubTierById(env, env.CLAY_TWITCH_LOGIN || 'prodigalttv', userId); } catch { /* ignore */ }
+  if (tier < 0) return false; // indeterminate → not a supporter, and don't cache
+  const subbed = tier > 0;
+  try {
+    await env.LOADOUT_BOLTS.put(`tw_sub:${userId}`, subbed ? String(tier) : '0',
+      { expirationTtl: subbed ? 6 * 3600 : 30 * 60 });
+  } catch { /* ignore */ }
+  return subbed;
+}
 
 function cacheKey(guildId, userId) { return `${guildId}|${userId}`; }
 
@@ -50,6 +77,11 @@ export async function userHasPatreon(env, guildId, userId) {
   if (!env?.LOADOUT_BOLTS || !guildId || !userId) return false;
   const cached = cacheGet(guildId, userId);
   if (cached !== undefined) return cached;
+
+  // Signal 0 (the new model), an active Twitch sub = supporter.
+  try {
+    if (await userIsSub(env, userId)) { cacheSet(guildId, userId, true); return true; }
+  } catch { /* ignore */ }
 
   // Signal 1, explicit flag from site OAuth callback.
   try {
@@ -97,6 +129,8 @@ export async function userHasPatreon(env, guildId, userId) {
 // even if their wallet.links still carries a `patreon` entry.
 export async function userHasPaidPatreon(env, userId) {
   if (!env?.LOADOUT_BOLTS || !userId) return false;
+  // An active Twitch sub counts as a paid supporter (the new model).
+  try { if (await userIsSub(env, userId)) return true; } catch { /* ignore */ }
   try {
     const rec = await env.LOADOUT_BOLTS.get(`patreon:tier:${userId}`, { type: 'json' });
     if (!rec) return false;
