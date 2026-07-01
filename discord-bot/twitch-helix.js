@@ -31,6 +31,16 @@ const USER_TOKEN_KEY = 'twitch:user-token-helix';
 // when KV is empty.
 const USER_REFRESH_KEY = 'twitch:user-refresh-helix';
 
+// Central Aquilo ID vault (aquilo.gg/connect). When a broadcaster has
+// connected, their token lives in the shared vault, MINTED BY THE BROKER'S
+// Twitch app — so it must be used with the broker's client_id (a Twitch token
+// is bound to the app that issued it). We fetch it via the service API +
+// cache it locally, and fall back to the legacy self-serve refresh token (this
+// worker's own app) when the vault isn't wired yet or the streamer hasn't
+// connected. This is the Aquilo-ID Phase-2 migration point.
+const BROKER_VAULT_URL = 'https://auth.aquilo.gg/twitch/vault/token';
+const USER_AUTH_KEY = 'twitch:user-auth-vault'; // { token, clientId, expiresAt }
+
 export function isTwitchConfigured(env) {
   return !!(env && env.TWITCH_CLIENT_ID && env.TWITCH_CLIENT_SECRET);
 }
@@ -150,6 +160,40 @@ export async function getUserAccessToken(env) {
   return j.access_token;
 }
 
+// Resolve the broadcaster USER auth as { token, clientId } — vault first
+// (Aquilo ID), legacy self-serve refresh second. Returning the clientId
+// alongside the token is essential: a vault token is issued by the broker's
+// app and 401s if sent with this worker's client_id.
+export async function getUserAuth(env) {
+  if (env.VAULT_SERVICE_SECRET && env.CLAY_TWITCH_CHANNEL_ID) {
+    try {
+      const cached = await env.LOADOUT_BOLTS.get(USER_AUTH_KEY, { type: 'json' });
+      if (cached && cached.token && cached.clientId && cached.expiresAt > Date.now() + 60_000) {
+        return { token: cached.token, clientId: cached.clientId, source: 'vault' };
+      }
+    } catch { /* ignore cache miss */ }
+    try {
+      const res = await fetch(BROKER_VAULT_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ service: env.VAULT_SERVICE_SECRET, twitchId: String(env.CLAY_TWITCH_CHANNEL_ID), role: 'broadcaster' }),
+      });
+      if (res.ok) {
+        const j = await res.json();
+        if (j && j.ok && j.access_token && j.client_id) {
+          const expiresAt = Number(j.expires_at) || (Date.now() + 3000 * 1000);
+          const ttlS = Math.max(60, Math.floor((expiresAt - Date.now()) / 1000) - 60);
+          await env.LOADOUT_BOLTS.put(USER_AUTH_KEY, JSON.stringify({ token: j.access_token, clientId: j.client_id, expiresAt }), { expirationTtl: ttlS });
+          return { token: j.access_token, clientId: j.client_id, source: 'vault' };
+        }
+      }
+    } catch { /* fall through to legacy */ }
+  }
+  // Legacy self-serve refresh token, paired with THIS worker's own app.
+  const token = await getUserAccessToken(env);
+  return token ? { token, clientId: env.TWITCH_CLIENT_ID, source: 'legacy' } : null;
+}
+
 // Generic Helix fetch, handles the Bearer + Client-Id headers, one
 // retry on 401 (token rotated under us). Returns the parsed JSON
 // body or null on failure. Caller decides whether null is an error
@@ -160,9 +204,19 @@ export async function getUserAccessToken(env) {
 // subscription creation for the user-token-only topics).
 export async function helixFetch(env, path, params, opts = {}) {
   if (!isTwitchConfigured(env)) return null;
-  const token = opts.userToken
-    ? await getUserAccessToken(env)
-    : await getAppAccessToken(env);
+  // User-context calls resolve { token, clientId } together — a vault token is
+  // bound to the broker's app, so its client_id must travel with it. App-token
+  // calls use this worker's own client_id.
+  let token;
+  let clientId = env.TWITCH_CLIENT_ID;
+  if (opts.userToken) {
+    const auth = await getUserAuth(env);
+    if (!auth) return null;
+    token = auth.token;
+    clientId = auth.clientId;
+  } else {
+    token = await getAppAccessToken(env);
+  }
   if (!token) return null;
   const u = new URL('https://api.twitch.tv/helix' + path);
   if (params && typeof params === 'object') {
@@ -176,21 +230,27 @@ export async function helixFetch(env, path, params, opts = {}) {
     method: opts.method || 'GET',
     headers: {
       'Authorization': 'Bearer ' + token,
-      'Client-Id':     env.TWITCH_CLIENT_ID,
+      'Client-Id':     clientId,
       ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
     },
     ...(opts.body ? { body: typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body) } : {}),
   };
   let resp = await fetch(u.toString(), init);
   if (resp.status === 401) {
-    // Token died under us, wipe + try once more with a fresh one.
-    const cacheKey = opts.userToken ? USER_TOKEN_KEY : TOKEN_KEY;
-    await env.LOADOUT_BOLTS.delete(cacheKey).catch(() => {});
-    const fresh = opts.userToken
-      ? await getUserAccessToken(env)
-      : await getAppAccessToken(env);
-    if (!fresh) return null;
-    init.headers['Authorization'] = 'Bearer ' + fresh;
+    // Token died under us, wipe caches + try once more with a fresh one.
+    if (opts.userToken) {
+      await env.LOADOUT_BOLTS.delete(USER_AUTH_KEY).catch(() => {});
+      await env.LOADOUT_BOLTS.delete(USER_TOKEN_KEY).catch(() => {});
+      const auth2 = await getUserAuth(env);
+      if (!auth2) return null;
+      init.headers['Authorization'] = 'Bearer ' + auth2.token;
+      init.headers['Client-Id'] = auth2.clientId;
+    } else {
+      await env.LOADOUT_BOLTS.delete(TOKEN_KEY).catch(() => {});
+      const fresh = await getAppAccessToken(env);
+      if (!fresh) return null;
+      init.headers['Authorization'] = 'Bearer ' + fresh;
+    }
     resp = await fetch(u.toString(), init);
   }
   if (resp.status === 204) return { ok: true, status: 204 };
