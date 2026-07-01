@@ -32,6 +32,24 @@ const SLOT_WEIGHT_TOTAL = SLOT_WEIGHTS.reduce((a, b) => a + b, 0);
 
 const cleanName = (s) => String(s || '').replace(/[^\w \-]/g, '').trim().slice(0, 25);
 
+// Star ranks — a persistent tier based on LIFETIME Bolts earned (so it never
+// drops when you gamble the balance away). Drives the rank badge on the panel.
+const RANK_TIERS = [
+  { name: 'Bronze',   min: 0,     stars: 1, color: '#cd7f32' },
+  { name: 'Silver',   min: 1000,  stars: 2, color: '#c9d1d9' },
+  { name: 'Gold',     min: 5000,  stars: 3, color: '#ffd54a' },
+  { name: 'Platinum', min: 20000, stars: 4, color: '#7fe3ff' },
+  { name: 'Diamond',  min: 75000, stars: 5, color: '#b388ff' },
+];
+function rankFor(lifetimeEarned) {
+  const lt = Number(lifetimeEarned) || 0;
+  let idx = 0;
+  for (let i = 0; i < RANK_TIERS.length; i++) if (lt >= RANK_TIERS[i].min) idx = i;
+  const t = RANK_TIERS[idx];
+  const next = RANK_TIERS[idx + 1] || null;
+  return { name: t.name, stars: t.stars, color: t.color, tier: idx, nextAt: next ? next.min : null };
+}
+
 function walletView(w) {
   return {
     balance: w.balance || 0,
@@ -39,6 +57,7 @@ function walletView(w) {
     lifetimeSpent: w.lifetimeSpent || 0,
     dailyStreak: w.dailyStreak || 0,
     lastDailyUtc: w.lastDailyUtc || 0,
+    rank: rankFor(w.lifetimeEarned),
   };
 }
 
@@ -109,7 +128,7 @@ async function handleCasinoLeaderboard(env, guildId, userId) {
     const r = await env.LOADOUT_BOLTS.list({ prefix, cursor, limit: 1000 });
     for (const k of r.keys) {
       const twId = k.name.slice(prefix.length);
-      pending.push(env.LOADOUT_BOLTS.get(k.name, { type: 'json' }).then((w) => ({ twId, balance: (w && w.balance) || 0 })));
+      pending.push(env.LOADOUT_BOLTS.get(k.name, { type: 'json' }).then((w) => ({ twId, balance: (w && w.balance) || 0, lifetime: (w && w.lifetimeEarned) || 0 })));
     }
     if (r.list_complete || !r.cursor) break;
     cursor = r.cursor;
@@ -124,6 +143,7 @@ async function handleCasinoLeaderboard(env, guildId, userId) {
   const entries = top.map((x, i) => ({
     rank: i + 1,
     balance: x.balance,
+    tierRank: rankFor(x.lifetime),
     name: (names[x.twId] && names[x.twId].name) || 'viewer',
     login: (names[x.twId] && names[x.twId].login) || '',
     avatar: (names[x.twId] && names[x.twId].avatar) || '',
