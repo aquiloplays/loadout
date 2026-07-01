@@ -180,13 +180,13 @@ export async function handleStreamOnline(env, broadcasterId) {
   if (!stream) return { ok: false, error: 'stream-offline' };
   const login = await loginFor(env, broadcasterId);
   const payload = buildEmbed({ stream, login });
-  // The role @-mention lives ONLY on the first POST so going live pings
-  // the role once. Refresh PATCHes reuse `payload` (no content field), so
-  // Discord leaves the original text in place and never re-notifies.
-  const pingRoleId = STREAM_PING_ROLE_ID(env);
-  const postPayload = pingRoleId
-    ? { ...payload, content: `<@&${pingRoleId}>`, allowed_mentions: { roles: [pingRoleId] } }
-    : payload;
+  // Owner go-live pings @everyone (per Clay 2026-07-01, replacing the old
+  // Stream Pings role). Only the owner's stream reaches this handler —
+  // EventSub subs exist for Clay's channel only; community streamers
+  // announce via sf-community.js, which never pings. The mention lives
+  // ONLY on this first POST; refresh PATCHes reuse `payload` (no content
+  // field) so Discord never re-notifies.
+  const postPayload = { ...payload, content: '@everyone', allowed_mentions: { parse: ['everyone'] } };
 
   // Idempotent: if KV already tracks a message, PATCH instead of POST.
   const existing = await env.LOADOUT_BOLTS.get(KEY(guildId), { type: 'json' });
