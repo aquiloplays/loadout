@@ -13,7 +13,7 @@
 
 import { json, debounced } from './ext-shared.js';
 import { getWallet, putWallet } from './wallet.js';
-import { sendChatMessage } from './twitch-helix.js';
+import { sendChatMessage, helixFetch } from './twitch-helix.js';
 
 const MIN_BET = 5;
 const MAX_BET = 1000;
@@ -83,6 +83,59 @@ function parseBet(body, balance) {
   return { bet: n };
 }
 
+// Batch-resolve Twitch id → { name, login, avatar } for leaderboard rows.
+async function resolveTwitchUsers(env, ids) {
+  const map = {};
+  const uniq = [...new Set((ids || []).filter((x) => /^\d+$/.test(x)))];
+  for (let i = 0; i < uniq.length; i += 100) {
+    try {
+      const j = await helixFetch(env, '/users', { id: uniq.slice(i, i + 100) });
+      if (j && Array.isArray(j.data)) {
+        for (const u of j.data) map[u.id] = { name: u.display_name || u.login || 'viewer', login: u.login || '', avatar: u.profile_image_url || '' };
+      }
+    } catch { /* best-effort */ }
+  }
+  return map;
+}
+
+// GET /ext/casino/leaderboard — top Bolts holders across the panel (tw:) wallets
+// plus the caller's own rank. Names/avatars resolved via Helix (numeric ids
+// only; anonymous opaque-id wallets can't earn, so they're ~never on the board).
+async function handleCasinoLeaderboard(env, guildId, userId) {
+  const prefix = `wallet:${guildId}:tw:`;
+  const pending = [];
+  let cursor;
+  for (let i = 0; i < 5; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix, cursor, limit: 1000 });
+    for (const k of r.keys) {
+      const twId = k.name.slice(prefix.length);
+      pending.push(env.LOADOUT_BOLTS.get(k.name, { type: 'json' }).then((w) => ({ twId, balance: (w && w.balance) || 0 })));
+    }
+    if (r.list_complete || !r.cursor) break;
+    cursor = r.cursor;
+  }
+  const all = (await Promise.all(pending)).filter((x) => x.balance > 0);
+  all.sort((a, b) => b.balance - a.balance);
+
+  const myTwId = String(userId || '').replace(/^tw:/, '');
+  const myIndex = all.findIndex((x) => x.twId === myTwId);
+  const top = all.slice(0, 10);
+  const names = await resolveTwitchUsers(env, top.map((x) => x.twId));
+  const entries = top.map((x, i) => ({
+    rank: i + 1,
+    balance: x.balance,
+    name: (names[x.twId] && names[x.twId].name) || 'viewer',
+    login: (names[x.twId] && names[x.twId].login) || '',
+    avatar: (names[x.twId] && names[x.twId].avatar) || '',
+  }));
+  return json({
+    ok: true,
+    entries,
+    total: all.length,
+    me: myIndex >= 0 ? { rank: myIndex + 1, balance: all[myIndex].balance } : null,
+  });
+}
+
 // GET /ext/wallet — real balance (drives the panel Wallet tab + header).
 export async function handleExtWallet(env, guildId, userId) {
   const w = await getWallet(env, guildId, userId);
@@ -90,6 +143,10 @@ export async function handleExtWallet(env, guildId, userId) {
 }
 
 export async function handleExtCasino(env, ctx, guildId, userId, payload, sub, req) {
+  if (req.method === 'GET' && sub === 'leaderboard') {
+    return handleCasinoLeaderboard(env, guildId, userId);
+  }
+
   let body = {};
   if (req.method === 'POST') { try { body = await req.json(); } catch { body = {}; } }
   const who = cleanName(body.name) || 'Someone';
