@@ -176,7 +176,16 @@ export async function handleStreamOnline(env, broadcasterId) {
   const channelId = await targetChannelId(env, guildId);
   if (!channelId) return { ok: false, error: 'no-channel' };
 
-  const stream = await getStreamInfo(env, broadcasterId);
+  // Helix /streams frequently lags the stream.online EventSub by a few
+  // seconds, so a first read can return null even though the stream is up.
+  // Retry a few times before giving up — this runs inside ctx.waitUntil
+  // (see twitch-eventsub.js), so it does NOT hold the webhook ACK, and a
+  // race no longer permanently drops the go-live announcement + push.
+  let stream = await getStreamInfo(env, broadcasterId);
+  for (let i = 0; i < 4 && !stream; i++) {
+    await new Promise((res) => setTimeout(res, 2500));
+    stream = await getStreamInfo(env, broadcasterId);
+  }
   if (!stream) return { ok: false, error: 'stream-offline' };
   const login = await loginFor(env, broadcasterId);
   const payload = buildEmbed({ stream, login });
@@ -258,7 +267,15 @@ export async function refreshLiveStatusEmbed(env) {
 
   const stream = await getStreamInfo(env, rec.broadcasterId);
   if (!stream) {
-    // Stream went offline, Helix returned nothing. Clean up.
+    // A single transient Helix null must NOT tear down the live dashboard and
+    // fire a false "VOD is up". The stream.offline EventSub is the primary,
+    // immediate offline signal; this per-minute cron is only a backstop for a
+    // missed event, so require a few consecutive offline reads first.
+    const strikes = (rec.offlineStrikes || 0) + 1;
+    if (strikes < 3) {
+      await env.LOADOUT_BOLTS.put(KEY(guildId), JSON.stringify({ ...rec, offlineStrikes: strikes, updatedUtc: new Date().toISOString() }));
+      return { ok: true, action: 'offline-strike', strikes };
+    }
     return handleStreamOffline(env, rec.broadcasterId);
   }
   const login = await loginFor(env, rec.broadcasterId);
@@ -277,7 +294,7 @@ export async function refreshLiveStatusEmbed(env) {
     }
     return { ok: false, error: 'patch-failed', ...r };
   }
-  const next = { ...rec, updatedUtc: new Date().toISOString() };
+  const next = { ...rec, updatedUtc: new Date().toISOString(), offlineStrikes: 0 };
   if (hypeTrain !== rec.hypeTrain) next.hypeTrain = hypeTrain || undefined;
   await env.LOADOUT_BOLTS.put(KEY(guildId), JSON.stringify(next));
   return { ok: true, action: 'refreshed', viewerCount: stream.viewer_count };
