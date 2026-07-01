@@ -137,7 +137,10 @@ function pruneStale(map, now) {
 
 // ── Discord channel resolver ───────────────────────────────────────
 async function resolveCommunityChannel(env) {
-  const gid = await getActiveGuildId(env);
+  // Fall back to the bot's operating guild (same one postLiveEmbed uses)
+  // when the active-guild pointer hasn't been set, so community + go-live
+  // announcements work without a separate /setup step.
+  const gid = (await getActiveGuildId(env)) || env.AQUILO_VAULT_GUILD_ID;
   if (!gid) return null;
   try {
     const binding = await env.LOADOUT_BOLTS.get(SF_COMMUNITY_BINDING_KEY(gid), { type: 'json' });
@@ -152,7 +155,10 @@ async function resolveCommunityChannel(env) {
 // sf_golive:channel:guild:<gid> when bound; falls back to
 // sf_community so single-channel installs keep working unchanged.
 async function resolveGoLiveChannel(env) {
-  const gid = await getActiveGuildId(env);
+  // Fall back to the bot's operating guild (same one postLiveEmbed uses)
+  // when the active-guild pointer hasn't been set, so community + go-live
+  // announcements work without a separate /setup step.
+  const gid = (await getActiveGuildId(env)) || env.AQUILO_VAULT_GUILD_ID;
   if (!gid) return null;
   try {
     const b = await env.LOADOUT_BOLTS.get(SF_GOLIVE_BINDING_KEY(gid), { type: 'json' });
