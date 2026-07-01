@@ -116,6 +116,11 @@ COUNTING_FAIL_DURATION_MIN = "60"
 # Self-target: this Worker IS the bolts API host post-fold-in.
 LOADOUT_BOLT_API = "https://loadout-discord.aquiloplays.workers.dev/counting/award-bolts"
 CLIPS_CHANNEL_ID = "1507973908089802945"       # 📸│media-and-clips
+# Announcements channel — bidirectional bridge with PWA push: a new human
+# message here → PWA notification, and a site announcement (owner ticks
+# "post to Discord") → an embed posted here by the bot. See announce-channel.js
+# + aquilo/worker.js /counting/message.
+ANNOUNCE_DISCORD_CHANNEL_ID = "1507973900225744936"
 # Twitch live-announce target — set to a "🔴│live" channel id, leave
 # empty to disable. When set + Twitch secrets configured, stream.online
 # EventSub posts an embed here that's refreshed on each :17 cron tick

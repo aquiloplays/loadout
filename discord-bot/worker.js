@@ -1114,6 +1114,12 @@ export default {
       const { handlePushDm } = await import('./push-dm.js');
       return handlePushDm(req, env);
     }
+    // Site announcement → post into the Discord announcements channel
+    // (Direction B of the announce↔push bridge).
+    if (path === '/announce/channel') {
+      const { handleAnnounceChannel } = await import('./announce-channel.js');
+      return handleAnnounceChannel(req, env);
+    }
     // F1, Friends system (HMAC-gated writes, public GETs)
     if (path.startsWith('/web/friends/') || path === '/web/friends') {
       const { handleFriendsRoute } = await import('./friends.js');

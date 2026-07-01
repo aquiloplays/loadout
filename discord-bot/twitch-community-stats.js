@@ -28,6 +28,25 @@ function json(obj, status = 200) {
   });
 }
 
+// Batch-resolve Twitch profile pictures for a set of logins. Helix /users
+// takes up to 100 `login` params per call and works with the APP token
+// (cheaper than the user token). Returns a { login: profile_image_url } map;
+// best-effort (missing logins simply have no avatar).
+async function fetchAvatars(env, logins) {
+  const map = {};
+  const uniq = [...new Set((logins || []).filter(Boolean))];
+  for (let i = 0; i < uniq.length; i += 100) {
+    const batch = uniq.slice(i, i + 100);
+    try {
+      const j = await helixFetch(env, '/users', { login: batch });
+      if (j && Array.isArray(j.data)) {
+        for (const u of j.data) if (u.login) map[u.login] = u.profile_image_url || '';
+      }
+    } catch { /* best-effort per batch */ }
+  }
+  return map;
+}
+
 const MAX_SUB_PAGES = 30;    // up to 3000 subs @ 100/page
 const MAX_SUB_NAMES = 200;   // cap the returned name list (subCount carries the total)
 
@@ -94,10 +113,24 @@ export async function handleTwitchStats(req, env) {
   // ── Top sub gifters (seeded history + forward accumulation) ──
   const { topGifters, topGiftersMonth } = await getGifterStats(env).catch(() => ({ topGifters: [], topGiftersMonth: [] }));
 
+  const shown = subscribers.slice(0, MAX_SUB_NAMES);
+
+  // Attach Twitch profile pictures across all lists (one batched /users call).
+  try {
+    const logins = [
+      ...shown.map((s) => s.login),
+      ...topCheerers.map((c) => c.login), ...topCheerersMonth.map((c) => c.login),
+      ...topGifters.map((g) => g.login), ...topGiftersMonth.map((g) => g.login),
+    ];
+    const avatars = await fetchAvatars(env, logins);
+    const attach = (arr) => { for (const x of arr) { const a = x.login && avatars[x.login]; if (a) x.avatar = a; } };
+    attach(shown); attach(topCheerers); attach(topCheerersMonth); attach(topGifters); attach(topGiftersMonth);
+  } catch { /* avatars best-effort */ }
+
   return json({
     ok: true,
     subCount,
-    subscribers: subscribers.slice(0, MAX_SUB_NAMES),
+    subscribers: shown,
     topCheerers,
     topCheerersMonth,
     topGifters,

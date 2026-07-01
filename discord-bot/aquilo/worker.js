@@ -179,7 +179,28 @@ export async function handleAquiloHttp(req, env, ctx, url) {
       // public-read endpoint serves this back to the website.
       const { handleCommunityChatMessage } = await import('./community-chat.js');
       const chat = await handleCommunityChatMessage(env, payload).catch(e => ({ stored: false, error: String(e?.message || e) }));
-      return json({ ok: true, counting, clip, checkin, chat, via: auth.via });
+      // Announcements bridge (Direction A): a NEW human message in the
+      // announcements channel → PWA push to opted-in subscribers. Bot-authored
+      // messages are ignored so a site→Discord announcement (Direction B, posted
+      // by our bot) never bounces back as a push.
+      let announce = { skipped: true };
+      try {
+        const annId = env.ANNOUNCE_DISCORD_CHANNEL_ID && String(env.ANNOUNCE_DISCORD_CHANNEL_ID);
+        const isAnn = annId && String(payload.channel_id) === annId;
+        const isBot = !!(payload.author && payload.author.bot);
+        const content = String(payload.content || '').trim();
+        if (isAnn && !isBot && content) {
+          const { firePush } = await import('../push.js');
+          announce = await firePush(env, {
+            kind: 'announcements', tag: 'announcements',
+            title: 'New announcement',
+            body: content.slice(0, 300),
+            url: 'https://aquilo.gg/community/',
+            audience: { kind: 'all' },
+          });
+        }
+      } catch (e) { announce = { ok: false, error: String(e && e.message || e) }; }
+      return json({ ok: true, counting, clip, checkin, chat, announce, via: auth.via });
     } catch (e) {
       return json({ error: String(e.message || e) }, 500);
     }
@@ -308,6 +329,8 @@ export async function handleAquiloHttp(req, env, ctx, url) {
     const channels = new Set();
     if (env.COUNTING_CHANNEL_ID) channels.add(String(env.COUNTING_CHANNEL_ID));
     if (env.CLIPS_CHANNEL_ID)    channels.add(String(env.CLIPS_CHANNEL_ID));
+    // Announcements channel → forwarded so a new message there becomes a PWA push.
+    if (env.ANNOUNCE_DISCORD_CHANNEL_ID) channels.add(String(env.ANNOUNCE_DISCORD_CHANNEL_ID));
     try {
       const guildId = await (await import('./bootstrap.js')).getGuildId(env);
       if (env.LOADOUT_BOLT_API && guildId) {
