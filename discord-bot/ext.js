@@ -132,6 +132,10 @@ export async function handleExt(req, env, ctx) {
       const { handleExtHangman } = await import('./ext-hangman.js');
       return await handleExtHangman(env, ctx, guildId, userId, payload, route.slice(8), req);
     }
+    if (route.indexOf('tanks/') === 0) {
+      const { handleExtTanks } = await import('./ext-tanks.js');
+      return await handleExtTanks(env, ctx, guildId, userId, payload, route.slice(6), req);
+    }
     return json({ error: 'not-found' }, 404);
   } catch (e) {
     return json({ error: 'server', message: String((e && e.message) || e) }, 500);
