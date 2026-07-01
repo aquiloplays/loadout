@@ -116,6 +116,10 @@ export async function handleExt(req, env, ctx) {
     if (route.indexOf('rotation/') === 0) {
       return await handleRotation(env, guildId, userId, route.slice(9), req);
     }
+    if (route.indexOf('hangman/') === 0) {
+      const { handleExtHangman } = await import('./ext-hangman.js');
+      return await handleExtHangman(env, ctx, guildId, userId, payload, route.slice(8), req);
+    }
     return json({ error: 'not-found' }, 404);
   } catch (e) {
     return json({ error: 'server', message: String((e && e.message) || e) }, 500);

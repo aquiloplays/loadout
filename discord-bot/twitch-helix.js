@@ -269,6 +269,34 @@ export async function getRecentVod(env, broadcasterId) {
   return j.data[0];
 }
 
+// ── Send a chat message (Helix) ───────────────────────────────────
+//
+// POST /helix/chat/messages as the broadcaster (sender = broadcaster).
+// Requires the broadcaster USER token to carry `user:write:chat` (added
+// to twitch-oauth REQUIRED_SCOPES 2026-07). If the stored token predates
+// that scope, Helix 401/403s and this no-ops — every caller treats chat
+// announcements as best-effort. Returns { ok, ... }.
+export async function sendChatMessage(env, text, opts = {}) {
+  const chanId = opts.broadcasterId || env.CLAY_TWITCH_CHANNEL_ID;
+  const msg = String(text || '').slice(0, 480).trim();
+  if (!chanId || !msg) return { ok: false, skipped: 'unconfigured' };
+  const j = await helixFetch(env, '/chat/messages', null, {
+    method: 'POST',
+    userToken: true,
+    returnErrors: true,
+    body: {
+      broadcaster_id: String(chanId),
+      sender_id: String(opts.senderId || chanId),
+      message: msg,
+    },
+  });
+  if (!j) return { ok: false, skipped: 'no-token-or-scope' };
+  if (j._error) return { ok: false, status: j.status, message: j.message };
+  const d = Array.isArray(j.data) ? j.data[0] : null;
+  if (d && d.is_sent === false) return { ok: false, dropped: d.drop_reason };
+  return { ok: true, id: d && d.message_id };
+}
+
 // ── EventSub subscriptions ────────────────────────────────────────
 //
 // Create a subscription for a given (type, condition) pair. Idempotent

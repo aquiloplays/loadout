@@ -51,6 +51,10 @@ const REQUIRED_SCOPES = [
   'channel:read:polls',
   'channel:read:predictions',
   'channel:moderate',
+  // Lets the worker post chat announcements as the broadcaster via
+  // Helix Send Chat Message (game events, etc.). Re-authorize the OAuth
+  // flow once after this ships so the stored token gains the scope.
+  'user:write:chat',
 ];
 
 function publicWorkerOrigin(env) {
