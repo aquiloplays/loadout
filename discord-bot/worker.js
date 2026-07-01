@@ -1186,6 +1186,12 @@ export default {
       const { handlePublicCommunityLive } = await import('./sf-community.js');
       return handlePublicCommunityLive(req, env);
     }
+    // Owner's Twitch subscriber list + top cheerers + top sub-gifters,
+    // consumed by aquilo.gg's community page (replaces the Patron wall).
+    if (method === 'GET' && path === '/community/twitch-stats') {
+      const { handleTwitchStats } = await import('./twitch-community-stats.js');
+      return handleTwitchStats(req, env);
+    }
 
     // StreamFusion community-night queue manager, see sf-queue.js.
     //   POST /sf/queue          full queue + per-joiner links for the panel
