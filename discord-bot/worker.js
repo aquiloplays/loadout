@@ -1282,6 +1282,16 @@ export default {
             await refreshLiveStatusEmbed(env);
           } catch (e) { console.warn('[cron] live-status refresh', e?.message || e); }
         })());
+        // Auto-announce aquilo.gg-Twitch-linked streamers going live to the
+        // self-promo channel (Helix poll, ping-free). Cheap: one KV list +
+        // one batched /streams call; posts only on live transitions.
+        ctx.waitUntil((async () => {
+          try {
+            const { pollTwitchGoLive } = await import('./golive-twitch-poll.js');
+            const r = await pollTwitchGoLive(env);
+            if (r?.posted) console.log('[cron] golive posted:', r.posted);
+          } catch (e) { console.warn('[cron] golive poll', e?.message || e); }
+        })());
         // (Removed with the Bolts economy sunset: the per-minute
         // Aether + Watchtower-bolts stream-bonus accrual ticks.)
         // 30-minute pre-stream ping. Opt-in via STREAM_PING_CHANNEL, // the helper no-ops (and we skip the import) when it's unset,

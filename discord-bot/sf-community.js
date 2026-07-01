@@ -154,7 +154,7 @@ async function resolveCommunityChannel(env) {
 // Resolve the channel for the SF "going live" embed. Prefers
 // sf_golive:channel:guild:<gid> when bound; falls back to
 // sf_community so single-channel installs keep working unchanged.
-async function resolveGoLiveChannel(env) {
+export async function resolveGoLiveChannel(env) {
   // Fall back to the bot's operating guild (same one postLiveEmbed uses)
   // when the active-guild pointer hasn't been set, so community + go-live
   // announcements work without a separate /setup step.
@@ -204,7 +204,7 @@ function platformLabel(p) {
   return PLATFORM_LABELS[String(p || '').toLowerCase()] || 'Stream';
 }
 
-function liveEmbed(entry) {
+export function liveEmbed(entry) {
   const platLabel = platformLabel(entry.platform);
   const titlePart = entry.title ? `\n*${entry.title}*` : '';
   const fields = [];
@@ -338,13 +338,16 @@ export async function handleCommunityLive(req, env) {
   let posted = null;
   let fanout = null;
   if (isNewSession) {
-    // Live-announce uses the SF go-live binding when set, else the
-    // community binding. Lets Clay separate "X went live" from the
-    // sub/cheer/raid event stream when both channels are wanted.
-    const channel = await resolveGoLiveChannel(env);
-    if (channel) {
-      const r = await postEmbed(env, channel.channelId, liveEmbed(entry));
-      posted = r.ok ? { channelId: channel.channelId, messageId: r.messageId } : { error: r.error };
+    // Twitch go-lives are announced by golive-twitch-poll.js (a Helix poll
+    // of every aquilo.gg-Twitch-linked streamer), so skip Twitch here to
+    // avoid a double-post. SF still announces non-Twitch platforms
+    // (YouTube/Kick/TikTok) via the go-live / community binding.
+    if (String(entry.platform || '').toLowerCase() !== 'twitch') {
+      const channel = await resolveGoLiveChannel(env);
+      if (channel) {
+        const r = await postEmbed(env, channel.channelId, liveEmbed(entry));
+        posted = r.ok ? { channelId: channel.channelId, messageId: r.messageId } : { error: r.error };
+      }
     }
     // G1, fan out 'friend.live' to the streamer's aquilo friends. The
     // SF userId is whatever StreamFusion sends (typically a Twitch
