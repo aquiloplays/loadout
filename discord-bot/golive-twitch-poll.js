@@ -18,8 +18,11 @@
 import { helixFetch, isTwitchConfigured } from './twitch-helix.js';
 import { liveEmbed, resolveGoLiveChannel } from './sf-community.js';
 
-const LINK_PREFIX = 'golive:tw:link:';
-const STATE_KEY   = (id) => 'golive:tw:live:' + id;
+const LINK_PREFIX   = 'golive:tw:link:';
+const STATE_KEY     = (id) => 'golive:tw:live:' + id;
+// Current-live set published for aquilo.gg's /community/live radar (merged
+// in by sf-community.js handlePublicCommunityLive). Keep the string in sync.
+const TW_LIVEMAP_KEY = 'golive:tw:livemap';
 const STATE_TTL_S = 24 * 60 * 60;   // self-heals if an offline transition is ever missed
 
 export async function pollTwitchGoLive(env) {
@@ -58,6 +61,32 @@ export async function pollTwitchGoLive(env) {
       cleared++;
     }
   }
+
+  // Publish the current live set for aquilo.gg's /community/live radar, so
+  // the site shows live aquilo.gg-Twitch-linked streamers even without
+  // StreamFusion (the homepage grid renders these when the owner is
+  // offline). Single writer (this poller), rewritten each tick — no races.
+  const liveMap = {};
+  for (const id of ids) {
+    const s = liveById.get(String(id));
+    if (!s) continue;
+    const login = s.user_login || '';
+    liveMap[String(id)] = {
+      name:         s.user_name || login,
+      platform:     'twitch',
+      channel:      login,
+      url:          login ? 'https://twitch.tv/' + login : undefined,
+      title:        s.title || '',
+      game:         s.game_name || '',
+      viewers:      Number.isFinite(+s.viewer_count) ? +s.viewer_count : null,
+      thumbnailUrl: (s.thumbnail_url || '').replace('{width}', '440').replace('{height}', '248') || undefined,
+      startedAt:    Date.parse(s.started_at || '') || Date.now(),
+      lastSeen:     Date.now(),
+      live:         true,
+    };
+  }
+  await env.LOADOUT_BOLTS.put(TW_LIVEMAP_KEY, JSON.stringify(liveMap)).catch(() => {});
+
   return { ok: true, linked: ids.length, live: liveById.size, posted, cleared };
 }
 

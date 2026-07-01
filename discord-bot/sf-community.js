@@ -442,16 +442,29 @@ export async function handlePublicCommunityLive(req, env) {
     // hit. Don't block on it, the response is what matters.
     await writeLiveMap(env, map).catch(() => {});
   }
-  const list = Object.values(map).map((e) => ({
-    name:      e.name,
-    platform:  e.platform,
-    channel:   e.channel,
-    url:       e.url,
-    title:     e.title,
-    game:      e.game,
-    viewers:   e.viewers != null ? e.viewers : null,
-    startedAt: e.startedAt,
-    lastSeen:  e.lastSeen,
+  // Merge in aquilo.gg-Twitch-linked live streamers published by
+  // golive-twitch-poll.js (Helix poll — shows live streamers on the site
+  // even when nobody runs StreamFusion). In-memory prune only; the poller
+  // owns 'golive:tw:livemap', we never write it back here.
+  let twMap = {};
+  try {
+    const raw = await env.LOADOUT_BOLTS.get('golive:tw:livemap', { type: 'json' });
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) twMap = raw;
+  } catch { /* ignore */ }
+  pruneStale(twMap, now);
+  // StreamFusion entries win over the poll for the same streamer id.
+  const merged = { ...twMap, ...map };
+  const list = Object.values(merged).map((e) => ({
+    name:         e.name,
+    platform:     e.platform,
+    channel:      e.channel,
+    url:          e.url,
+    title:        e.title,
+    game:         e.game,
+    viewers:      e.viewers != null ? e.viewers : null,
+    thumbnailUrl: e.thumbnailUrl || null,
+    startedAt:    e.startedAt,
+    lastSeen:     e.lastSeen,
   }));
   list.sort((a, b) => {
     const av = a.viewers == null ? -1 : a.viewers;
