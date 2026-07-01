@@ -25,6 +25,16 @@ import { getBranding } from './branding.js';
 
 const HUB_MSG_KEY = (key, g) => `${key}:hub-msg:${g}`;
 
+// Daily check-in moved to the website (2026-07): the check-in hub
+// button is now a LINK button to aquilo.gg/checkin. Resolve the
+// per-guild site origin (falls back to aquilo.gg).
+async function checkinSiteUrl(env, guildId) {
+  try {
+    const brand = await getBranding(env, guildId);
+    return String(brand?.siteUrl || 'https://aquilo.gg').replace(/\/+$/, '');
+  } catch { return 'https://aquilo.gg'; }
+}
+
 const RESP_CHAT          = 4;
 const RESP_MODAL         = 9;
 const FLAG_EPHEMERAL     = 64;
@@ -47,14 +57,17 @@ const HUBS = Object.freeze({
     color: 0x42c97a,
     channelHints: ['check-in', 'checkin', 'daily'],
     description:
-      'Check in once a day to build a streak.\n\n' +
-      '• Tap **Check in now** to log today and pick a GIF for your card\n' +
+      'Check in once a day on the website to build your streak.\n\n' +
+      '• Tap **Check in on aquilo.gg** to log today\n' +
       '• **My streak** shows your current run',
-    footer: '/checkin still works if you prefer typing.',
-    buttons: () => [
-      { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Check in now',  custom_id: 'checkin:run'    },
-      { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'My streak',     custom_id: 'checkin:streak' },
-    ],
+    footer: 'Daily check-in lives on aquilo.gg now.',
+    buttons: async (env, guildId) => {
+      const site = await checkinSiteUrl(env, guildId);
+      return [
+        { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'Check in on aquilo.gg', url: `${site}/checkin` },
+        { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'My streak',             custom_id: 'checkin:streak' },
+      ];
+    },
   },
   // (Bolts economy sunset 2026-06: the `bolts` (wallet) and `play`
   // (Boltbound + quick games) hubs were removed from the catalogue.)
@@ -236,15 +249,12 @@ export async function handleCheckinHubComponent(env, data) {
   if (!userId || !guildId) return eph('Run this in a server.');
 
   if (action === 'run') {
-    // Re-emit through the canonical /checkin slash handler. The
-    // older alias `handleCheckinSlashCommand` in aquilo/checkin-slash.js
-    // was retired during the May 2026 consolidation, calling it
-    // crashed with "interaction failed" because the import resolved
-    // to undefined. handleCheckinCommand in community-checkin.js
-    // reads only data.guild_id + data.member.user.id so it's
-    // happy with a button-interaction shape (no .options needed).
-    const { handleCheckinCommand } = await import('./community-checkin.js');
-    return handleCheckinCommand(env, data);
+    // Daily check-in moved to the website (2026-07). New hub posts use
+    // a LINK button (above), but any hub message already posted to a
+    // channel still carries the old `checkin:run` custom_id — redirect
+    // those clicks to aquilo.gg/checkin instead of opening the modal.
+    const site = await checkinSiteUrl(env, guildId);
+    return eph(`✅ Daily check-in has moved to the website — check in at ${site}/checkin`);
   }
   if (action === 'streak') {
     try {
@@ -252,7 +262,7 @@ export async function handleCheckinHubComponent(env, data) {
       const s = await getStatus(env, guildId, userId);
       return ephEmbed({
         title: '🔥 Your check-in streak',
-        description: `Current: **${s.current || 0}** · Best: **${s.longest || 0}** · Total: **${s.total || 0}**`,
+        description: `Current: **${s.streak || 0}** · Best: **${s.longest || 0}** · Total: **${s.total || 0}**`,
         color: 0x42c97a,
       });
     } catch {

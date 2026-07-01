@@ -734,29 +734,19 @@ export function handleCheckinCommand(env, data) {
   if (!guildId || !userId) {
     return { type: 4, data: { content: 'Run this in a server.', flags: 64 } };
   }
-  // Open the compose modal. recordCheckin doesn't fire until the
-  // user picks a GIF (handleCheckinPickSubmit) so the streak / XP
-  // only credit ONCE the full compose flow completes.
+  // Daily check-in moved to the website (2026-07). Discord no longer
+  // records check-ins; the same streak (POST /web/checkin →
+  // recordCheckin, source 'web') is credited on aquilo.gg. Both the
+  // /checkin slash command and the #check-in hub "run" button funnel
+  // through here, so this single redirect neutralises both.
   return {
-    type: 9, // APPLICATION_MODAL
+    type: 4,
     data: {
-      custom_id: MODAL_COMPOSE_ID,
-      title: 'Daily check-in',
-      components: [
-        { type: 1, components: [{
-            type: 4, custom_id: 'q',
-            label: '🎬 Search for a GIF',
-            style: 1, required: true,
-            min_length: 1, max_length: 80,
-            placeholder: 'e.g. coffee, monday, victory dance',
-          }] },
-        { type: 1, components: [{
-            type: 4, custom_id: 'message',
-            label: "💬 Today's message (optional)",
-            style: 2, required: false, max_length: 300,
-            placeholder: "How's today going? Share a thought or vibe.",
-          }] },
-      ],
+      content:
+        '✅ **Daily check-in is on the website now.**\n' +
+        'Check in at https://aquilo.gg/checkin — sign in with Twitch and tap **Check in**. ' +
+        'Your streak carries over (same account, one check-in per day).',
+      flags: 64,
     },
   };
 }
@@ -859,6 +849,20 @@ export async function handleCheckinPickSubmit(env, data) {
   if (!userId || !guildId) {
     return { type: 4, data: { content: 'Run this in a server.', flags: 64 } };
   }
+  // Daily check-in moved to the website (2026-07). This is the only
+  // place the Discord compose flow commits a check-in (recordCheckin
+  // below). The compose modal is disabled (handleCheckinCommand now
+  // redirects), so users can't reach here normally — but a GIF-picker
+  // ephemeral opened just before deploy could still fire. Refuse to
+  // commit and point at aquilo.gg instead.
+  return {
+    type: 4,
+    data: {
+      content: '✅ Daily check-in has moved to https://aquilo.gg/checkin — check in there instead.',
+      flags: 64,
+    },
+  };
+  // eslint-disable-next-line no-unreachable -- legacy compose-commit path retained for reference / possible re-enable
   const cid = data?.data?.custom_id || '';
   const m = cid.match(/^ci2:pick:([A-Za-z0-9-]+):(\d+)$/);
   if (!m) return { type: 4, data: { content: 'Bad pick ID.', flags: 64 } };

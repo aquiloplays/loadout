@@ -168,8 +168,12 @@ export async function handleAquiloHttp(req, env, ctx, url) {
     try {
       const counting = await handleCountingMessage(env, payload);
       const clip = await trackClipMessage(env, payload).catch(() => ({ tracked: false }));
-      const { handleCheckinMessage } = await import('./checkin.js');
-      const checkin = await handleCheckinMessage(env, payload).catch(e => ({ error: String(e?.message || e) }));
+      // Daily check-in moved to the website (2026-07): posting an image
+      // in the check-in channel no longer records a Discord check-in
+      // (nor reacts ✅ / posts streak milestones). Users check in at
+      // aquilo.gg/checkin instead. handleCheckinMessage left in place
+      // (checkin.js) but no longer fanned out from here.
+      const checkin = { skipped: 'moved-to-website' };
       // Community-chat ringbuffer, drops the message into KV if the
       // channel is in COMMUNITY_CHAT_CHANNELS_JSON. The /community/chat
       // public-read endpoint serves this back to the website.

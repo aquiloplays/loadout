@@ -508,7 +508,7 @@ async function viewTour(env, guildId) {
   // break the embed. Skip missing slots gracefully.
   const ch = (slot) => ids[slot] ? `<#${ids[slot]}>` : null;
   const lines = [];
-  if (ch('ch_checkin'))   lines.push(`• Daily check-ins → ${ch('ch_checkin')} (or \`/checkin\`)`);
+  lines.push(`• Daily check-in → ${brand.siteUrl}/checkin`);
   if (ch('ch_lfg'))       lines.push(`• Looking for game → ${ch('ch_lfg')} (or \`/lfg create\`)`);
   if (ch('ch_games'))     lines.push(`• Game hub → ${ch('ch_games')}`);
   if (ch('ch_highlights'))lines.push(`• Top posts wall → ${ch('ch_highlights')}`);
@@ -543,7 +543,7 @@ async function viewComplete(env, guildId, userId, state, grantInfo) {
       title: '🏁 You\'re onboarded!',
       description:
         grantLine +
-        `\n\nNext up: try \`/checkin\` for today, ` +
+        `\n\nNext up: check in at ${brand.siteUrl}/checkin for today, ` +
         `or just hang out and watch the stream. Welcome to ${brand.brandName}.`,
       color: brand.accentColor,
     }],

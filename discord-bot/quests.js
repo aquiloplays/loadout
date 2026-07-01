@@ -46,7 +46,7 @@ export const STEPS = [
   // Twitch-link step can slot in here when the identity work lands.)
   {
     id:     'first-checkin',
-    label:  'Do your first community check-in',
+    label:  'Check in on aquilo.gg (aquilo.gg/checkin)',
     completion: async (env, g, u) => {
       const s = await getCheckinStatus(env, g, u);
       return (s.total || 0) > 0;
