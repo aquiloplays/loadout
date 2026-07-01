@@ -100,34 +100,14 @@ def build_tray(app):
         except Exception:
             pass
 
-    def _push_to_aitum(icon, item):
-        """Re-push the active TikTok credentials into Aitum's config (handy
-        if the auto-push at Go Live missed or you opened OBS afterward)."""
-        try:
-            r = app.controller.push_to_aitum()
-            if r.get("writeOk"):
-                msg = f"Updated {r.get('outputs', 0)} output(s) in Aitum config."
-            else:
-                msg = r.get("reason") or "Nothing to push (no active credentials?)"
-            try:
-                icon.notify(msg, "Aitum push")
-            except Exception:
-                pass
-        except Exception:
-            pass
-
     def _go_with_preset(name):
         """Run preset Go Live on a background thread so pystray's menu
-        callback doesn't block while Streamlabs + Aitum sequence runs."""
+        callback doesn't block on the Streamlabs call."""
         def runner():
             try:
                 r = app.controller.quick_go_live(name)
                 if r.get("ok"):
-                    body = f"TikTok session created ({name})"
-                    a = r.get("aitum") or {}
-                    if a.get("active"): body += "; Aitum streaming."
-                    elif a.get("startOk"): body += "; Aitum started."
-                    elif a.get("writeOk"): body += "; Aitum config updated, start it manually."
+                    body = f"TikTok session created ({name}). Stream key copied on the dock; paste into Aitum."
                 else:
                     body = r.get("reason") or r.get("message") or "Go Live failed."
                 try: app._icon.notify(body, "Quick Go Live")
@@ -176,7 +156,6 @@ def build_tray(app):
         pystray.MenuItem("Open dock", lambda icon, item: webbrowser.open(DOCK_URL)),
         pystray.MenuItem("Check for updates", lambda icon, item: app.check_update(manual=True)),
         pystray.MenuItem("Refresh TikTok categories", _refresh_categories),
-        pystray.MenuItem("Push key to Aitum now", _push_to_aitum),
         pystray.MenuItem("Downloads / releases", lambda icon, item: webbrowser.open(RELEASES_URL)),
         pystray.MenuItem("Install desktop / taskbar shortcut", _install_shortcut),
         pystray.MenuItem("Start with Windows", _toggle_autostart,
