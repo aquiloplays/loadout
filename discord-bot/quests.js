@@ -39,30 +39,11 @@ export const STEPS = [
     label:  'Join the Aquilo Discord',
     completion: async () => true,   // they're in the guild if they're calling
   },
-  {
-    id:     'linked-patreon',
-    label:  'Link your Patreon account',
-    // Completes when ANY of these signals are present:
-    //   (a) /web/quest/mark-patreon-linked has been called for this
-    //       (guild, user) → explicit `quest:patreon-linked:<g>:<u>` flag.
-    //   (b) patreon:tier:<userId> exists in KV (aquilo-site's OAuth
-    //       callback writes it, BUT only if the Patreon profile has
-    //       a non-empty image_url, see functions/api/link/[[route]].js
-    //       around line 312, the write is gated on patreonImageUrl).
-    //       Many real users (especially Patreon-only freebies) don't
-    //       carry an avatar, so this signal is unreliable.
-    // (Bolts economy sunset: the former wallet.links signal (c) is
-    // gone with the wallet module; (a) the explicit mark flag is the
-    // reliable signal and (b) is a best-effort fallback.)
-    completion: async (env, g, u) => {
-      if (await env.LOADOUT_BOLTS.get(PATREON_FLAG_KEY(g, u))) return true;
-      try {
-        const { isPatron } = await import('./progression/linking.js');
-        if (await isPatron(env, u)) return true;
-      } catch { /* idle */ }
-      return false;
-    },
-  },
+  // (Patreon-link step removed 2026-07-01 — Patreon is retired in the
+  // Twitch-native pivot. The markPatreonLinked mutator + PATREON_FLAG_KEY
+  // are left in place so the site's legacy POST /web/quest/mark-patreon-
+  // linked still 200s; it just no longer maps to a checklist step. A
+  // Twitch-link step can slot in here when the identity work lands.)
   {
     id:     'first-checkin',
     label:  'Do your first community check-in',

@@ -226,12 +226,11 @@ export async function handleCheckinMessage(env, payload) {
   ).bind(guildId, userId).first();
 
   // Idempotent within an ET day: a user posting 5 pics today still
-  // only counts as 1 check-in. They get the ✅ on EACH post though so
-  // they know the post was acknowledged (counting also reacts on each
-  // valid count -- consistent UX).
+  // only counts as 1 check-in, and ONLY the first qualifying pic of the
+  // day gets the ✅. 2026-07-01: stopped reacting to every subsequent
+  // picture — the bot ✅-ing every image read as reaction spam. Later
+  // pics are silently ignored (the streak is already banked).
   if (row && row.last_day_et === today) {
-    try { await reactToMessage(env, payload.channel_id, _msgIdOf(payload), '✅'); }
-    catch { /* idle */ }
     return { ok: true, already: true, streak: row.current_days };
   }
 
