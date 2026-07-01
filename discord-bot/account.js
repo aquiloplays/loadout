@@ -277,6 +277,17 @@ export async function handleAccount(req, env, path) {
   try {
     if (req.method === 'GET' && route === 'oauth/start') return await handleOauthStart(env, url);
     if (req.method === 'GET' && route === 'me') return await handleMe(req, env);
+    // Twitch category autocomplete for signed-in users (reuses the worker's
+    // Twitch app token via scene-themer; 24h-cached). Powers the Gift Guide
+    // profile-name picker so game names match Twitch categories exactly.
+    if (req.method === 'GET' && route === 'twitch-categories') {
+      const sess = await sessionFrom(req, env);
+      if (!sess) return json({ ok: false, error: 'signin' }, 401);
+      const q = (url.searchParams.get('q') || '').trim();
+      if (q.length < 2) return json({ ok: true, categories: [] });
+      const { searchTwitchCategories } = await import('./scene-themer.js');
+      return json({ ok: true, categories: await searchTwitchCategories(env, q) });
+    }
     if (req.method === 'POST') {
       let body = {};
       try { const t = await req.text(); body = t ? JSON.parse(t) : {}; } catch { return json({ ok: false, error: 'bad-json' }, 400); }

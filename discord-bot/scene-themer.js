@@ -586,7 +586,7 @@ export async function handleChannelUpdate(env, payload) {
 // { id, name, box_art_url }. Cached per (q lowercased) for 24 h in
 // LOADOUT_BOLTS to mirror the resolveTwitchLogin cache shape.
 
-async function searchTwitchCategories(env, q) {
+export async function searchTwitchCategories(env, q) {
   const query = String(q || '').trim().slice(0, 60);
   if (!query) return [];
   const ckey = 'scene-themer:helix:cat:' + query.toLowerCase();
