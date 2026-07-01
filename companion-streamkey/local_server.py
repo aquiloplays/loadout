@@ -232,10 +232,17 @@ class Controller:
             self._last_audience = audience
             out = dict(self.creds)
         log("start: live session created ok")
-        # Push credentials into Aitum + auto-start its output so the user
-        # never has to paste a key into Aitum. Best-effort: any failure is
-        # logged and surfaced via /aitum/status but does NOT fail Go Live.
-        aitum = self._push_to_aitum(url, key, auto_start=True)
+        # Aitum auto-push is opt-in (settings.aitumAutoPush). Off by default
+        # because the OBS profile bounce was visually disruptive and broke
+        # Clay's TikTok stream attempt. When off: dock returns the fresh
+        # key, user manually pastes into Aitum (the v0.2.1-style flow).
+        # When on: write key to aitum.json + bounce profile + start_output.
+        # Tray "Push key to Aitum now" still works regardless of this flag.
+        auto_push = bool(user_settings.load().get("aitumAutoPush"))
+        if auto_push:
+            aitum = self._push_to_aitum(url, key, auto_start=True)
+        else:
+            aitum = {"skipped": True, "reason": "auto-push disabled in settings"}
         out["aitum"] = aitum
         # Remember this Go Live so the tray menu can offer a Repeat Last.
         # `start()` is also called by recover_session; that path passes
@@ -251,11 +258,13 @@ class Controller:
                 )
             except Exception as e:  # noqa: BLE001
                 log(f"presets: record_last failed: {str(e)[:120]}", "warning")
-        # Long-stream watchdog watches for TikTok dropping the session.
-        try:
-            self._watchdog.start()
-        except Exception as e:  # noqa: BLE001
-            log(f"watchdog start failed: {str(e)[:120]}", "warning")
+        # Long-stream watchdog only runs when auto-push is on (recovery
+        # without push wouldn't actually restore the broadcast end-to-end).
+        if auto_push:
+            try:
+                self._watchdog.start()
+            except Exception as e:  # noqa: BLE001
+                log(f"watchdog start failed: {str(e)[:120]}", "warning")
         # Track stats for the end-of-stream webhook and reset on a fresh
         # Go Live (a recover_session keeps the existing startedAt so the
         # duration includes the gap; only a brand-new start() resets it).
@@ -341,14 +350,16 @@ class Controller:
             self._watchdog.stop()
         except Exception:
             pass
-        # Stop Aitum's TikTok output first so the broadcast actually ends
-        # at the encoder. Best-effort; failures are logged.
-        try:
-            r = obs_ws.aitum_stop_output(self.AITUM_OUTPUT_NAME)
-            if not r.get("ok"):
-                log(f"end: aitum stop_output: {r.get('reason')}", "warning")
-        except Exception as e:  # noqa: BLE001
-            log(f"end: aitum stop_output error: {str(e)[:120]}", "warning")
+        # Only touch Aitum on End if auto-push was the path that started it.
+        # When auto-push is off, the user is driving Aitum manually; we must
+        # NOT silently stop their output.
+        if user_settings.load().get("aitumAutoPush"):
+            try:
+                r = obs_ws.aitum_stop_output(self.AITUM_OUTPUT_NAME)
+                if not r.get("ok"):
+                    log(f"end: aitum stop_output: {r.get('reason')}", "warning")
+            except Exception as e:  # noqa: BLE001
+                log(f"end: aitum stop_output error: {str(e)[:120]}", "warning")
         if api is None:
             with self._lock:
                 self.live = False

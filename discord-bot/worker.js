@@ -480,6 +480,12 @@ export default {
         const { handlePunchcardOauthCallback } = await import('./punchcard.js');
         return handlePunchcardOauthCallback(req, env);
       }
+      // Aquilo account sign-in reuses the same registered redirect; its
+      // states carry 'ac1.' and route to account.js.
+      if ((url.searchParams.get('state') || '').startsWith('ac1.')) {
+        const { handleAccountOauthCallback } = await import('./account.js');
+        return handleAccountOauthCallback(req, env);
+      }
       const { handleTwitchOauthCallback } = await import('./twitch-oauth.js');
       return handleTwitchOauthCallback(req, env);
     }
@@ -723,6 +729,17 @@ export default {
     if (path.startsWith('/api/punchcard/')) {
       const { handlePunchcard } = await import('./punchcard.js');
       return handlePunchcard(req, env, path);
+    }
+    // Aquilo account + cross-product settings (sign in with Twitch or
+    // Patreon; per-account settings sync). Free for anyone signed in.
+    // Self-contained, uses LOADOUT_BOLTS with its own acct:* keys.
+    if (path.startsWith('/api/account/')) {
+      const { handleAccount } = await import('./account.js');
+      return handleAccount(req, env, path);
+    }
+    if (path.startsWith('/api/settings/')) {
+      const { handleSettings } = await import('./account.js');
+      return handleSettings(req, env, path);
     }
     // PowerDeck Pack Workshop: community registry for custom challenge
     // card packs (create/update via edit keys, public gallery, fetch by
