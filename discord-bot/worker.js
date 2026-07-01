@@ -707,6 +707,12 @@ export default {
     if (path === '/api/twitch/login') {
       return handleTwitchLogin(req, env);
     }
+    // Public: GET /api/twitch/category?login=<user> → the channel's current
+    // category via Helix (app token). Powers Gift Guide direct-mode auto-switch
+    // without a third-party (decapi) dependency. CORS-open, short-cached.
+    if (path === '/api/twitch/category') {
+      return handleTwitchCategory(req, env);
+    }
     // StreamFusion chat dock backend: premium gate, Haiku translate proxy,
     // mod/clip stubs. See sfdock.js.
     if (path.startsWith('/api/sfdock/')) {
@@ -2374,6 +2380,37 @@ async function handleTwitchLogin(req, env) {
   };
   if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
   return new Response(JSON.stringify(data), { status: data.ok ? 200 : 502, headers });
+}
+
+// GET /api/twitch/category?login=<user> — the channel's CURRENT category via
+// Helix (app token). Public data; CORS-open, edge-cached ~12s. Lets the Gift
+// Guide overlay auto-switch by category without the third-party decapi proxy.
+async function handleTwitchCategory(req, env) {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, OPTIONS',
+    'access-control-allow-headers': '*',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=12', ...cors };
+  const login = (new URL(req.url).searchParams.get('login') || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+  if (!login) return new Response(JSON.stringify({ ok: false, error: 'no-login', game: '' }), { status: 200, headers });
+  try {
+    const { getTwitchAppToken } = await import('./ext-loadout.js');
+    const token = await getTwitchAppToken(env);
+    if (!token || !env.TWITCH_CLIENT_ID) throw new Error('no-token');
+    const h = { 'Client-Id': env.TWITCH_CLIENT_ID, Authorization: 'Bearer ' + token };
+    const ur = await fetch('https://api.twitch.tv/helix/users?login=' + encodeURIComponent(login), { headers: h });
+    const uj = await ur.json();
+    const user = uj && uj.data && uj.data[0];
+    if (!user) return new Response(JSON.stringify({ ok: true, login, game: '' }), { status: 200, headers });
+    const cr = await fetch('https://api.twitch.tv/helix/channels?broadcaster_id=' + user.id, { headers: h });
+    const cj = await cr.json();
+    const ch = cj && cj.data && cj.data[0];
+    return new Response(JSON.stringify({ ok: true, login, game: (ch && ch.game_name) || '' }), { status: 200, headers });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: String(e && e.message || e).slice(0, 50), game: '' }), { status: 200, headers });
+  }
 }
 
 // ── Community-activity SSE feed ─────────────────────────────────

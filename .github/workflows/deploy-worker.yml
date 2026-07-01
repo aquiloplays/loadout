@@ -1,13 +1,17 @@
 name: Deploy worker
 
-# Auto-deploys the discord-bot Cloudflare Worker on every push to main.
+# Auto-deploys the discord-bot Cloudflare Worker on every push to the LIVE
+# branch (sunset/remove-economy — that IS production for this worker; main is
+# an older line, so deploying main would REVERT the worker). Deploying from
+# git this way ends the "wrangler deploy ships a stale local working tree and
+# reverts someone else's deploy" hazard — every deploy reflects origin.
 # Applies all pending D1 migrations first, then runs wrangler deploy.
 # One-time setup: add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
 # as repo secrets at https://github.com/aquiloplays/loadout/settings/secrets/actions
 
 on:
   push:
-    branches: [main]
+    branches: [sunset/remove-economy]
     paths:
       - 'discord-bot/**'
       - '.github/workflows/deploy-worker.yml'
