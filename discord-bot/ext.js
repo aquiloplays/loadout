@@ -83,12 +83,17 @@ export async function handleExt(req, env, ctx) {
     // (Bolts economy sunset: the hero / wallet / daily / leaderboard /
     // dungeon / minigame / duel / lootbox / quick / bets / boltbound
     // panel routes were removed.)
-    // Economy sunset removed the wallet, but the panel's probeLoadout()
-    // gates the WHOLE Loadout view (every tab, including Hangman) on a
-    // 200 from here. Return a benign OK so the still-live surfaces
-    // (check-in / songs / schedule / VODs / Hangman) open for viewers.
+    // Bolts wallet (revived 2026-07). Real balance drives the panel
+    // Wallet tab + header AND satisfies probeLoadout()'s 200 gate on the
+    // whole Loadout view. See ext-casino.js.
     if (req.method === 'GET' && route === 'wallet') {
-      return json({ ok: true, wallet: null });
+      const { handleExtWallet } = await import('./ext-casino.js');
+      return await handleExtWallet(env, guildId, userId);
+    }
+    // Bolts casino — daily claim + slots/coinflip/dice, worker-authoritative.
+    if (route.indexOf('casino/') === 0) {
+      const { handleExtCasino } = await import('./ext-casino.js');
+      return await handleExtCasino(env, ctx, guildId, userId, payload, route.slice(7), req);
     }
     if (req.method === 'POST' && route === 'checkin') {
       return await extCheckin(env, guildId, userId, req);
