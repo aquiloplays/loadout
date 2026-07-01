@@ -17,10 +17,15 @@
 // Twitch app token (client-credentials, cached), used to resolve a
 // gift recipient's login name to a numeric id, and reused by the
 // Tier 1 /ext/vods route.
-export async function getTwitchAppToken(env) {
+// `force` skips (and clears) the cache to mint a brand-new token — used by
+// helixGet() below to self-heal when a cached token has gone invalid (e.g.
+// the app secret was rotated), which otherwise makes Helix silently 401.
+export async function getTwitchAppToken(env, force) {
   if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET) return null;
-  const cached = await env.LOADOUT_BOLTS.get('twitch:apptoken');
-  if (cached) return cached;
+  if (!force) {
+    const cached = await env.LOADOUT_BOLTS.get('twitch:apptoken');
+    if (cached) return cached;
+  }
   try {
     const res = await fetch('https://id.twitch.tv/oauth2/token', {
       method: 'POST',
@@ -36,6 +41,28 @@ export async function getTwitchAppToken(env) {
       expirationTtl: Math.max(60, (d.expires_in || 3600) - 600),
     });
     return d.access_token;
+  } catch {
+    return null;
+  }
+}
+
+// Helix GET that SELF-HEALS a stale app token: fetch with the cached token,
+// and on a 401 mint a fresh one once and retry. Returns the Response (or null
+// if no token could be obtained). `path` is everything after /helix/.
+export async function helixGet(env, path) {
+  if (!env.TWITCH_CLIENT_ID) return null;
+  let token = await getTwitchAppToken(env);
+  if (!token) return null;
+  const go = (t) => fetch('https://api.twitch.tv/helix/' + path, {
+    headers: { 'Client-Id': env.TWITCH_CLIENT_ID, Authorization: 'Bearer ' + t },
+  });
+  try {
+    let res = await go(token);
+    if (res.status === 401) {                 // token invalid → re-mint + retry once
+      token = await getTwitchAppToken(env, true);
+      if (token) res = await go(token);
+    }
+    return res;
   } catch {
     return null;
   }

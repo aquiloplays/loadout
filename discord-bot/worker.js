@@ -2396,15 +2396,14 @@ async function handleTwitchCategory(req, env) {
   const login = (new URL(req.url).searchParams.get('login') || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
   if (!login) return new Response(JSON.stringify({ ok: false, error: 'no-login', game: '' }), { status: 200, headers });
   try {
-    const { getTwitchAppToken } = await import('./ext-loadout.js');
-    const token = await getTwitchAppToken(env);
-    if (!token || !env.TWITCH_CLIENT_ID) throw new Error('no-token');
-    const h = { 'Client-Id': env.TWITCH_CLIENT_ID, Authorization: 'Bearer ' + token };
-    const ur = await fetch('https://api.twitch.tv/helix/users?login=' + encodeURIComponent(login), { headers: h });
+    const { helixGet } = await import('./ext-loadout.js');
+    const ur = await helixGet(env, 'users?login=' + encodeURIComponent(login));
+    if (!ur || !ur.ok) throw new Error('helix-users-' + (ur ? ur.status : 'no-token'));
     const uj = await ur.json();
     const user = uj && uj.data && uj.data[0];
     if (!user) return new Response(JSON.stringify({ ok: true, login, game: '' }), { status: 200, headers });
-    const cr = await fetch('https://api.twitch.tv/helix/channels?broadcaster_id=' + user.id, { headers: h });
+    const cr = await helixGet(env, 'channels?broadcaster_id=' + user.id);
+    if (!cr || !cr.ok) throw new Error('helix-channels-' + (cr ? cr.status : 'no-token'));
     const cj = await cr.json();
     const ch = cj && cj.data && cj.data[0];
     return new Response(JSON.stringify({ ok: true, login, game: (ch && ch.game_name) || '' }), { status: 200, headers });
