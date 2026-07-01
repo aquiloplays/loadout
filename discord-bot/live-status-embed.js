@@ -199,7 +199,13 @@ export async function handleStreamOnline(env, broadcasterId) {
       }));
       return { ok: true, action: 'patched', messageId: existing.messageId };
     }
-    // Patch failed (likely 404, message deleted). Fall through to POST.
+    // Only a 404 (message actually deleted) should fall through to a fresh
+    // POST — that re-pings @everyone AND re-fires the go-live push, so a
+    // transient patch failure (rate limit / 5xx / duplicate stream.online)
+    // must NOT trigger it. Keep the tracked embed and bail.
+    if (r.status !== 404) {
+      return { ok: false, action: 'patch-failed', status: r.status };
+    }
     await env.LOADOUT_BOLTS.delete(KEY(guildId));
   }
 

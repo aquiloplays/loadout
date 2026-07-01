@@ -96,6 +96,19 @@ export async function handleExtCasino(env, ctx, guildId, userId, payload, sub, r
 
   // Daily claim ---------------------------------------------------------
   if (req.method === 'POST' && sub === 'daily') {
+    // Earning requires a STABLE, identity-shared Twitch account. Anonymous
+    // viewers only carry a rotating opaque id (no payload.user_id), so
+    // clearing cookies would mint a fresh tw: wallet and re-farm the faucet.
+    // Gate the earn path on a real user_id; viewing/playing is unaffected.
+    if (!payload || !payload.user_id) {
+      return json({ error: 'identity-required', message: 'Share your Twitch identity (the panel will prompt) to claim the daily bonus.' }, 403);
+    }
+    // Debounce concurrent daily POSTs so a burst can't slip past the racy
+    // cooldown read below.
+    if (await debounced(env, 'daily', guildId, userId)) {
+      const wd = await getWallet(env, guildId, userId);
+      return json({ error: 'slow-down', message: 'One claim at a time.', wallet: walletView(wd) }, 429);
+    }
     const w = await getWallet(env, guildId, userId);
     const now = Date.now();
     const since = now - (w.lastDailyUtc || 0);
@@ -133,7 +146,10 @@ export async function handleExtCasino(env, ctx, guildId, userId, payload, sub, r
     if (reels[0] === reels[1] && reels[1] === reels[2]) {
       mult = reels[0] === 'bolt' ? 20 : 8;
     } else if (reels[0] === reels[1] || reels[1] === reels[2] || reels[0] === reels[2]) {
-      mult = 1.5;
+      // Any-pair pays 1.2× (was 1.5×, which pushed slots to ~104% RTP —
+      // player-favored + unbounded inflation). 1.2× keeps overall RTP ~90%
+      // (≈10% house edge) so Bolts stay a scarce currency.
+      mult = 1.2;
     }
     const payout = Math.floor(p.bet * mult);
     const r = await settle(env, guildId, userId, p.bet, payout, 'slots');
@@ -151,7 +167,9 @@ export async function handleExtCasino(env, ctx, guildId, userId, payload, sub, r
     const side = String(body.side || '').toLowerCase() === 'tails' ? 'tails' : 'heads';
     const result = Math.random() < 0.5 ? 'heads' : 'tails';
     const won = side === result;
-    const payout = won ? p.bet * 2 : 0;
+    // 1.95× (not 2×) so coinflip carries a ~2.5% house edge instead of being
+    // a zero-edge break-even grind.
+    const payout = won ? Math.floor(p.bet * 1.95) : 0;
     const r = await settle(env, guildId, userId, p.bet, payout, 'coinflip');
     if (!r.ok) return json({ error: 'insufficient', wallet: walletView(w0) }, 400);
     const net = payout - p.bet;

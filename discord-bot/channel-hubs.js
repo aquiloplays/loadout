@@ -285,6 +285,7 @@ export async function handleAchievementsHubComponent(env, data) {
   const cid = data.data?.custom_id || '';
   const action = cid.split(':')[1];
   const userId = data.member?.user?.id || data.user?.id;
+  const guildId = data.guild_id; // was referenced below (getBranding) but never declared
   if (!userId) return eph('Run this in a server.');
 
   if (action === 'mine') {

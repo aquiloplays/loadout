@@ -190,14 +190,23 @@ export async function handleAquiloHttp(req, env, ctx, url) {
         const isBot = !!(payload.author && payload.author.bot);
         const content = String(payload.content || '').trim();
         if (isAnn && !isBot && content) {
-          const { firePush } = await import('../push.js');
-          announce = await firePush(env, {
-            kind: 'announcements', tag: 'announcements',
-            title: 'New announcement',
-            body: content.slice(0, 300),
-            url: 'https://aquilo.gg/community/',
-            audience: { kind: 'all' },
-          });
+          // Dedupe by Discord message id — the gateway may retry the same
+          // MESSAGE_CREATE, and we must push exactly once per announcement.
+          const dedupeKey = 'announce:pushed:' + String(payload.id || '');
+          const already = payload.id ? await env.LOADOUT_BOLTS.get(dedupeKey) : null;
+          if (already) {
+            announce = { skipped: 'duplicate' };
+          } else {
+            if (payload.id) await env.LOADOUT_BOLTS.put(dedupeKey, '1', { expirationTtl: 600 });
+            const { firePush } = await import('../push.js');
+            announce = await firePush(env, {
+              kind: 'announcements', tag: 'announcements',
+              title: 'New announcement',
+              body: content.slice(0, 300),
+              url: 'https://aquilo.gg/community/',
+              audience: { kind: 'all' },
+            });
+          }
         }
       } catch (e) { announce = { ok: false, error: String(e && e.message || e) }; }
       return json({ ok: true, counting, clip, checkin, chat, announce, via: auth.via });

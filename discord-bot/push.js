@@ -100,6 +100,9 @@ export const pushAchievementUnlocked = (env, { userId, achTitle, achDescription,
       ? `${achTitle}, ${achDescription}`
       : (achTitle || 'You earned a new achievement.'),
     url: 'https://aquilo.gg/profile/',
-    audience: { kind: 'user', userId },
+    // Must be { userIds: [...] } — the site's /api/push/external only honors
+    // an explicit userIds allow-list; a bare { kind:'user', userId } has no
+    // userIds array, so pushToAll falls through to a broadcast-to-everyone.
+    audience: userId ? { kind: 'users', userIds: [String(userId)] } : { kind: 'all' },
     rarity: rarity || null,
   });
