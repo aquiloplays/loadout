@@ -49,11 +49,17 @@ export async function handleTwitchStats(req, env) {
         subCount++;
         subscribers.push({
           name: s.user_name || s.user_login || 'viewer',
+          login: s.user_login || '',
           tier: Number(s.tier) || 1000,
         });
         if (s.is_gift) {
-          const g = s.gifter_name || s.gifter_login;
-          if (g && g !== 'AnAnonymousGifter') gifterCounts.set(g, (gifterCounts.get(g) || 0) + 1);
+          const gName = s.gifter_name || s.gifter_login;
+          if (gName && gName !== 'AnAnonymousGifter') {
+            const key = s.gifter_id || gName;
+            const cur = gifterCounts.get(key) || { name: gName, login: s.gifter_login || '', count: 0 };
+            cur.count += 1;
+            gifterCounts.set(key, cur);
+          }
         }
       }
       cursor = j.pagination && j.pagination.cursor;
@@ -64,27 +70,33 @@ export async function handleTwitchStats(req, env) {
   // Higher tier first, then alphabetical.
   subscribers.sort((a, b) => (b.tier - a.tier) || a.name.localeCompare(b.name));
 
-  const topGifters = [...gifterCounts.entries()]
-    .map(([name, count]) => ({ name, count }))
+  const topGifters = [...gifterCounts.values()]
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
-  // ── Top cheerers (bits leaderboard for the token's broadcaster; bits:read) ──
-  let topCheerers = [];
-  try {
-    const j = await helixFetch(env, '/bits/leaderboard', { count: 10, period: 'all' }, { userToken: true });
-    if (j && Array.isArray(j.data)) {
-      topCheerers = j.data
-        .map((e) => ({ name: e.user_name || e.user_login || 'viewer', bits: Number(e.score) || 0 }))
-        .filter((e) => e.bits > 0);
-    }
-  } catch { /* best-effort */ }
+  // ── Top cheerers (bits leaderboard for the token's broadcaster; bits:read).
+  // Two periods so the site can rotate all-time ↔ this-month ("last 30 days";
+  // Twitch's leaderboard periods are day/week/month/year/all, so 'month' is
+  // the closest 30-day window). ──
+  const cheerers = async (period) => {
+    try {
+      const j = await helixFetch(env, '/bits/leaderboard', { count: 10, period }, { userToken: true });
+      if (j && Array.isArray(j.data)) {
+        return j.data
+          .map((e) => ({ name: e.user_name || e.user_login || 'viewer', login: e.user_login || '', bits: Number(e.score) || 0 }))
+          .filter((e) => e.bits > 0);
+      }
+    } catch { /* best-effort */ }
+    return [];
+  };
+  const [topCheerers, topCheerersMonth] = await Promise.all([cheerers('all'), cheerers('month')]);
 
   return json({
     ok: true,
     subCount,
     subscribers: subscribers.slice(0, MAX_SUB_NAMES),
-    topCheerers,
-    topGifters,
+    topCheerers,        // all time
+    topCheerersMonth,   // this month (~last 30 days)
+    topGifters,         // active gifted subs (snapshot; not time-windowed)
   });
 }
