@@ -1,23 +1,27 @@
 // GET /community/twitch-stats
 //
-// The owner's Twitch subscriber list, top cheerers, and top sub-gifters for
-// the aquilo.gg community page (replaces the old Patron wall). Uses the
-// broadcaster USER token — channel:read:subscriptions + bits:read are both
-// granted (see twitch-oauth.js REQUIRED_SCOPES). Never throws; degrades to
-// empty lists when the token/scope isn't available so the page stays calm.
+// The owner's Twitch subscriber list (with tenure where known), top cheerers
+// (all-time + this-month), and top sub-gifters (all-time + last-30-day) for
+// the aquilo.gg community page. Uses the broadcaster USER token —
+// channel:read:subscriptions + bits:read are granted (twitch-oauth.js).
+//
+// Gifters + tenure come from twitch-stats-store.js: Twitch has no historical
+// gifter API and no bulk sub-tenure field, so we seed the gifter history and
+// accumulate both forward from EventSub. Never throws; degrades to empty.
 //
 // Response:
-//   { ok, subCount, subscribers:[{name,tier}], topCheerers:[{name,bits}],
-//     topGifters:[{name,count}] }
+//   { ok, subCount, subscribers:[{name,login,tier,months?}],
+//     topCheerers:[{name,login,bits}], topCheerersMonth:[...],
+//     topGifters:[{name,login,count}], topGiftersMonth:[...] }
 
 import { helixFetch, isTwitchConfigured, hasTwitchUserAuth } from './twitch-helix.js';
+import { seedGiftersOnce, getGifterStats, getSubTenure } from './twitch-stats-store.js';
 
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
     status,
     headers: {
       'content-type': 'application/json',
-      // The Pages proxy edge-caches; keep the worker response fresh-ish.
       'cache-control': 'public, max-age=0, s-maxage=60',
       'access-control-allow-origin': '*',
     },
@@ -33,9 +37,11 @@ export async function handleTwitchStats(req, env) {
   if (!broadcasterId) return json({ ok: false, error: 'no-broadcaster' });
   if (!(await hasTwitchUserAuth(env))) return json({ ok: false, error: 'no-user-token' });
 
+  // One-time seed of the historical all-time gifters (idempotent).
+  await seedGiftersOnce(env).catch(() => {});
+
   // ── Subscribers (broadcaster user token; channel:read:subscriptions) ──
   const subscribers = [];
-  const gifterCounts = new Map();
   let subCount = 0;
   try {
     let cursor;
@@ -52,32 +58,26 @@ export async function handleTwitchStats(req, env) {
           login: s.user_login || '',
           tier: Number(s.tier) || 1000,
         });
-        if (s.is_gift) {
-          const gName = s.gifter_name || s.gifter_login;
-          if (gName && gName !== 'AnAnonymousGifter') {
-            const key = s.gifter_id || gName;
-            const cur = gifterCounts.get(key) || { name: gName, login: s.gifter_login || '', count: 0 };
-            cur.count += 1;
-            gifterCounts.set(key, cur);
-          }
-        }
       }
       cursor = j.pagination && j.pagination.cursor;
       if (!cursor) break;
     }
   } catch { /* best-effort */ }
 
-  // Higher tier first, then alphabetical.
-  subscribers.sort((a, b) => (b.tier - a.tier) || a.name.localeCompare(b.name));
+  // Attach sub tenure (months) where we've observed a resub. Forward-only.
+  try {
+    const tenure = await getSubTenure(env);
+    for (const s of subscribers) {
+      const m = s.login && tenure[s.login];
+      if (m) s.months = Number(m) || undefined;
+    }
+  } catch { /* best-effort */ }
 
-  const topGifters = [...gifterCounts.values()]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
+  // Higher tier first, then longest-tenured, then alphabetical.
+  subscribers.sort((a, b) =>
+    (b.tier - a.tier) || ((b.months || 0) - (a.months || 0)) || a.name.localeCompare(b.name));
 
-  // ── Top cheerers (bits leaderboard for the token's broadcaster; bits:read).
-  // Two periods so the site can rotate all-time ↔ this-month ("last 30 days";
-  // Twitch's leaderboard periods are day/week/month/year/all, so 'month' is
-  // the closest 30-day window). ──
+  // ── Top cheerers (bits leaderboard; all-time + this-month for the rotation) ──
   const cheerers = async (period) => {
     try {
       const j = await helixFetch(env, '/bits/leaderboard', { count: 10, period }, { userToken: true });
@@ -91,12 +91,16 @@ export async function handleTwitchStats(req, env) {
   };
   const [topCheerers, topCheerersMonth] = await Promise.all([cheerers('all'), cheerers('month')]);
 
+  // ── Top sub gifters (seeded history + forward accumulation) ──
+  const { topGifters, topGiftersMonth } = await getGifterStats(env).catch(() => ({ topGifters: [], topGiftersMonth: [] }));
+
   return json({
     ok: true,
     subCount,
     subscribers: subscribers.slice(0, MAX_SUB_NAMES),
-    topCheerers,        // all time
-    topCheerersMonth,   // this month (~last 30 days)
-    topGifters,         // active gifted subs (snapshot; not time-windowed)
+    topCheerers,
+    topCheerersMonth,
+    topGifters,
+    topGiftersMonth,
   });
 }

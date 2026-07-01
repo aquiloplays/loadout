@@ -216,6 +216,30 @@ export async function handleEventSubWebhook(req, env, ctx) {
       // Unknown sub type, still ack so Twitch doesn't retry forever.
       console.log('[twitch-eventsub] unhandled subType:', subType);
     }
+
+    // 2026-07-01: accumulate community stats Helix can't provide — all-time
+    // + 30-day sub GIFTERS and per-subscriber tenure (months). Independent
+    // side-effect, runs alongside whatever the main dispatch did.
+    if (subType === 'channel.subscription.gift' || subType === 'channel.subscription.message') {
+      ctx.waitUntil((async () => {
+        try {
+          const ev = payload?.event || {};
+          const store = await import('./twitch-stats-store.js');
+          if (subType === 'channel.subscription.gift') {
+            await store.recordGift(env, {
+              login: ev.is_anonymous ? '' : (ev.user_login || ''),
+              name:  ev.is_anonymous ? 'Anonymous' : (ev.user_name || ev.user_login || ''),
+              count: Number(ev.total) || 1,
+            });
+          } else {
+            await store.recordSubTenure(env, {
+              login:  ev.user_login || '',
+              months: Number(ev.cumulative_months) || 0,
+            });
+          }
+        } catch (e) { console.warn('[twitch-eventsub] stats accumulate', e?.message || e); }
+      })());
+    }
     return new Response(null, { status: 204 });
   }
 
