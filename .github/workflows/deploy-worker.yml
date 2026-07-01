@@ -78,16 +78,20 @@ jobs:
 
       - name: Smoke check
         run: |
-          # Hit a public endpoint to confirm the deploy is live.
-          # Fail soft so a brief edge propagation window doesn't fail CI.
+          # Confirm the deploy is live AND that key routes exist (a stale/old
+          # tree would 404 these) before calling the deploy good.
+          base="https://loadout-discord.aquiloplays.workers.dev"
+          # Wait for the edge to serve the new version.
           for i in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" \
-              "https://loadout-discord.aquiloplays.workers.dev/api/dock/registry")
-            echo "Try $i, HTTP $code"
-            if [ "$code" = "200" ] || [ "$code" = "401" ]; then
-              echo "Worker is live."
-              exit 0
-            fi
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$base/api/dock/registry")
+            echo "Try $i, dock/registry HTTP $code"
+            [ "$code" = "200" ] || [ "$code" = "401" ] && break
             sleep 4
           done
-          echo "Worker did not respond cleanly within 20s, check dashboard."
+          fail=0
+          expect() { c=$(curl -s -o /dev/null -w "%{http_code}" "$base$1"); echo "  $c  $1"; case "$2" in *"$c"*) ;; *) echo "    ✗ expected $2"; fail=1;; esac; }
+          expect "/api/account/me" "200"                       # sign-in wired
+          expect "/api/twitch/category?login=aquilogg" "200"   # Helix category route
+          expect "/api/account/twitch-categories?q=call" "401" # picker (gated, NOT 404)
+          if [ "$fail" != "0" ]; then echo "Route(s) missing — likely a stale deploy."; exit 1; fi
+          echo "Worker is live and routes present."
