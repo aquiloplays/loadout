@@ -213,6 +213,25 @@ export async function handleStreamOnline(env, broadcasterId) {
     updatedUtc:   new Date().toISOString(),
   };
   await env.LOADOUT_BOLTS.put(KEY(guildId), JSON.stringify(rec));
+
+  // Going-live PWA push (task 17): fire ONCE on the fresh post — never on the
+  // per-minute refresh PATCHes above, so subscribers get exactly one "live now"
+  // notification per stream. Default-on (the site NotificationPrefs 'goLive'
+  // toggle lets viewers opt out). Best-effort; a push outage never blocks the
+  // go-live embed.
+  try {
+    const { firePush } = await import('./push.js');
+    const game = stream.game_name ? ` · ${stream.game_name}` : '';
+    await firePush(env, {
+      kind: 'goLive',
+      tag: 'goLive',
+      title: `🔴 ${stream.user_name || login || 'Aquilo'} is live`,
+      body: (stream.title || 'Come hang out').slice(0, 180) + game,
+      url: login ? `https://www.twitch.tv/${login}` : 'https://www.twitch.tv/prodigalttv',
+      audience: { kind: 'all' },
+    });
+  } catch { /* push is best-effort */ }
+
   return { ok: true, action: 'created', messageId: r.msg.id };
 }
 
