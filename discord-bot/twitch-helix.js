@@ -160,14 +160,18 @@ export async function getUserAccessToken(env) {
   return j.access_token;
 }
 
-// Resolve the broadcaster USER auth as { token, clientId } — vault first
-// (Aquilo ID), legacy self-serve refresh second. Returning the clientId
-// alongside the token is essential: a vault token is issued by the broker's
-// app and 401s if sent with this worker's client_id.
-export async function getUserAuth(env) {
-  if (env.VAULT_SERVICE_SECRET && env.CLAY_TWITCH_CHANNEL_ID) {
+// Resolve a broadcaster's USER auth as { token, clientId } for a SPECIFIC
+// Twitch channel — vault first (Aquilo ID), then (Clay only, allowLegacy) the
+// legacy self-serve refresh token. Returning the clientId alongside the token
+// is essential: a vault token is issued by the broker's app and 401s if sent
+// with the wrong client_id. Cache is per-channel so multiple connected
+// streamers don't clobber each other.
+export async function getUserAuthFor(env, twitchId, allowLegacy) {
+  const id = String(twitchId || env.CLAY_TWITCH_CHANNEL_ID || '');
+  if (env.VAULT_SERVICE_SECRET && id) {
+    const cacheKey = USER_AUTH_KEY + ':' + id;
     try {
-      const cached = await env.LOADOUT_BOLTS.get(USER_AUTH_KEY, { type: 'json' });
+      const cached = await env.LOADOUT_BOLTS.get(cacheKey, { type: 'json' });
       if (cached && cached.token && cached.clientId && cached.expiresAt > Date.now() + 60_000) {
         return { token: cached.token, clientId: cached.clientId, source: 'vault' };
       }
@@ -176,22 +180,30 @@ export async function getUserAuth(env) {
       const res = await fetch(BROKER_VAULT_URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ service: env.VAULT_SERVICE_SECRET, twitchId: String(env.CLAY_TWITCH_CHANNEL_ID), role: 'broadcaster' }),
+        body: JSON.stringify({ service: env.VAULT_SERVICE_SECRET, twitchId: id, role: 'broadcaster' }),
       });
       if (res.ok) {
         const j = await res.json();
         if (j && j.ok && j.access_token && j.client_id) {
           const expiresAt = Number(j.expires_at) || (Date.now() + 3000 * 1000);
           const ttlS = Math.max(60, Math.floor((expiresAt - Date.now()) / 1000) - 60);
-          await env.LOADOUT_BOLTS.put(USER_AUTH_KEY, JSON.stringify({ token: j.access_token, clientId: j.client_id, expiresAt }), { expirationTtl: ttlS });
+          await env.LOADOUT_BOLTS.put(cacheKey, JSON.stringify({ token: j.access_token, clientId: j.client_id, expiresAt }), { expirationTtl: ttlS });
           return { token: j.access_token, clientId: j.client_id, source: 'vault' };
         }
       }
     } catch { /* fall through to legacy */ }
   }
-  // Legacy self-serve refresh token, paired with THIS worker's own app.
-  const token = await getUserAccessToken(env);
-  return token ? { token, clientId: env.TWITCH_CLIENT_ID, source: 'legacy' } : null;
+  // Legacy self-serve refresh token (this worker's own app) — Clay only.
+  if (allowLegacy) {
+    const token = await getUserAccessToken(env);
+    if (token) return { token, clientId: env.TWITCH_CLIENT_ID, source: 'legacy' };
+  }
+  return null;
+}
+
+// Clay's broadcaster auth (used by helixFetch for his subs/bits reads).
+export async function getUserAuth(env) {
+  return getUserAuthFor(env, env.CLAY_TWITCH_CHANNEL_ID, true);
 }
 
 // Generic Helix fetch, handles the Bearer + Client-Id headers, one
@@ -239,7 +251,7 @@ export async function helixFetch(env, path, params, opts = {}) {
   if (resp.status === 401) {
     // Token died under us, wipe caches + try once more with a fresh one.
     if (opts.userToken) {
-      await env.LOADOUT_BOLTS.delete(USER_AUTH_KEY).catch(() => {});
+      await env.LOADOUT_BOLTS.delete(USER_AUTH_KEY + ':' + String(env.CLAY_TWITCH_CHANNEL_ID || '')).catch(() => {});
       await env.LOADOUT_BOLTS.delete(USER_TOKEN_KEY).catch(() => {});
       const auth2 = await getUserAuth(env);
       if (!auth2) return null;
@@ -331,28 +343,35 @@ export async function getRecentVod(env, broadcasterId) {
 
 // ── Send a chat message (Helix) ───────────────────────────────────
 //
-// POST /helix/chat/messages as the broadcaster (sender = broadcaster).
-// Requires the broadcaster USER token to carry `user:write:chat` (added
-// to twitch-oauth REQUIRED_SCOPES 2026-07). If the stored token predates
-// that scope, Helix 401/403s and this no-ops — every caller treats chat
-// announcements as best-effort. Returns { ok, ... }.
+// POST /helix/chat/messages as the broadcaster of a SPECIFIC channel (default
+// Clay). Multi-tenant: resolves that channel's own auth (its vault token + the
+// broker client_id, or Clay's legacy token) so any CONNECTED streamer's game
+// events post in THEIR chat — and channels that haven't connected simply
+// no-op. Requires user:write:chat on the token (in the connect scope union).
+// Best-effort; returns { ok, ... }.
 export async function sendChatMessage(env, text, opts = {}) {
-  const chanId = opts.broadcasterId || env.CLAY_TWITCH_CHANNEL_ID;
+  const chanId = String(opts.broadcasterId || env.CLAY_TWITCH_CHANNEL_ID || '');
   const msg = String(text || '').slice(0, 480).trim();
   if (!chanId || !msg) return { ok: false, skipped: 'unconfigured' };
-  const j = await helixFetch(env, '/chat/messages', null, {
-    method: 'POST',
-    userToken: true,
-    returnErrors: true,
-    body: {
-      broadcaster_id: String(chanId),
-      sender_id: String(opts.senderId || chanId),
-      message: msg,
-    },
-  });
-  if (!j) return { ok: false, skipped: 'no-token-or-scope' };
-  if (j._error) return { ok: false, status: j.status, message: j.message };
-  const d = Array.isArray(j.data) ? j.data[0] : null;
+  const isClay = env.CLAY_TWITCH_CHANNEL_ID && chanId === String(env.CLAY_TWITCH_CHANNEL_ID);
+  const auth = await getUserAuthFor(env, chanId, isClay); // legacy fallback only for Clay
+  if (!auth || !auth.token) return { ok: false, skipped: 'not-connected' };
+  if (!isTwitchConfigured(env)) return { ok: false, skipped: 'unconfigured' };
+  let resp;
+  try {
+    resp = await fetch('https://api.twitch.tv/helix/chat/messages', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + auth.token,
+        'Client-Id': auth.clientId,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ broadcaster_id: chanId, sender_id: String(opts.senderId || chanId), message: msg }),
+    });
+  } catch (e) { return { ok: false, skipped: 'fetch-failed' }; }
+  if (!resp.ok) return { ok: false, status: resp.status };
+  let j = null; try { j = await resp.json(); } catch { /* not JSON */ }
+  const d = j && Array.isArray(j.data) ? j.data[0] : null;
   if (d && d.is_sent === false) return { ok: false, dropped: d.drop_reason };
   return { ok: true, id: d && d.message_id };
 }
