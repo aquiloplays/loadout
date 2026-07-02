@@ -217,6 +217,20 @@ export function sanitizeCard(raw, allowCustom) {
       else out.emote.a = raw.emote.a ? 1 : 0;
     }
   }
+  // Punch-row stamp: what fills the 7-cell punch strip on the card.
+  // Either a short emoji (like flame) or a Twitch/7TV emote (same
+  // sanitize as the check-in emote above); emote wins when both set.
+  out.stampEmoji = String(raw.stampEmoji || '').slice(0, 4);
+  if (raw.stampEmote && typeof raw.stampEmote === 'object') {
+    const sIs7tv = raw.stampEmote.src === '7tv';
+    const sid = String(raw.stampEmote.i || '');
+    const sIdOk = sIs7tv ? /^[a-zA-Z0-9]{1,40}$/.test(sid) : /^[a-zA-Z0-9_\-]{1,100}$/.test(sid);
+    if (sIdOk) {
+      out.stampEmote = { i: sid, n: cleanDisplay(raw.stampEmote.n).slice(0, 30) };
+      if (sIs7tv) out.stampEmote.src = '7tv';
+      else out.stampEmote.a = raw.stampEmote.a ? 1 : 0;
+    }
+  }
   // Cosmetics. Everything whitelisted; junk falls back to defaults.
   out.punch = ['classic', 'stamp', 'fist', 'laser', 'none'].includes(raw.punch) ? raw.punch : 'classic';
   // Check-in sound: keys of the synthesized bank in pc-sounds.js. The

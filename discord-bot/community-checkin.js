@@ -194,6 +194,23 @@ export async function putCard(env, guildId, userId, card, subTier = null) {
       next.backgroundId = v;
     }
   }
+  // Custom punch stamp — a unicode emoji the viewer picked (renders in
+  // the Discord punch row AND on their PunchCard). Free for everyone;
+  // tier stamps (⚡🌟💎👑) stay the default when unset. Validation is
+  // shape-only: no letters/digits/control chars (keeps it an emoji, not
+  // smuggled text), ≤16 UTF-16 units (ZWJ sequences like 👨‍👩‍👧 are long).
+  if (card?.punchEmoji !== undefined) {
+    const raw = card.punchEmoji == null ? '' : String(card.punchEmoji).trim();
+    if (raw === '') {
+      next.punchEmoji = null;
+    } else {
+      if (raw.length > 16 || /[A-Za-z0-9\s\x00-\x1f\x7f@#:`_*~|>\\/<]/.test(raw)) {
+        return { ok: false, error: 'bad-punch-emoji',
+          message: 'Punch stamp must be a single emoji.' };
+      }
+      next.punchEmoji = raw;
+    }
+  }
   // Premium frame, unlocked by Twitch sub tier (FRAME_TIER ladder).
   // Validated server-side when the caller resolved a tier (subTier
   // != null, the web path); the legacy Discord path passes null and
@@ -499,7 +516,10 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   // same ladder as the PunchCard product (⚡ everyone, 🌟 T1, 💎 T2,
   // 👑 T3).
   const subTier = Math.max(0, Math.min(3, Number(opts.subTier) || 0));
-  const stamp   = ['⚡', '🌟', '💎', '👑'][subTier];
+  const tierStamp = ['⚡', '🌟', '💎', '👑'][subTier];
+  // Their picked emoji wins the punch row; the tier stamp still marks
+  // the supporter badge on the streak line so the tier stays visible.
+  const stamp   = card?.punchEmoji || tierStamp;
   const pageNo  = Math.floor((state.streak - 1) / 7) + 1;
   const punched = ((state.streak - 1) % 7) + 1;
   const row = Array.from({ length: 7 }, (_, i) => (i < punched ? stamp : '▫️')).join(' ');
@@ -507,7 +527,7 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   lines.push(
     `🔥 **${state.streak}-day streak**`
     + (state.longest > state.streak ? ` · best ${state.longest}` : '')
-    + (subTier ? ` · ${stamp} T${subTier} supporter` : ''),
+    + (subTier ? ` · ${tierStamp} T${subTier} supporter` : ''),
   );
   if (card?.subtitle) lines.push(card.subtitle);
   if (isFirstTimeNoCard) {
