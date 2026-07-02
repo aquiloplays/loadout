@@ -118,6 +118,7 @@ const ROUTES = new Set([
   'checkin',                 // POST, record today's check-in
   'checkin/status',          // POST, read streak + card + pending bonuses
   'checkin/card',            // POST, upsert the user's embed card config
+  'checkin/emotes',          // POST, the guild's custom emoji (punch-stamp picker)
   // (Bolts economy sunset 2026-06: checkin/bonus/collect removed — bonus payout was removed)
   // Stream check-in card (on-stream "I'm here" card; stream-checkin.js).
   // Separate from the daily check-in above, D1-backed customization +
@@ -317,6 +318,10 @@ export async function handleWeb(req, env) {
     if (route === 'checkin')               return await routeCommunityCheckin(env, guildId, discordId, body);
     if (route === 'checkin/status')        return await routeCommunityCheckinStatus(env, guildId, discordId);
     if (route === 'checkin/card')          return await routeCommunityCheckinCard(env, guildId, discordId, body);
+    if (route === 'checkin/emotes') {
+      const { getGuildEmotes } = await import('./community-checkin.js');
+      return json({ ok: true, emotes: await getGuildEmotes(env, guildId) });
+    }
     // (Bolts economy sunset 2026-06: checkin/bonus/collect dispatch removed — bonus payout was removed)
     if (route === 'checkin/card/me')       return await routeStreamCheckinCardMe(env, guildId, discordId);
     if (route === 'checkin/card/save')     return await routeStreamCheckinCardSave(env, guildId, discordId, body);

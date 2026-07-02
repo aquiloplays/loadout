@@ -93,6 +93,34 @@ function daysBetween(a, b) {
 export const FRAME_TIER = { none: 0, gold: 1, neon: 2, retro: 2, holo: 3 };
 const SUBTIER_TTL = 1800;
 
+// ── Discord server emotes (punch stamps) ──────────────────────────────
+// The guild's custom emoji render as REAL images inside embeds via
+// <:name:id> markup — the one inline-image trick Discord embeds allow.
+// Cached 1h; used by the site's punch-stamp picker and validated at save.
+const GUILD_EMOTES_KEY = (g) => `guild-emotes:${g}`;
+export async function getGuildEmotes(env, guildId) {
+  try {
+    const hit = await env.LOADOUT_BOLTS.get(GUILD_EMOTES_KEY(guildId), { type: 'json' });
+    if (hit) return hit;
+  } catch { /* cache miss */ }
+  let list = [];
+  try {
+    const r = await fetch(`https://discord.com/api/v10/guilds/${guildId}/emojis`, {
+      headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN },
+    });
+    if (r.ok) {
+      const raw = await r.json();
+      list = (Array.isArray(raw) ? raw : [])
+        .filter((e) => e && e.id && e.name && e.available !== false)
+        .map((e) => ({ id: String(e.id), name: String(e.name), animated: !!e.animated }));
+    }
+  } catch { /* Discord hiccup → empty list, retry next hour */ }
+  try {
+    await env.LOADOUT_BOLTS.put(GUILD_EMOTES_KEY(guildId), JSON.stringify(list), { expirationTtl: 3600 });
+  } catch { /* best-effort */ }
+  return list;
+}
+
 export async function getSubTier(env, twitchId) {
   const id = String(twitchId || '').trim();
   if (!/^\d{1,20}$/.test(id)) return 0;
@@ -209,6 +237,28 @@ export async function putCard(env, guildId, userId, card, subTier = null) {
           message: 'Punch stamp must be a single emoji.' };
       }
       next.punchEmoji = raw;
+    }
+  }
+  // Discord-server emote as the punch stamp. Validated against the
+  // guild's live emoji list so nobody can smuggle a foreign <:x:id>;
+  // stored as {id, name, animated} and rendered as <:name:id> in the
+  // embed. Beats punchEmoji when both are set (it's the richer render).
+  if (card?.punchDiscordEmote !== undefined) {
+    if (card.punchDiscordEmote == null) {
+      next.punchDiscordEmote = null;
+    } else {
+      const pe = card.punchDiscordEmote;
+      const id = String(pe?.id || '');
+      if (!/^\d{5,25}$/.test(id)) {
+        return { ok: false, error: 'bad-punch-emote' };
+      }
+      const list = await getGuildEmotes(env, guildId);
+      const hit = list.find((e) => e.id === id);
+      if (!hit) {
+        return { ok: false, error: 'punch-emote-not-in-server',
+          message: 'Pick an emote that lives on the Discord server.' };
+      }
+      next.punchDiscordEmote = { id: hit.id, name: hit.name, animated: hit.animated };
     }
   }
   // Premium frame, unlocked by Twitch sub tier (FRAME_TIER ladder).
@@ -517,9 +567,19 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   // 👑 T3).
   const subTier = Math.max(0, Math.min(3, Number(opts.subTier) || 0));
   const tierStamp = ['⚡', '🌟', '💎', '👑'][subTier];
-  // Their picked emoji wins the punch row; the tier stamp still marks
+  // Stamp precedence: server emote (renders as a real image via
+  // <:name:id>) > picked emoji > tier stamp. The tier stamp still marks
   // the supporter badge on the streak line so the tier stays visible.
-  const stamp   = card?.punchEmoji || tierStamp;
+  // A deleted server emote would render as raw <:name:id> text, so
+  // re-check it against the (cached) guild list and fall back cleanly.
+  let stamp = card?.punchEmoji || tierStamp;
+  if (card?.punchDiscordEmote?.id) {
+    try {
+      const emotes = await getGuildEmotes(env, guildId);
+      const live = emotes.find((e) => e.id === card.punchDiscordEmote.id);
+      if (live) stamp = `<${live.animated ? 'a' : ''}:${live.name}:${live.id}>`;
+    } catch { /* keep the emoji/tier fallback */ }
+  }
   const pageNo  = Math.floor((state.streak - 1) / 7) + 1;
   const punched = ((state.streak - 1) % 7) + 1;
   const row = Array.from({ length: 7 }, (_, i) => (i < punched ? stamp : '▫️')).join(' ');
