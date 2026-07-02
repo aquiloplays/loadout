@@ -96,6 +96,9 @@ const SUBTIER_TTL = 1800;
 export async function getSubTier(env, twitchId) {
   const id = String(twitchId || '').trim();
   if (!/^\d{1,20}$/.test(id)) return 0;
+  // The broadcaster owns the channel — every perk, no lookup (their Helix
+  // auto-entry would otherwise read as a mere T1).
+  if (id === String(env.CLAY_TWITCH_CHANNEL_ID || '')) return 3;
   const ck = `subtier:tw:${id}`;
   try {
     const hit = await env.LOADOUT_BOLTS.get(ck);
