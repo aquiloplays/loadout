@@ -35,6 +35,22 @@ const VOD_CHANNEL_ID      = (env) => String(env.VOD_CHANNEL_ID      || '15079739
 const VOD_PENDING_KEY = (g)  => `twitch:vod-pending:${g}`;
 const VOD_POSTED_KEY  = (id) => `twitch:vod-posted:${id}`;
 const VOD_RETRY_WINDOW_MS = 20 * 60 * 1000;   // give up posting after 20m
+// Stream-recap post (task 28). Dormant until RECAP_CHANNEL_ID is set — Clay
+// creates a #stream-recaps channel and binds its id. The recap summarises the
+// just-ended stream (duration / peak viewers / games / title); the VOD drops
+// separately in the videos channel. Deduped per stream so a missed-offline
+// re-fire can't double-post.
+const RECAP_CHANNEL_ID  = (env) => String(env.RECAP_CHANNEL_ID || '').trim();
+const RECAP_POSTED_KEY  = (id) => `twitch:recap-posted:${id}`;
+
+// "9015000ms" → "2h 30m" (or "45m", or "<1m" for a very short stream).
+function humanDuration(ms) {
+  const totalMin = Math.max(0, Math.floor(ms / 60000));
+  if (totalMin < 1) return '<1m';
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
+}
 // Embed cache TTL, Discord caches embed images by URL; cache-bust
 // query bumps every minute so the thumbnail re-fetches.
 
@@ -122,6 +138,55 @@ function buildVodEmbed(vod, login) {
       ] }]
     : undefined;
   return { embeds: [embed], ...(components ? { components } : {}) };
+}
+
+// Recap embed posted to the recaps channel once a stream ends. Built from the
+// live-state we accumulated across the broadcast (peak viewers + distinct
+// games + last title), plus the computed duration.
+function buildRecapEmbed({ rec, login, endedMs }) {
+  const startMs = Date.parse(rec.startedAtIso || '') || null;
+  const startSec = startMs ? Math.floor(startMs / 1000) : null;
+  const endSec   = Math.floor(endedMs / 1000);
+  const games = Array.isArray(rec.games) ? rec.games.filter(Boolean) : [];
+  const fields = [];
+  if (startMs) fields.push({ name: '⏱ Duration', value: humanDuration(endedMs - startMs), inline: true });
+  fields.push({ name: '👀 Peak viewers', value: String(rec.peakViewers ?? 0), inline: true });
+  if (games.length) {
+    fields.push({ name: games.length > 1 ? '🎯 Games' : '🎯 Game', value: games.slice(0, 6).join(', ').slice(0, 1024), inline: false });
+  }
+  if (startSec) fields.push({ name: '🟢 Started', value: `<t:${startSec}:t>`, inline: true });
+  fields.push({ name: '🔴 Ended', value: `<t:${endSec}:t>`, inline: true });
+  const embed = {
+    title: '📊 Stream recap',
+    description: rec.lastTitle ? `**${String(rec.lastTitle).slice(0, 240)}**` : 'Thanks for hanging out — see you next stream.',
+    color: 0x9146FF,
+    fields,
+    footer: { text: login ? `twitch.tv/${login} · the VOD drops in the videos channel` : 'Aquilo' },
+    timestamp: new Date(endedMs).toISOString(),
+  };
+  const components = login
+    ? [{ type: 1, components: [
+        { type: 2, style: 5, label: 'Channel', url: `https://twitch.tv/${login}`, emoji: { name: '📺' } },
+      ] }]
+    : undefined;
+  return { embeds: [embed], ...(components ? { components } : {}) };
+}
+
+// Post the stream recap. Dormant (no-op) until RECAP_CHANNEL_ID is set. Reads
+// the accumulated live-state `rec`; deduped per (broadcaster, stream-start) so
+// a missed-offline re-fire never double-posts.
+async function postStreamRecap(env, broadcasterId, rec) {
+  const channelId = RECAP_CHANNEL_ID(env);
+  if (!channelId) return { ok: true, skipped: 'no-recap-channel' };
+  if (!rec || !rec.startedAtIso) return { ok: true, skipped: 'no-live-state' };
+  const dedupeKey = RECAP_POSTED_KEY(`${broadcasterId}:${rec.startedAtIso}`);
+  if (await env.LOADOUT_BOLTS.get(dedupeKey)) return { ok: true, action: 'already-posted' };
+  const login = await loginFor(env, broadcasterId);
+  const payload = buildRecapEmbed({ rec, login, endedMs: Date.now() });
+  const r = await discordPost(env, channelId, payload);
+  if (!r.ok) return { ok: false, error: 'recap-post-failed', ...r };
+  await env.LOADOUT_BOLTS.put(dedupeKey, '1', { expirationTtl: 7 * 24 * 60 * 60 });
+  return { ok: true, action: 'posted', messageId: r.msg.id };
 }
 
 async function discordPost(env, channelId, payload) {
@@ -225,6 +290,10 @@ export async function handleStreamOnline(env, broadcasterId) {
     channelId,
     broadcasterId,
     startedAtIso: stream.started_at,
+    // Recap accumulators (task 28): seeded here, grown each refresh tick.
+    peakViewers:  stream.viewer_count || 0,
+    games:        stream.game_name ? [stream.game_name] : [],
+    lastTitle:    stream.title || '',
     updatedUtc:   new Date().toISOString(),
   };
   await env.LOADOUT_BOLTS.put(KEY(guildId), JSON.stringify(rec));
@@ -294,7 +363,17 @@ export async function refreshLiveStatusEmbed(env) {
     }
     return { ok: false, error: 'patch-failed', ...r };
   }
-  const next = { ...rec, updatedUtc: new Date().toISOString(), offlineStrikes: 0 };
+  // Grow the recap accumulators: peak viewers, distinct games, latest title.
+  const games = Array.isArray(rec.games) ? rec.games.slice() : [];
+  if (stream.game_name && !games.includes(stream.game_name)) games.push(stream.game_name);
+  const next = {
+    ...rec,
+    peakViewers: Math.max(rec.peakViewers || 0, stream.viewer_count || 0),
+    games,
+    lastTitle: stream.title || rec.lastTitle || '',
+    updatedUtc: new Date().toISOString(),
+    offlineStrikes: 0,
+  };
   if (hypeTrain !== rec.hypeTrain) next.hypeTrain = hypeTrain || undefined;
   await env.LOADOUT_BOLTS.put(KEY(guildId), JSON.stringify(next));
   return { ok: true, action: 'refreshed', viewerCount: stream.viewer_count };
@@ -356,6 +435,12 @@ export async function handleStreamOffline(env, broadcasterId) {
     }), { expirationTtl: Math.ceil(VOD_RETRY_WINDOW_MS / 1000) + 120 });
   }
 
+  // Stream recap (task 28): summarise the just-ended broadcast from the
+  // accumulated live-state (duration / peak viewers / games / title). Runs
+  // BEFORE we drop the dashboard KV so `rec` is intact. Best-effort + dormant
+  // unless RECAP_CHANNEL_ID is set; deduped per stream inside the helper.
+  const recap = rec ? await postStreamRecap(env, broadcasterId, rec).catch(() => null) : null;
+
   // Delete the live dashboard post (the "going live" message goes away
   // when the stream ends).
   let deleted = false;
@@ -369,7 +454,7 @@ export async function handleStreamOffline(env, broadcasterId) {
   // available; if not, the per-minute cron keeps retrying.
   const vod = await tryPostPendingVod(env).catch(() => null);
   return { ok: true, action: deleted ? 'deleted' : 'no-embed',
-    messageId: rec?.messageId || null, vod };
+    messageId: rec?.messageId || null, vod, recap };
 }
 
 // Post the pending stream's VOD to the videos channel, with retry. Reads
