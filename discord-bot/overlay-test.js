@@ -50,6 +50,9 @@ async function send(req, env) {
   const evt = { n, kinds };
   const flashMs = Number(body.flashMs);
   if (Number.isFinite(flashMs) && flashMs >= 1000 && flashMs <= 15000) evt.flashMs = Math.round(flashMs);
+  // Optional payload an overlay may act on (e.g. Gift Guide "preview this
+  // profile" — the editor sends the selected profile/category name).
+  if (typeof body.game === 'string' && body.game) evt.game = body.game.slice(0, 60);
   await env.LOADOUT_BOLTS.put(`otest:${ch}`, JSON.stringify(evt), { expirationTtl: EVENT_TTL_S });
   return json({ ok: true, n });
 }
