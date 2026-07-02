@@ -1120,6 +1120,15 @@ export default {
       const { handleAnnounceChannel } = await import('./announce-channel.js');
       return handleAnnounceChannel(req, env);
     }
+    // Check-in card picture upload (R2) + public serve.
+    if (path === '/web/card-image') {
+      const { handleCardImageUpload } = await import('./card-image.js');
+      return handleCardImageUpload(req, env);
+    }
+    if (path.indexOf('/card-image/') === 0) {
+      const { serveCardImage } = await import('./card-image.js');
+      return serveCardImage(env, path);
+    }
     // F1, Friends system (HMAC-gated writes, public GETs)
     if (path.startsWith('/web/friends/') || path === '/web/friends') {
       const { handleFriendsRoute } = await import('./friends.js');
