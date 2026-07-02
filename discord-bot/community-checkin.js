@@ -507,8 +507,13 @@ export async function recordCheckin(env, guildId, userId, source = 'web', opts =
   // Streak math.
   let freezeUsed = false;
   let nextStreak;
-  if (!prev) {
-    nextStreak = 1;
+  if (!prev || !prev.lastDayEt) {
+    // Fresh user — or a legacy/reset record whose lastDayEt is null (the
+    // 2026 streak-reset wrote those), which used to crash daysBetween with
+    // "Cannot read properties of null (reading 'split')". No prior day on
+    // record means no continuity to judge: count today, keep any surviving
+    // streak value.
+    nextStreak = (prev?.streak || 0) + 1;
   } else {
     const delta = daysBetween(prev.lastDayEt, today);
     if (delta === 1) {
