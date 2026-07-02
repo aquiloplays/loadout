@@ -87,9 +87,10 @@ async function settle(env, guildId, userId, bet, payout, reason) {
   return { ok: true, wallet: w };
 }
 
-function announce(env, ctx, text) {
+function announce(env, ctx, channelId, text) {
   try {
-    const p = sendChatMessage(env, text);
+    const opts = channelId ? { broadcasterId: String(channelId), senderId: String(channelId) } : {};
+    const p = sendChatMessage(env, text, opts);
     if (ctx && ctx.waitUntil) ctx.waitUntil(Promise.resolve(p).catch(() => {}));
   } catch { /* best-effort */ }
 }
@@ -170,6 +171,7 @@ export async function handleExtCasino(env, ctx, guildId, userId, payload, sub, r
   let body = {};
   if (req.method === 'POST') { try { body = await req.json(); } catch { body = {}; } }
   const who = cleanName(body.name) || 'Someone';
+  const chanId = payload && payload.channel_id; // chat announces target this broadcaster
 
   // Daily claim ---------------------------------------------------------
   if (req.method === 'POST' && sub === 'daily') {
@@ -232,7 +234,7 @@ export async function handleExtCasino(env, ctx, guildId, userId, payload, sub, r
     const r = await settle(env, guildId, userId, p.bet, payout, 'slots');
     if (!r.ok) return json({ error: 'insufficient', wallet: walletView(w0) }, 400);
     const net = payout - p.bet;
-    if (net >= ANNOUNCE_NET) announce(env, ctx, `🎰 ${who} hit ${reels.join('-')} on slots for +${net} Bolts!`);
+    if (net >= ANNOUNCE_NET) announce(env, ctx, chanId, `🎰 ${who} hit ${reels.join('-')} on slots for +${net} Bolts!`);
     return json({ ok: true, game: 'slots', reels, mult, payout, net, wallet: walletView(r.wallet) });
   }
 
@@ -250,7 +252,7 @@ export async function handleExtCasino(env, ctx, guildId, userId, payload, sub, r
     const r = await settle(env, guildId, userId, p.bet, payout, 'coinflip');
     if (!r.ok) return json({ error: 'insufficient', wallet: walletView(w0) }, 400);
     const net = payout - p.bet;
-    if (net >= ANNOUNCE_NET) announce(env, ctx, `🪙 ${who} called ${side} and won +${net} Bolts on the coinflip!`);
+    if (net >= ANNOUNCE_NET) announce(env, ctx, chanId, `🪙 ${who} called ${side} and won +${net} Bolts on the coinflip!`);
     return json({ ok: true, game: 'coinflip', side, result, won, payout, net, wallet: walletView(r.wallet) });
   }
 
@@ -267,7 +269,7 @@ export async function handleExtCasino(env, ctx, guildId, userId, payload, sub, r
     const r = await settle(env, guildId, userId, p.bet, payout, 'dice');
     if (!r.ok) return json({ error: 'insufficient', wallet: walletView(w0) }, 400);
     const net = payout - p.bet;
-    if (net >= ANNOUNCE_NET) announce(env, ctx, `🎲 ${who} called ${pick}, rolled ${roll}, and won +${net} Bolts!`);
+    if (net >= ANNOUNCE_NET) announce(env, ctx, chanId, `🎲 ${who} called ${pick}, rolled ${roll}, and won +${net} Bolts!`);
     return json({ ok: true, game: 'dice', pick, roll, won, payout, net, wallet: walletView(r.wallet) });
   }
 

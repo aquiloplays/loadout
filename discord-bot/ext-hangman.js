@@ -102,9 +102,10 @@ function view(round) {
 
 // Chat announcements are best-effort (fire-and-forget via waitUntil). If
 // the broadcaster token lacks user:write:chat the send no-ops silently.
-function announce(env, ctx, text) {
+function announce(env, ctx, channelId, text) {
   try {
-    const p = sendChatMessage(env, text);
+    const opts = channelId ? { broadcasterId: String(channelId), senderId: String(channelId) } : {};
+    const p = sendChatMessage(env, text, opts);
     if (ctx && ctx.waitUntil) ctx.waitUntil(Promise.resolve(p).catch(() => {}));
   } catch { /* best-effort */ }
 }
@@ -113,6 +114,7 @@ export async function handleExtHangman(env, ctx, guildId, userId, payload, sub, 
   const role = String((payload && payload.role) || 'viewer');
   const isMod = role === 'broadcaster' || role === 'moderator';
   const key = ROUND_KEY(guildId);
+  const chanId = payload && payload.channel_id; // chat announces target this broadcaster
 
   if (req.method === 'GET' && sub === 'state') {
     const round = await env.LOADOUT_BOLTS.get(key, { type: 'json' });
@@ -146,7 +148,7 @@ export async function handleExtHangman(env, ctx, guildId, userId, payload, sub, 
       solvedBy: null,
     };
     await env.LOADOUT_BOLTS.put(key, JSON.stringify(round), { expirationTtl: ROUND_TTL_S });
-    announce(env, ctx, `🎮 Hangman is live! Category: ${pick.c} — ${round.word.replace(/ /g, '').length} letters. Guess a letter in the panel below 👇`);
+    announce(env, ctx, chanId, `🎮 Hangman is live! Category: ${pick.c} — ${round.word.replace(/ /g, '').length} letters. Guess a letter in the panel below 👇`);
     return json(view(round));
   }
 
@@ -173,8 +175,8 @@ export async function handleExtHangman(env, ctx, guildId, userId, payload, sub, 
       round.status = 'lost'; round.endedAt = Date.now(); lost = true;
     }
     await env.LOADOUT_BOLTS.put(key, JSON.stringify(round), { expirationTtl: ROUND_TTL_S });
-    if (win) announce(env, ctx, `🎉 Solved! The word was ${round.word} — nice one, ${who}! GG all.`);
-    if (lost) announce(env, ctx, `💀 Out of lives! The word was ${round.word}. Better luck next round.`);
+    if (win) announce(env, ctx, chanId, `🎉 Solved! The word was ${round.word} — nice one, ${who}! GG all.`);
+    if (lost) announce(env, ctx, chanId, `💀 Out of lives! The word was ${round.word}. Better luck next round.`);
     return json({ hit, win, lost, ...view(round) });
   }
 
@@ -192,7 +194,7 @@ export async function handleExtHangman(env, ctx, guildId, userId, payload, sub, 
       round.status = 'won'; round.endedAt = Date.now(); round.solvedBy = who;
       round.lastGuess = { by: who, letter: null, hit: true, solve: true, ts: Date.now() };
       await env.LOADOUT_BOLTS.put(key, JSON.stringify(round), { expirationTtl: ROUND_TTL_S });
-      announce(env, ctx, `🎉 ${who} solved it: ${round.word}! GG.`);
+      announce(env, ctx, chanId, `🎉 ${who} solved it: ${round.word}! GG.`);
       return json({ win: true, ...view(round) });
     }
     round.solveMisses = (round.solveMisses || 0) + 1;
@@ -200,7 +202,7 @@ export async function handleExtHangman(env, ctx, guildId, userId, payload, sub, 
     const lost = (round.wrong.length + round.solveMisses) >= MAX_LIVES;
     if (lost) { round.status = 'lost'; round.endedAt = Date.now(); }
     await env.LOADOUT_BOLTS.put(key, JSON.stringify(round), { expirationTtl: ROUND_TTL_S });
-    if (lost) announce(env, ctx, `💀 Out of lives! The word was ${round.word}. Better luck next round.`);
+    if (lost) announce(env, ctx, chanId, `💀 Out of lives! The word was ${round.word}. Better luck next round.`);
     return json({ win: false, wrongSolve: true, lost, ...view(round) });
   }
 

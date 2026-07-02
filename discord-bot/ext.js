@@ -67,13 +67,18 @@ export async function handleExt(req, env, ctx) {
   const payload = await verifyTwitchExtJwt(token, env.TWITCH_EXT_SECRET);
   if (!payload) return json({ error: 'unauthorized' }, 401);
 
-  // --- channel gate: Clay's channel only ---
-  const clayChannel = env.CLAY_TWITCH_CHANNEL_ID;
-  if (!clayChannel || String(payload.channel_id) !== String(clayChannel)) {
-    return json({ error: 'forbidden' }, 403);
-  }
-
-  const guildId = env.AQUILO_VAULT_GUILD_ID;
+  // --- multi-tenant channel resolution (Aquilo ID Phase 2) ---
+  // Any channel that installed the extension reaches here (Twitch gates who
+  // can load the panel), so we serve them ALL — namespaced by channel. Clay's
+  // channel keeps its existing Discord-guild namespace for full back-compat
+  // (his wallets / streaks / games are untouched); every other channel gets an
+  // isolated `tw:<channelId>` economy. `channelId` is passed to the game
+  // handlers so chat announcements target the right broadcaster (and safely
+  // no-op for channels that haven't connected a token yet).
+  const channelId = String(payload.channel_id || '');
+  if (!channelId) return json({ error: 'no-channel' }, 400);
+  const isClay = env.CLAY_TWITCH_CHANNEL_ID && channelId === String(env.CLAY_TWITCH_CHANNEL_ID);
+  const guildId = isClay ? env.AQUILO_VAULT_GUILD_ID : ('tw:' + channelId);
   if (!guildId) return json({ error: 'not-configured' }, 503);
   const twId = String(payload.user_id || payload.opaque_user_id || '');
   if (!twId) return json({ error: 'no-identity' }, 400);

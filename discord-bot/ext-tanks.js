@@ -22,9 +22,10 @@ const MAX_DAMAGE = 45;
 
 const cleanName = (s) => String(s || '').replace(/[^\w \-]/g, '').trim().slice(0, 25);
 
-function announce(env, ctx, text) {
+function announce(env, ctx, channelId, text) {
   try {
-    const p = sendChatMessage(env, text);
+    const opts = channelId ? { broadcasterId: String(channelId), senderId: String(channelId) } : {};
+    const p = sendChatMessage(env, text, opts);
     if (ctx && ctx.waitUntil) ctx.waitUntil(Promise.resolve(p).catch(() => {}));
   } catch { /* best-effort */ }
 }
@@ -77,6 +78,7 @@ export async function handleExtTanks(env, ctx, guildId, userId, payload, sub, re
   const isMod = role === 'broadcaster' || role === 'moderator';
   const key = GAME_KEY(guildId);
   const hasIdentity = !!(payload && payload.user_id);
+  const chanId = payload && payload.channel_id; // chat announces target this broadcaster
 
   if (req.method === 'GET' && sub === 'state') {
     const game = await env.LOADOUT_BOLTS.get(key, { type: 'json' });
@@ -126,7 +128,7 @@ export async function handleExtTanks(env, ctx, guildId, userId, payload, sub, re
     game.turn = 0;
     game.lastShot = null;
     await save(env, guildId, game);
-    announce(env, ctx, `💥 Tank battle! ${game.players.length} tanks, ${game.pot} Bolts on the line. Wind ${game.wind > 0 ? '→' : '←'} ${Math.abs(game.wind)}. Last tank standing takes the pot!`);
+    announce(env, ctx, chanId, `💥 Tank battle! ${game.players.length} tanks, ${game.pot} Bolts on the line. Wind ${game.wind > 0 ? '→' : '←'} ${Math.abs(game.wind)}. Last tank standing takes the pot!`);
     return json({ ok: true, ...view(game, userId) });
   }
 
@@ -170,7 +172,7 @@ export async function handleExtTanks(env, ctx, guildId, userId, payload, sub, re
         w.lastEarnReason = 'tanks-win';
         await putWallet(env, guildId, winner.userId, w);
         game.winner = { name: winner.name, pot: game.pot };
-        announce(env, ctx, `🏆 ${winner.name} wins the tank battle and ${game.pot} Bolts! GG.`);
+        announce(env, ctx, chanId, `🏆 ${winner.name} wins the tank battle and ${game.pot} Bolts! GG.`);
       } else {
         game.winner = { name: null, pot: game.pot };
       }
