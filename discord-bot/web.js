@@ -314,7 +314,7 @@ export async function handleWeb(req, env) {
       return await routeQueuesCloseNight(env, guildId);
     }
     if (route.startsWith('admin/'))        return await handleAdminWeb(env, route, guildId, body);
-    if (route === 'checkin')               return await routeCommunityCheckin(env, guildId, discordId);
+    if (route === 'checkin')               return await routeCommunityCheckin(env, guildId, discordId, body);
     if (route === 'checkin/status')        return await routeCommunityCheckinStatus(env, guildId, discordId);
     if (route === 'checkin/card')          return await routeCommunityCheckinCard(env, guildId, discordId, body);
     // (Bolts economy sunset 2026-06: checkin/bonus/collect dispatch removed — bonus payout was removed)
@@ -933,9 +933,13 @@ async function routeChatUnreact(env, discordId, body) {
 // the website and Discord interaction end up at recordCheckin() either
 // way, and the per-ET-day idempotency keeps the two surfaces in sync.
 
-async function routeCommunityCheckin(env, guildId, discordId) {
+async function routeCommunityCheckin(env, guildId, discordId, body) {
   const { recordCheckin } = await import('./community-checkin.js');
-  const r = await recordCheckin(env, guildId, discordId, 'web');
+  // body.twitchId rides in the site's HMAC-signed payload (stamped
+  // server-side from the session — sess.d on Twitch sign-ins), so the
+  // punch-card embed can resolve the supporter's sub tier.
+  const twitchId = /^\d{1,20}$/.test(String(body?.twitchId || '')) ? String(body.twitchId) : null;
+  const r = await recordCheckin(env, guildId, discordId, 'web', twitchId ? { twitchId } : {});
   return json(r, r.ok ? 200 : 400);
 }
 
@@ -956,7 +960,8 @@ async function routeCommunityCheckinCard(env, guildId, discordId, body) {
   //     Falls back to the authenticated user's own card when
   //     lookupUserId is unset, missing, or fails the digits-only
   //     format check.
-  const { getCard, putCard } = await import('./community-checkin.js');
+  const { getCard, putCard, getSubTier } = await import('./community-checkin.js');
+  const twitchId = /^\d{1,20}$/.test(String(body?.twitchId || '')) ? String(body.twitchId) : null;
   if (body && body.op === 'get') {
     let targetId = discordId;
     const lookupRaw = body.lookupUserId;
@@ -965,10 +970,17 @@ async function routeCommunityCheckinCard(env, guildId, discordId, body) {
       if (/^\d{5,25}$/.test(lookup)) targetId = lookup;
     }
     const card = await getCard(env, guildId, targetId);
+    // Own-card reads also report the viewer's sub tier so the site
+    // customizer can gate premium frames without a second round-trip.
+    const subTier = (targetId === discordId && twitchId) ? await getSubTier(env, twitchId) : 0;
     return json({ ok: true, card: card || null, userId: targetId,
-                  lookedUp: targetId !== discordId });
+                  lookedUp: targetId !== discordId, subTier });
   }
-  const r = await putCard(env, guildId, discordId, body?.card || {});
+  // Frame writes need the tier; imageUrl/accent/etc. don't. Resolve
+  // only when the patch carries a frame (keeps the common path cheap).
+  const wantsFrame = body?.card && body.card.frame !== undefined;
+  const subTier = wantsFrame ? (twitchId ? await getSubTier(env, twitchId) : 0) : null;
+  const r = await putCard(env, guildId, discordId, body?.card || {}, subTier);
   return json(r, r.ok ? 200 : 400);
 }
 

@@ -83,6 +83,39 @@ function daysBetween(a, b) {
   );
 }
 
+// ── Twitch sub tier + premium frames ───────────────────────────────────
+// Premium check-in card frames unlock by Twitch sub tier — the SAME
+// ladder PunchCard uses (gold=T1, neon/retro=T2, holo=T3) so supporting
+// the channel upgrades both surfaces coherently. Tier is resolved with
+// the broadcaster token (channel:read:subscriptions, same call the
+// community stats panel uses) and cached 30 min; tier changes are rare
+// and a stale read only delays an unlock.
+export const FRAME_TIER = { none: 0, gold: 1, neon: 2, retro: 2, holo: 3 };
+const SUBTIER_TTL = 1800;
+
+export async function getSubTier(env, twitchId) {
+  const id = String(twitchId || '').trim();
+  if (!/^\d{1,20}$/.test(id)) return 0;
+  const ck = `subtier:tw:${id}`;
+  try {
+    const hit = await env.LOADOUT_BOLTS.get(ck);
+    if (hit != null) return Math.max(0, Math.min(3, Number(hit) || 0));
+  } catch { /* cache miss */ }
+  let tier = 0;
+  try {
+    const { helixFetch } = await import('./twitch-helix.js');
+    const broadcasterId = String(env.CLAY_TWITCH_CHANNEL_ID || '').trim();
+    if (broadcasterId) {
+      const j = await helixFetch(env, '/subscriptions',
+        { broadcaster_id: broadcasterId, user_id: id }, { userToken: true });
+      const d = j && Array.isArray(j.data) ? j.data[0] : null;
+      if (d) tier = Math.max(1, Math.min(3, Math.round(Number(d.tier) / 1000) || 1));
+    }
+  } catch { /* treat as not subbed */ }
+  try { await env.LOADOUT_BOLTS.put(ck, String(tier), { expirationTtl: SUBTIER_TTL }); } catch { /* best-effort */ }
+  return tier;
+}
+
 // ── State / card / queue accessors ─────────────────────────────────────
 async function loadState(env, guildId, userId) {
   return env.LOADOUT_BOLTS.get(STATE_KEY(guildId, userId), { type: 'json' });
@@ -107,7 +140,7 @@ const AVATAR_SOURCES = new Set(['discord', 'patreon', 'custom']);
 //   - accentColor: null → reset to default; integer → set; undefined → keep.
 //   - avatarSource: one of 'discord' | 'patreon' | 'custom'.
 //   - customAvatarUrl: required (and https) when avatarSource === 'custom'.
-export async function putCard(env, guildId, userId, card) {
+export async function putCard(env, guildId, userId, card, subTier = null) {
   const prev = (await env.LOADOUT_BOLTS.get(CARD_KEY(guildId, userId), { type: 'json' })) || {};
   const next = { ...prev };
   const inUrl = (card?.imageUrl !== undefined) ? String(card.imageUrl).trim() : undefined;
@@ -157,6 +190,25 @@ export async function putCard(env, guildId, userId, card) {
       }
       next.backgroundId = v;
     }
+  }
+  // Premium frame, unlocked by Twitch sub tier (FRAME_TIER ladder).
+  // Validated server-side when the caller resolved a tier (subTier
+  // != null, the web path); the legacy Discord path passes null and
+  // can only CLEAR a frame, never set one it can't verify.
+  if (card?.frame !== undefined) {
+    const f = card.frame == null || card.frame === '' ? 'none' : String(card.frame).toLowerCase();
+    if (!(f in FRAME_TIER)) {
+      return { ok: false, error: 'bad-frame',
+        message: `frame must be one of: ${Object.keys(FRAME_TIER).join(', ')}` };
+    }
+    if (f !== 'none') {
+      if (subTier == null) return { ok: false, error: 'frame-requires-tier-check' };
+      if (FRAME_TIER[f] > subTier) {
+        return { ok: false, error: 'frame-locked', needTier: FRAME_TIER[f],
+          message: `The ${f} frame unlocks at sub tier ${FRAME_TIER[f]}.` };
+      }
+    }
+    next.frame = f === 'none' ? null : f;
   }
   // Pass-through for the legacy theme/effect strings the v1 picker
   // wrote. Don't validate, they're already in the wild on saved
@@ -437,7 +489,23 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   // (quote-style + italicized + near author).
   if (composedMessage) lines.push(`> _${composedMessage.slice(0, 300)}_`);
   if (card?.headline) lines.push(`_${card.headline}_`);
-  lines.push(`🔥 **${state.streak}-day streak**` + (state.longest > state.streak ? `  · best ${state.longest}` : ''));
+  // ── Punch-card row (Clay, 2026-07-02: "daily check-ins that post to
+  // Discord should look like punch cards"). Each card page holds 7
+  // punches like a coffee-shop card; finish a page, start the next.
+  // The punch stamp upgrades with the supporter's Twitch sub tier —
+  // same ladder as the PunchCard product (⚡ everyone, 🌟 T1, 💎 T2,
+  // 👑 T3).
+  const subTier = Math.max(0, Math.min(3, Number(opts.subTier) || 0));
+  const stamp   = ['⚡', '🌟', '💎', '👑'][subTier];
+  const pageNo  = Math.floor((state.streak - 1) / 7) + 1;
+  const punched = ((state.streak - 1) % 7) + 1;
+  const row = Array.from({ length: 7 }, (_, i) => (i < punched ? stamp : '▫️')).join(' ');
+  lines.push(row);
+  lines.push(
+    `🔥 **${state.streak}-day streak**`
+    + (state.longest > state.streak ? ` · best ${state.longest}` : '')
+    + (subTier ? ` · ${stamp} T${subTier} supporter` : ''),
+  );
   if (card?.subtitle) lines.push(card.subtitle);
   if (isFirstTimeNoCard) {
     lines.push('');
@@ -448,6 +516,8 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
     author: { name: `${display} checked in`, icon_url: avatar },
     description: lines.join('\n'),
     color: accent,
+    footer: { text: `🎟 PUNCH CARD #${pageNo} · ${punched}/7`
+      + (card?.frame ? ` · ${String(card.frame).toUpperCase()} FRAME` : '') },
     timestamp: new Date().toISOString(),
   };
   if (image) embed.image = { url: image };
@@ -587,6 +657,11 @@ export async function recordCheckin(env, guildId, userId, source = 'web', opts =
   // the check-in itself; the user still got their streak).
   // opts { message, gifUrl } come from the /checkin compose flow
   // and bake the user's message + chosen GIF directly into the card.
+  // opts.twitchId (web path, from the signed site session) resolves the
+  // supporter's sub tier so the punch-card stamps upgrade with tier.
+  if (opts.twitchId && opts.subTier == null) {
+    opts.subTier = await getSubTier(env, opts.twitchId).catch(() => 0);
+  }
   const member = await fetchMemberInfo(env, guildId, userId);
   const embed  = await postCheckinEmbed(env, guildId, userId, state, card, member, firstTimeNoCard, opts);
 
