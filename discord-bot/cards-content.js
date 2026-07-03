@@ -856,6 +856,62 @@ export const NPC_DECKS = {
       'goblin.l001',
     ],
   },
+  // ── Expansion-set archetype decks (2026-07-03) ──────────────────────
+  // Each uses REAL ids verified to exist in the generated catalogue.
+  // Frostbite: Tides-of-Aether freeze/tempo. Control-flavoured policy
+  // (leans on freeze spells to lock the board, then grinds).
+  frostbite: {
+    champion: 'mage',
+    policy: 'control',
+    cards: [
+      'tides-of-aether.x001', 'tides-of-aether.x001',
+      'tides-of-aether.x005', 'tides-of-aether.x005',
+      'tides-of-aether.x003', 'tides-of-aether.x003',
+      'tides-of-aether.x063', 'tides-of-aether.x063',
+      'tides-of-aether.x030', 'tides-of-aether.x066',
+      'tides-of-aether.x004', 'tides-of-aether.x004',
+      'tides-of-aether.x007', 'tides-of-aether.x007',
+      'tides-of-aether.x010', 'tides-of-aether.x011',
+      'tides-of-aether.x006', 'tides-of-aether.x009',
+      'tides-of-aether.x013', 'tides-of-aether.x002',
+    ],
+  },
+  // Ember: Embercrown-Rising burn. Aggro-flavoured (charge bodies +
+  // direct-damage removal + a couple of face reach spells).
+  ember: {
+    champion: 'mage',
+    policy: 'aggro',
+    cards: [
+      'embercrown-rising.x004', 'embercrown-rising.x004',
+      'embercrown-rising.x005', 'embercrown-rising.x005',
+      'embercrown-rising.x007', 'embercrown-rising.x007',
+      'embercrown-rising.x008', 'embercrown-rising.x008',
+      'embercrown-rising.x009', 'embercrown-rising.x009',
+      'embercrown-rising.x010', 'embercrown-rising.x010',
+      'embercrown-rising.x011', 'embercrown-rising.x012',
+      'embercrown-rising.x006', 'embercrown-rising.x001',
+      'embercrown-rising.x002', 'embercrown-rising.x003',
+      'voidborn.u15', 'voidborn.r09',
+    ],
+  },
+  // Umbra: Voidborn reborn/tribe. Midrange-flavoured (sticky reborn
+  // bodies that demand two removals apiece).
+  umbra: {
+    champion: 'rogue',
+    policy: 'midrange',
+    cards: [
+      'voidborn.x028', 'voidborn.x028',
+      'voidborn.c07', 'voidborn.c07',
+      'voidborn.x007', 'voidborn.x019',
+      'voidborn.x068', 'voidborn.x131',
+      'voidborn.u04', 'voidborn.u04',
+      'voidborn.r04', 'voidborn.x034',
+      'voidborn.x035', 'voidborn.u09',
+      'voidborn.x076', 'voidborn.x097',
+      'voidborn.l04', 'voidborn.x115',
+      'voidborn.x094', 'voidborn.x127',
+    ],
+  },
 };
 
 // Quick validity check at module load, NPC decks must reference
