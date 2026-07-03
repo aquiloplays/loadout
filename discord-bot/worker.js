@@ -52,6 +52,11 @@ export { ActivityBroadcaster } from './activity-do.js';
 // wrangler.toml [[migrations]] v3-tts-do. Drives the OBS overlay at
 // aquilo.gg/overlays/tts-feed.
 export { TtsBroadcaster } from './tts-do.js';
+// Warden per-streamer moderator-room WebSocket DO (aquilo/warden-room-do.js).
+// Bound as WARDEN_DO; see wrangler.toml [[migrations]] v4-warden-room.
+// Holds the mod team's live sockets, fans out chat + mod-action + audit
+// frames, and runs re-authorized inbound mod commands.
+export { WardenRoom } from './aquilo/warden-room-do.js';
 
 // Discord interaction "claim" command custom handler, defined here rather
 // than commands.js because it touches the claim KV and cross-cuts the
@@ -1142,6 +1147,26 @@ export default {
     if (path.startsWith('/web/spire-map/')) {
       const { handleSpireMapRoute } = await import('./spire-map.js');
       return handleSpireMapRoute(req, env, path);
+    }
+    // Warden — multi-platform moderator suite. The mod-room WebSocket
+    // upgrade routes straight to the per-streamer WardenRoom DO (the
+    // 60s ticket travels in the query and is re-verified by the DO); all
+    // other /web/warden/* routes are POST + HMAC-gated inside
+    // warden-router.js. Claimed BEFORE the generic /web/ dispatcher.
+    if (path === '/web/warden/room/ws') {
+      if (!env.WARDEN_DO) return new Response('warden-not-configured', { status: 503 });
+      const { verifyRoomTicket } = await import('./warden-db.js');
+      const ticket = url.searchParams.get('ticket') || '';
+      const claim = await verifyRoomTicket(env, ticket);
+      if (!claim || !claim.streamerId) return new Response('unauthorized', { status: 401 });
+      const stub = env.WARDEN_DO.get(env.WARDEN_DO.idFromName(String(claim.streamerId)));
+      const doUrl = new URL(req.url);
+      doUrl.pathname = '/ws';
+      return stub.fetch(new Request(doUrl.toString(), req));
+    }
+    if (path.startsWith('/web/warden/')) {
+      const { handleWardenRoute } = await import('./warden-router.js');
+      return handleWardenRoute(req, env, path, ctx);
     }
     // F3, Community activity feed (public GET)
     if (path === '/community/feed') {

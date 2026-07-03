@@ -212,6 +212,16 @@ class_name = "ActivityBroadcaster"
 name = "TTS_DO"
 class_name = "TtsBroadcaster"
 
+# Warden per-streamer moderator-room DO (aquilo/warden-room-do.js). One
+# instance per streamer (idFromName(streamerId)) holding the mod team's
+# live WebSockets — fans out unified chat + mod-action + audit frames and
+# runs re-authorized inbound mod commands. Hibernatable (acceptWebSocket),
+# so idle rooms cost nothing. In-memory recent ring only (no SQLite), so
+# the migration uses new_classes.
+[[durable_objects.bindings]]
+name = "WARDEN_DO"
+class_name = "WardenRoom"
+
 # Aquilo Overlay Composer reference images. The builder lets Clay (and
 # later all streamers) upload a screenshot of their existing OBS scene as
 # a background reference layer, snap-to-edges enabled. 4 MB cap enforced
@@ -234,6 +244,10 @@ new_classes = ["ActivityBroadcaster"]
 [[migrations]]
 tag = "v3-tts-do"
 new_classes = ["TtsBroadcaster"]
+
+[[migrations]]
+tag = "v4-warden-room"
+new_classes = ["WardenRoom"]
 
 # Worker crons. worker.js's `scheduled` handler dispatches by
 # event.cron so each cron can drive a different job.
