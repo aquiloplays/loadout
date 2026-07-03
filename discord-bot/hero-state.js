@@ -107,10 +107,11 @@ function newHero() {
     xp: 0,
     hpMax: 25,
     hpCurrent: 25,
-    // Soft-death state (2026-05-29). 'alive' is the default; 'dead' is
-    // set by hero-death.killHero when an expedition kills the hero.
-    // A dead hero blocks new expedition starts and can only be revived
-    // by consuming a Revive Elixir from the shop. See hero-death.js.
+    // Soft-death state (2026-05-29). Its writer module (hero-death.js)
+    // and the Revive Elixir shop were removed at the Bolts economy sunset,
+    // so nothing sets these today. The fields stay on the persisted hero
+    // record as dormant scaffolding for a future revival and to keep
+    // forward-compat with KV heroes that already carry them.
     status: 'alive',
     diedAt: null,       // ISO timestamp of last death, null when alive
     deathReason: null,  // e.g. 'expedition', cleared on revive

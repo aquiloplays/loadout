@@ -516,9 +516,10 @@ export default {
         path.startsWith('/admin/_twitch-prune/')) {
       return handleTwitchPrune(req, env, path);
     }
-    // (Bolts economy sunset: the Boltbound card-art admin routes
-    // /admin/_card-art-summary + /admin/card-art/{list,set,clear} were
-    // unwired with the dormant Boltbound surface.)
+    // (The Boltbound card-art admin routes /admin/_card-art-summary +
+    // /admin/card-art/{list,set,clear} stay unwired. They were dropped at
+    // the Bolts economy sunset and were not restored by the Boltbound
+    // revival, which re-wired only the player-facing /web/boltbound surface.)
     // Post or refresh the pinned Games-Menu message in #games
     // (channel defaults to 1507973935973531808 for the Aquilo guild,
     // can be overridden via body {channelId}). Idempotent, uses
@@ -1470,9 +1471,11 @@ export default {
             }
           })());
         }
-        // (Removed with the Bolts economy sunset: the daily-quests
-        // rotation pre-warm (daily-quests.js, deleted) and the Boltbound
-        // ranked monthly season-close (boltbound-ranked.js, unwired).)
+        // (No cron here for the daily-quests rotation pre-warm or the
+        // Boltbound ranked monthly season-close. Both daily-quests.js and
+        // boltbound-ranked.js are live again via the revived Boltbound web
+        // surface (cards-web.js), but their scheduled-cron drivers were
+        // dropped with the Bolts economy sunset and stay unwired.)
         // Mirror the stream schedule into Discord guild scheduled
         // events (idempotent, skips dateKeys already created). See
         // stream-events.js.
@@ -1553,9 +1556,10 @@ export default {
             console.warn('[cron] support-tickets auto-close', e?.message || e);
           }
         })());
-        // (Bolts economy sunset: the seasonal Spire monthly-rotation
-        // cron was unwired — Spire rides with the dormant Boltbound
-        // surface.)
+        // (The seasonal Spire monthly-rotation cron stays unwired. The
+        // Spire web surface itself is live again via the Boltbound revival,
+        // but its scheduled rotation driver was dropped at the Bolts
+        // economy sunset and was not restored.)
         // Unified vote-hub phase transitions, runs hourly, re-renders
         // the hub embed on phase change. See vote-hub.js.
         const guildIdForVoteHub = env.AQUILO_VAULT_GUILD_ID;
