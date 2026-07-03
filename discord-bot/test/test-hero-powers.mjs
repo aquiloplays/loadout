@@ -72,14 +72,15 @@ console.log('- HERO_POWER_DEFS catalogue');
 
 console.log('- initHeroPowerForMatch defaults');
 {
+  // Site-canonical wire ids (heroPowers.ts): warrior class → 'armor-up'.
   const w = initHeroPowerForMatch('warrior');
-  eq(w.id, 'warrior', 'warrior id set');
+  eq(w.id, 'armor-up', 'warrior id set (armor-up)');
   eq(w.manaCost, 2, 'warrior manaCost = 2');
   eq(w.usedThisTurn, false, 'warrior usedThisTurn = false');
 
-  // Unknown class falls back to warrior.
+  // Unknown class falls back to warrior / Armor Up.
   const bad = initHeroPowerForMatch('paladin');
-  eq(bad.id, 'warrior', 'unknown class → warrior fallback');
+  eq(bad.id, 'armor-up', 'unknown class → armor-up (warrior) fallback');
 }
 
 // ── 3. canUseHeroPower gates ────────────────────────────────────
@@ -155,13 +156,16 @@ console.log('- resolveHeroPower: mage Fire Bolt');
 
 console.log('- resolveHeroPower: rogue Coin Strike');
 {
+  // Site-canonical: Coin Strike deals 1 damage to the enemy hero, auto-
+  // targeted (no manual pick), NOT a coin-pool buff (semantics changed to
+  // match heroPowers.ts).
   const m = makeMatch({ aClass: 'rogue' });
+  m.active = 'A';
   const r = resolveHeroPower(m, 'A');
-  eq(r.log[0].effect, 'coin', 'effect = coin');
-  assert(Array.isArray(m.coinPool.A), 'coinPool.A initialised');
-  eq(m.coinPool.A.length, 1, 'coinPool.A has 1 coin');
-  eq(m.coinPool.A[0].atk, 0, 'coin atk = 0');
-  eq(m.coinPool.A[0].hp, 1, 'coin hp = +1');
+  eq(r.log[0].effect, 'damage', 'effect = damage');
+  eq(m.hp.B, 29, 'enemy hero hp 30 → 29');
+  eq(m.mana.A.cur, 3, 'mana spent: 5 → 3');
+  eq(m.heroPower.A.usedThisTurn, true, 'usedThisTurn set');
 }
 
 console.log('- resolveHeroPower: ranger Mark Target');

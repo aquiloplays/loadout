@@ -17,6 +17,7 @@
 //   summariseMatch(match), receipt-shape projection for /log
 
 import { CARDS, CHAMPIONS, championForClass, KEYWORDS, ADAPT_POOL } from './cards-content.js';
+import { initHeroPowerForMatch, resolveHeroPower, onTurnEnd as heroPowerOnTurnEnd } from './hero-powers.js';
 
 // ── RNG ──────────────────────────────────────────────────────────────
 
@@ -57,6 +58,7 @@ function rngFloat(match) { return rng(match)(); }
 
 const STARTING_HP = 30;
 const HAND_CAP = 5;
+const BOARD_CAP = 7;
 const STARTING_HAND_A = 3;
 const STARTING_HAND_B = 4;
 
@@ -99,6 +101,16 @@ export function createMatch(opts) {
     seed,
     rngStep: tmp.rngStep,
     boardUidCounter: 1,
+    // Hero powers, one per side, from each champion's class. usedThisTurn
+    // resets in startTurn; heroArmor is absorbed before hero hp in
+    // dealDamage; markedTargets grant +bonusDamage while the marker's turn
+    // lasts (cleared in endTurn). See hero-powers.js.
+    heroPower: {
+      A: initHeroPowerForMatch(opts.playerA?.championClass),
+      B: initHeroPowerForMatch((opts.playerB || opts.npc)?.championClass),
+    },
+    heroArmor: { A: 0, B: 0 },
+    markedTargets: {},
   };
 
   // Draw starting hands. Going first = 3 cards. Going second = 4 + bonus mana token (one-shot +1 mana on turn 1).
@@ -165,6 +177,9 @@ function drawTurnStart(match, side) {
 
 export function applyMulligan(match, side, handIndices) {
   if (match.status !== 'mulligan') return match;
+  // One-shot per side: without this guard a PvP player could spam the
+  // mulligan endpoint re-rolling their hand until the opponent submits.
+  if (match.mulliganDone?.[side]) return match;
   const toReplace = (handIndices || []).map(i => +i).filter(i => Number.isInteger(i) && i >= 0 && i < match.hands[side].length);
   if (toReplace.length === 0) {
     // Mark side as mulligan-complete (sentinel-empty hands tracked in mulliganDone)
@@ -210,6 +225,8 @@ function startTurn(match, side) {
   }
   // New turn, the Combo gate resets (the next card played is "first").
   match.cardsPlayed[side] = 0;
+  // Hero power refreshes at the start of the owner's turn.
+  if (match.heroPower?.[side]) match.heroPower[side].usedThisTurn = false;
   // Untap at the start of the OWNER's turn (charge/rush handle the
   // play-turn case). Frozen minions thaw instead of untapping, they miss
   // exactly this one turn, then act normally next turn.
@@ -261,10 +278,22 @@ function endTurn(match, side) {
       if (m.tempHp)  { m.hp = Math.max(0, m.hp - m.tempHp);  m.tempHp = 0; }   // this-turn HP is a temporary cap; we don't restore lost HP, just clear the bookkeeping
     }
   }
-  // Hero this-turn shield (Iron Skin): just bookkeeping reset.
+  // Hero this-turn HP (Iron Skin): subtract the remaining granted HP so the
+  // '+N HP this turn' is genuinely temporary. Damage taken this turn already
+  // drew the hero pool down, so clamp at 0 rather than restoring lost HP.
   for (const s of ['A', 'B']) {
-    if (match.heroTempHp?.[s]) match.heroTempHp[s] = 0;
+    if (match.heroTempHp?.[s]) {
+      match.hp[s] = Math.max(0, match.hp[s] - match.heroTempHp[s]);
+      match.heroTempHp[s] = 0;
+    }
   }
+  // The minion temp-HP wear-off above can drop a damaged minion to 0 HP;
+  // resolve those deaths now instead of leaving 0-HP ghosts on the board
+  // through the opponent's whole turn.
+  resolveDeaths(match);
+  // Hero-power turn-boundary: drop the outgoing side's this-turn marks
+  // (Mark Target is a this-turn debuff) and reset its usedThisTurn flag.
+  heroPowerOnTurnEnd(match, side);
   push(match, { t: match.turn, kind: 'turn-end', side });
   // Fatigue check, if past turn 20, start global fatigue.
   if (match.turn >= 20) {
@@ -323,6 +352,9 @@ export function applyAction(match, action) {
   if (action.kind === 'attack') {
     return attackAction(match, action);
   }
+  if (action.kind === 'heroPower') {
+    return heroPowerAction(match, action);
+  }
   return { match, error: 'unknown-action' };
 }
 
@@ -337,6 +369,9 @@ function playCardAction(match, action) {
   if (!card) return { match, error: 'unknown-card' };
   const cost = card.mana || 0;
   if (match.mana[side].cur < cost) return { match, error: 'insufficient-mana' };
+  // Board cap: a minion play is illegal when your side is already full.
+  // (Spells are unaffected; they may clear the board before summoning.)
+  if (card.type !== 'spell' && boardFull(match, side)) return { match, error: 'board-full' };
 
   // Spend mana, remove from hand.
   match.mana[side].cur -= cost;
@@ -451,13 +486,32 @@ function attackAction(match, action) {
     target = { kind: 'minion', side: opp, minion: m };
   }
 
-  // Fire onAttack abilities.
+  // Fire onAttack abilities. These resolve BEFORE combat, so a Voltaic-Wyrm
+  // 'deal 1 to every other minion' can kill the defender pre-strike. Combat
+  // must not then resolve against (or take retaliation from) a corpse, so we
+  // liveness-check both bodies after onAttack below.
   fireAbilities(match, attacker, side, 'onAttack', { pickedTargetUid: targetUid });
+
+  // If onAttack already killed the attacker, there is no swing to resolve.
+  if (attacker.hp <= 0) {
+    attacker.canAttack = false;
+    resolveDeaths(match);
+    if (resolveVictoryIfAny(match)) return { match, ended: true };
+    return { match };
+  }
 
   // Apply damage both ways.
   if (target.kind === 'hero') {
     dealDamage(match, attacker, { kind: 'hero', side: opp }, attacker.atk);
     // Lifesteal heals own hero.
+    if ((attacker.keywords || []).includes('lifesteal')) {
+      match.hp[side] = Math.min(STARTING_HP, match.hp[side] + attacker.atk);
+      push(match, { t: match.turn, kind: 'lifesteal-heal', side, amount: attacker.atk, hp: match.hp[side] });
+    }
+  } else if (target.minion.hp <= 0) {
+    // onAttack killed the defender first; the strike lands on nothing and
+    // the dead defender does not retaliate. The attacker still spends its
+    // attack and still gains lifesteal from connecting.
     if ((attacker.keywords || []).includes('lifesteal')) {
       match.hp[side] = Math.min(STARTING_HP, match.hp[side] + attacker.atk);
       push(match, { t: match.turn, kind: 'lifesteal-heal', side, amount: attacker.atk, hp: match.hp[side] });
@@ -490,13 +544,42 @@ function attackAction(match, action) {
   return { match };
 }
 
+// Fire the active side's hero power. `action.targetId` (or `targetUid`)
+// is the picked target; hero-powers.js gates mana/once-per-turn and
+// mutates match in place. Damage powers (Fire Bolt / Coin Strike) can
+// end the match, so resolve deaths + victory after.
+function heroPowerAction(match, action) {
+  const side = action.side;
+  const targetId = action.targetId != null ? action.targetId
+                 : (action.targetUid != null ? action.targetUid : null);
+  const r = resolveHeroPower(match, side, { targetId });
+  const entry = (r.log && r.log[0]) || null;
+  if (entry) push(match, entry);
+  if (entry && entry.kind === 'hero-power-rejected') {
+    return { match, error: entry.reason || 'hero-power-rejected' };
+  }
+  resolveDeaths(match);
+  if (resolveVictoryIfAny(match)) return { match, ended: true };
+  return { match };
+}
+
 // ── Damage + death ───────────────────────────────────────────────────
 
 function dealDamage(match, source, target, amount) {
   if (amount <= 0) return;
   if (target.kind === 'hero') {
-    match.hp[target.side] -= amount;
-    push(match, { t: match.turn, kind: 'hero-damage', side: target.side, amount, hp: match.hp[target.side] });
+    // Armor (warrior Armor Up) absorbs damage before hero hp.
+    let dmg = amount;
+    if (match.heroArmor && match.heroArmor[target.side] > 0) {
+      const absorbed = Math.min(match.heroArmor[target.side], dmg);
+      match.heroArmor[target.side] -= absorbed;
+      dmg -= absorbed;
+      push(match, { t: match.turn, kind: 'armor-absorb', side: target.side, absorbed, armor: match.heroArmor[target.side] });
+    }
+    if (dmg > 0) {
+      match.hp[target.side] -= dmg;
+      push(match, { t: match.turn, kind: 'hero-damage', side: target.side, amount: dmg, hp: match.hp[target.side] });
+    }
     return;
   }
   const m = target.minion;
@@ -505,8 +588,18 @@ function dealDamage(match, source, target, amount) {
     push(match, { t: match.turn, kind: 'shield-block', uid: m.uid });
     return;
   }
-  m.hp -= amount;
-  push(match, { t: match.turn, kind: 'minion-damage', uid: m.uid, amount, hp: m.hp });
+  // Mark Target (ranger hero power): a marked minion takes +bonusDamage
+  // from ALL sources this turn (attacks, spells, hero powers). The mark
+  // is cleared at the marker's turn-end (hero-powers.onTurnEnd), so it is
+  // a turn-scoped bonus, not consumed per hit.
+  let dealt = amount;
+  const mark = match.markedTargets && match.markedTargets[m.uid];
+  if (mark && mark.bonusDamage > 0) {
+    dealt += mark.bonusDamage;
+    push(match, { t: match.turn, kind: 'mark-bonus', uid: m.uid, bonus: mark.bonusDamage });
+  }
+  m.hp -= dealt;
+  push(match, { t: match.turn, kind: 'minion-damage', uid: m.uid, amount: dealt, hp: m.hp });
   // onDamage triggers fire for a minion that took (and survived) damage.
   // A dying minion runs its onDeath path instead (resolveDeaths), so we
   // skip onDamage at <=0 to avoid double-firing on the same blow.
@@ -617,10 +710,15 @@ function runEffect(match, side, ab, ctx) {
       const summonSide = ab.target === 'opp' ? opp : side;
       const card = CARDS[summonCardId];
       if (!card) return;
-      const m = makeBoardMinion(match, card, summonSide);
-      // Summoned tokens get the keyword 'charge' if present in their card def.
-      match.board[summonSide].push(m);
-      push(match, { t: match.turn, kind: 'summon', side: summonSide, cardId: summonCardId, uid: m.uid });
+      // summon may carry a count (ab.value); default 1. Stop at the board cap.
+      const count = Math.max(1, ab.value || 1);
+      for (let i = 0; i < count; i++) {
+        if (boardFull(match, summonSide)) { push(match, { t: match.turn, kind: 'board-full', side: summonSide }); break; }
+        const m = makeBoardMinion(match, card, summonSide);
+        // Summoned tokens get the keyword 'charge' if present in their card def.
+        match.board[summonSide].push(m);
+        push(match, { t: match.turn, kind: 'summon', side: summonSide, cardId: summonCardId, uid: m.uid });
+      }
       return;
     }
     case 'buff': {
@@ -686,6 +784,28 @@ function runEffect(match, side, ab, ctx) {
         }
         return;
       }
+      if (ab.target === 'allEnemyMinions') {
+        // Bounce every live enemy minion back to its owner's hand (up to
+        // the hand cap; overflow is burned). Tokens vanish rather than
+        // clutter the hand with unplayable cards.
+        const returned = match.board[opp].filter(m => m.hp > 0);
+        match.board[opp] = match.board[opp].filter(m => m.hp <= 0);
+        for (const m of returned) {
+          const card = CARDS[m.cardId];
+          if (card?.token) {
+            push(match, { t: match.turn, kind: 'return-vanish', side: opp, uid: m.uid, cardId: m.cardId });
+            continue;
+          }
+          if (match.hands[opp].length < HAND_CAP) {
+            match.hands[opp].push(m.cardId);
+            push(match, { t: match.turn, kind: 'return-to-hand', side: opp, cardId: m.cardId });
+          } else {
+            match.graveyard[opp].push(m.cardId);
+            push(match, { t: match.turn, kind: 'return-burn', side: opp, cardId: m.cardId });
+          }
+        }
+        return;
+      }
       return;
     }
     case 'copyOpponentCard': {
@@ -702,7 +822,15 @@ function runEffect(match, side, ab, ctx) {
     case 'silence': {
       for (const t of resolveTargets(match, side, ab, ctx)) {
         if (t.kind === 'minion') {
-          t.minion.status = (t.minion.status || []).filter(s => true);
+          // Silence strips all keywords (taunt/lifesteal/poison/reach/etc.)
+          // and clears combat statuses granted by them (shield/stealth/
+          // frozen). We keep only the 'silenced' marker so fireAbilities
+          // still short-circuits the minion's battlecries/deathrattles.
+          t.minion.keywords = [];
+          t.minion.spellDamageBonus = 0;
+          t.minion.hollowKing = false;
+          t.minion.status = (t.minion.status || []).filter(
+            s => !['shield', 'stealth', 'stealth-fresh', 'frozen', 'rush-fresh'].includes(s));
           t.minion.status.push('silenced');
           push(match, { t: match.turn, kind: 'silence', uid: t.minion.uid });
         }
@@ -745,6 +873,7 @@ function runEffect(match, side, ab, ctx) {
       if (ctx.source?.kind === 'minion') {
         const c = CARDS[ctx.source.cardId];
         if (c) {
+          if (boardFull(match, side)) { push(match, { t: match.turn, kind: 'board-full', side }); return; }
           const nm = makeBoardMinion(match, c, side);
           match.board[side].push(nm);
           push(match, { t: match.turn, kind: 'summon', side, cardId: c.id, uid: nm.uid, clone: true });
@@ -758,8 +887,14 @@ function runEffect(match, side, ab, ctx) {
       if (ctx.source?.kind === 'minion') {
         const c = CARDS[ctx.source.cardId];
         if (c) {
+          if (boardFull(match, side)) { push(match, { t: match.turn, kind: 'board-full', side }); return; }
           const nm = makeBoardMinion(match, c, side);
           nm.noReSummon = true;
+          // Card text ('re-summon with -1 attack'): the resurrected copy
+          // comes back one attack weaker. ab.atkPenalty defaults to 0 so
+          // reSummon without a penalty (old behaviour) is unchanged.
+          const penalty = ab.atkPenalty || 0;
+          if (penalty) nm.atk = Math.max(0, nm.atk - penalty);
           match.board[side].push(nm);
           push(match, { t: match.turn, kind: 'resummon', side, cardId: c.id, uid: nm.uid });
         }
@@ -802,6 +937,7 @@ function runEffect(match, side, ab, ctx) {
         eligible.push(i);
       }
       if (!eligible.length) { push(match, { t: match.turn, kind: 'recruit-miss', side }); return; }
+      if (boardFull(match, side)) { push(match, { t: match.turn, kind: 'board-full', side }); return; }
       const pickIdx = eligible[Math.floor(rng(match)() * eligible.length)];
       const cardId = deck[pickIdx];
       deck.splice(pickIdx, 1);
@@ -928,6 +1064,15 @@ function resolveTargets(match, side, ab, ctx) {
     }
     case 'lastDeadFriendly':     /* handled inline in returnToHand */ break;
     case 'self':                 /* handled inline in returnToHand */ break;
+    case 'sourceMinion': {
+      // The minion that owns this ability (e.g. onAttack self-heal). Used by
+      // effects like heal/buff that want to target their own source.
+      if (ctx.source?.kind === 'minion') {
+        const m = findMinion(match, side, ctx.source.uid);
+        if (m && m.hp > 0) out.push({ kind: 'minion', minion: m, side });
+      }
+      break;
+    }
     case 'oppHand':              out.push({ kind: 'oppHand', side: opp }); break;
     case 'selfHand':             out.push({ kind: 'selfHand', side });     break;
     default: /* no target */ break;
@@ -976,8 +1121,19 @@ function findMinion(match, side, uid) {
   return match.board[side].find(m => m.uid === uid) || null;
 }
 
+// Board cap: a side can hold at most BOARD_CAP minions. A summon that
+// would exceed it is swallowed (logged as 'board-full'). Callers check
+// this before minting/placing a minion.
+function boardFull(match, side) {
+  return match.board[side].length >= BOARD_CAP;
+}
+
 function hasTaunt(match, side) {
-  return match.board[side].some(m => (m.keywords || []).includes('taunt') && m.hp > 0);
+  // Stealthed taunt minions do NOT force targeting (Hearthstone rule):
+  // otherwise a stealthed taunt soft-locks all attacks (the taunt can't be
+  // hit while stealthed, yet blocks every other target).
+  return match.board[side].some(m => (m.keywords || []).includes('taunt') && m.hp > 0
+    && !(m.status || []).includes('stealth') && !(m.status || []).includes('stealth-fresh'));
 }
 
 function push(match, evt) {
@@ -1001,6 +1157,7 @@ export function isLegalAction(match, action) {
     const card = CARDS[cardId];
     if (!card) return { ok: false, reason: 'unknown-card' };
     if (match.mana[action.side].cur < (card.mana || 0)) return { ok: false, reason: 'insufficient-mana' };
+    if (card.type !== 'spell' && boardFull(match, action.side)) return { ok: false, reason: 'board-full' };
     return { ok: true };
   }
   if (action.kind === 'attack') {
@@ -1031,7 +1188,10 @@ export function isLegalAction(match, action) {
 
 // ── Public: receipt-shape projection for the match log ───────────────
 
-export function summariseMatch(match) {
+// endedAt is stamped by the orchestrator (the engine stays pure: no
+// Date.now here). Callers pass the wall-clock time; defaults to 0 so a
+// deterministic test/replay caller can omit it.
+export function summariseMatch(match, endedAt = 0) {
   return {
     matchId: match.matchId,
     status: match.status,
@@ -1039,7 +1199,7 @@ export function summariseMatch(match) {
     npc: match.npc ? { archetype: match.npc.archetype } : null,
     hp: { ...match.hp },
     turn: match.turn,
-    endedAt: Date.now(),
+    endedAt,
     log: match.log.slice(-60),    // keep the last 60 events for /log replay
   };
 }

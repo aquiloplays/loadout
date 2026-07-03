@@ -1125,14 +1125,23 @@ export default {
       const { handleFriendsRoute } = await import('./friends.js');
       return handleFriendsRoute(req, env, path);
     }
-    // (Removed with the Bolts economy sunset: the Daily Quests routes
-    // /web/quests/* — daily-quests.js was deleted. Boltbound web routes
-    // /web/boltbound/* were unwired — the card game is dormant, its
-    // files stay on disk but are no longer bundled.)
-    // (Bolts economy sunset: the Spire routes /web/spire-map/* were
-    // unwired. Spire is a Boltbound-deck roguelike — it snapshots the
-    // player's Boltbound deck — so it rides with the dormant Boltbound
-    // surface. spire*.js stay on disk but are no longer bundled.)
+    // Boltbound web TCG, re-wired on the sunset line (revive). Same
+    // lazy-import dispatch pattern as /web/friends/. cards-web.js owns
+    // HMAC verification + server-stamped identity + tenant gate before
+    // dispatching to routeBoltbound. (Daily Quests /web/quests/* stay
+    // removed — daily-quests.js is invoked in-process by cards-web.js,
+    // not exposed as its own web surface.)
+    if (path.startsWith('/web/boltbound/')) {
+      const { handleBoltboundWeb } = await import('./cards-web.js');
+      return handleBoltboundWeb(req, env, path);
+    }
+    // Spire branching-path map (Slay-the-Spire-style roguelike over a
+    // snapshotted Boltbound deck). Rides with the revived Boltbound
+    // surface; handler does its own HMAC gate (public GET for the map).
+    if (path.startsWith('/web/spire-map/')) {
+      const { handleSpireMapRoute } = await import('./spire-map.js');
+      return handleSpireMapRoute(req, env, path);
+    }
     // F3, Community activity feed (public GET)
     if (path === '/community/feed') {
       const { handleCommunityFeedRoute } = await import('./activity-feed.js');

@@ -408,7 +408,7 @@ async function finaliseIfEnded(env, match) {
   const bWon = match.status === 'B-won';
   const draw = match.status === 'draw';
 
-  const receipt = summariseMatch(match);
+  const receipt = summariseMatch(match, Date.now());
 
   // Figure out which side is the human(s). For NPC matches, only A is
   // human (we always put humans on A in this orchestrator).
@@ -513,6 +513,13 @@ export function renderableState(match, userId) {
   const me = sideOf(match, userId);
   if (!me) return null;
   const opp = me === 'A' ? 'B' : 'A';
+  // Per-side hero-power projection { id, manaCost, usedThisTurn }, matching
+  // the site's MatchSideView.heroPower field. Optional so old match records
+  // (pre-hero-power) render fine without it.
+  const heroPowerView = (side) => {
+    const hp = match.heroPower && match.heroPower[side];
+    return hp ? { id: hp.id, manaCost: hp.manaCost, usedThisTurn: !!hp.usedThisTurn } : null;
+  };
   return {
     matchId: match.matchId,
     status: match.status,
@@ -522,17 +529,21 @@ export function renderableState(match, userId) {
     me, opp,
     you: {
       hp: match.hp[me],
+      armor: (match.heroArmor && match.heroArmor[me]) || 0,
       mana: { ...match.mana[me] },
       hand: match.hands[me].slice(),       // your own hand is visible
       handCount: match.hands[me].length,
       deckCount: match.decks[me].length,
+      heroPower: heroPowerView(me),
       board: match.board[me].map(m => ({ uid: m.uid, cardId: m.cardId, atk: m.atk, hp: m.hp, status: (m.status || []).slice(), keywords: (m.keywords || []).slice(), canAttack: !!m.canAttack })),
     },
     them: {
       hp: match.hp[opp],
+      armor: (match.heroArmor && match.heroArmor[opp]) || 0,
       mana: { ...match.mana[opp] },
       handCount: match.hands[opp].length,
       deckCount: match.decks[opp].length,
+      heroPower: heroPowerView(opp),
       board: match.board[opp].map(m => ({ uid: m.uid, cardId: m.cardId, atk: m.atk, hp: m.hp, status: (m.status || []).slice(), keywords: (m.keywords || []).slice() })),
       npc: match.npc ? { archetype: match.npc.archetype } : null,
     },

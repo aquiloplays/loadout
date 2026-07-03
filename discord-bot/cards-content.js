@@ -62,7 +62,10 @@ export const EFFECTS = [
   'counter',        // mark next opponent spell as countered
   'manaThisTurn',   // value: N. Adds temporary mana to self this turn only.
   'peekDeck',       // value: N. Look at the top N of deck (UI affordance).
-  'fatigue',        // value: N. Self-damage per turn for stall games.
+  // ('fatigue' as a card EFFECT was declared but never implemented in
+  // runEffect; removed so schemaCheck can't approve a silent-no-op card.
+  // Deck-empty fatigue lives in drawTurnStart; the Cinder Apex boss's
+  // fatigue doubling is a separate spire mechanic, both unaffected.)
   'freeze',         // target: see TARGETS. Frozen minions skip their next turn.
   'cloneSelf',      // summon a fresh copy of the source minion (self side).
   'reSummon',       // onDeath: resurrect the dying minion once (no loop).
@@ -92,6 +95,7 @@ export const TARGETS = [
   'oppHand',
   'selfHand',
   'self',                 // the card itself (for onDeath returnToHand etc.)
+  'sourceMinion',         // the minion that owns the ability (onAttack self-heal)
   'lastDeadFriendly',     // resurrect target, last friendly that hit graveyard
   'allFriendlyTribe',     // friendly minions sharing ab.tribe (tribal synergy)
 ];
@@ -639,7 +643,11 @@ export const CARDS = Object.fromEntries(
     // few vestigial-but-harmless target strings; we don't retroactively
     // rewrite it. New sets (voidborn and onward) get the strict check so
     // a typo can never ship as a silent no-op.
-    if ((c.set || 'core') === 'core') continue;
+    // Spire exclusives read as set:'core' (they predate the set field) but
+    // are hand-authored prestige cards, not legacy-generated filler, so we
+    // still hold them to the strict schema, catching a no-op battlecry.
+    const isSpire = (c.id || '').startsWith('spire.');
+    if ((c.set || 'core') === 'core' && !isSpire) continue;
     for (const k of c.keywords || []) {
       if (!KW.has(k)) throw new Error(`cards-content.js: card ${c.id} has unknown keyword "${k}"`);
     }

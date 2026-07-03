@@ -45,8 +45,7 @@ export const SPIRE_LEGENDARIES = [
     type: 'minion',
     mana: 4, atk: 3, hp: 5,
     keywords: ['taunt'],
-    abilities: [{ trigger: 'onPlay', effect: 'summon', value: 2,
-                  token: { id: 'spire.token.thorn' } }],
+    abilities: [{ trigger: 'onPlay', effect: 'summon', cardId: 'spire.token.thorn', value: 2 }],
     text: 'Taunt. Battlecry: summon two Thorn Vines (1/2 taunt).',
   },
   {
@@ -70,7 +69,7 @@ export const SPIRE_LEGENDARIES = [
     name: 'Cogheart Maestro',
     type: 'minion',
     mana: 5, atk: 4, hp: 4,
-    abilities: [{ trigger: 'onPlay', effect: 'doubleBattlecry', target: 'lastFriendly' }],
+    abilities: [{ trigger: 'onPlay', effect: 'doubleBattlecry' }],
     text: 'Battlecry: copy the most recent battlecry triggered this turn.',
   },
   {
@@ -87,7 +86,7 @@ export const SPIRE_LEGENDARIES = [
     type: 'minion',
     mana: 6, atk: 6, hp: 4,
     keywords: ['lifesteal'],
-    abilities: [{ trigger: 'onDeath', effect: 'reSummon', value: 1 }],
+    abilities: [{ trigger: 'onDeath', effect: 'reSummon', value: 1, atkPenalty: 1 }],
     text: 'Lifesteal. Deathrattle: re-summon with -1 attack.',
   },
   {
@@ -112,7 +111,7 @@ export const SPIRE_LEGENDARIES = [
     type: 'minion',
     mana: 6, atk: 4, hp: 6,
     keywords: ['lifesteal'],
-    abilities: [{ trigger: 'onAttack', effect: 'heal', target: 'self', value: 2 }],
+    abilities: [{ trigger: 'onAttack', effect: 'heal', target: 'sourceMinion', value: 2 }],
     text: 'Lifesteal. After this attacks, restore 2 HP to itself.',
   },
 ];

@@ -41,7 +41,7 @@ function makeEnv() {
 console.log('- ALLOWED_EMOTES shape');
 {
   eq(ALLOWED_EMOTES.length, 6, 'six curated emotes');
-  for (const e of ['wave','party','think','embarrassed','fire','pray']) {
+  for (const e of ['hello','wp','think','oops','bringit','gl']) {
     assert(ALLOWED_EMOTES.includes(e), `includes ${e}`);
   }
   assert(Object.isFrozen(ALLOWED_EMOTES), 'array is frozen');
@@ -52,11 +52,11 @@ console.log('- ALLOWED_EMOTES shape');
 console.log('- sendEmote rejects bad inputs');
 {
   const env = makeEnv();
-  const a = await sendEmote(env, '', 'A', 'wave', 1000);
+  const a = await sendEmote(env, '', 'A', 'hello', 1000);
   eq(a.ok, false, 'empty matchId → ok:false');
   eq(a.reason, 'invalid-match', 'reason invalid-match');
 
-  const b = await sendEmote(env, 'm1', 'C', 'wave', 1000);
+  const b = await sendEmote(env, 'm1', 'C', 'hello', 1000);
   eq(b.ok, false, 'side C → ok:false');
   eq(b.reason, 'invalid-side', 'reason invalid-side');
 
@@ -65,7 +65,7 @@ console.log('- sendEmote rejects bad inputs');
   eq(c.reason, 'invalid-emote', 'reason invalid-emote');
 
   // Accepts lowercase side and trims.
-  const d = await sendEmote(env, '  m1  ', 'a', 'wave', 1000);
+  const d = await sendEmote(env, '  m1  ', 'a', 'hello', 1000);
   eq(d.ok, true, 'lowercase side accepted after upper-casing');
   eq(d.broadcast.playerSide, 'A', 'side normalised to A');
   eq(d.broadcast.matchId, 'm1', 'matchId trimmed');
@@ -77,22 +77,22 @@ console.log('- rate-limit 5s gap per side');
 {
   const env = makeEnv();
   const t0 = 1_000_000;
-  const r1 = await sendEmote(env, 'mr', 'A', 'wave', t0);
+  const r1 = await sendEmote(env, 'mr', 'A', 'hello', t0);
   eq(r1.ok, true, '1st emote ok');
 
-  const r2 = await sendEmote(env, 'mr', 'A', 'fire', t0 + 1000);
+  const r2 = await sendEmote(env, 'mr', 'A', 'bringit', t0 + 1000);
   eq(r2.ok, false, '1s later → ok:false');
   eq(r2.reason, 'rate-limited', 'reason rate-limited');
   assert(r2.retryAfterMs > 3000 && r2.retryAfterMs <= 4000, 'retryAfterMs ≈4000');
 
-  const r3 = await sendEmote(env, 'mr', 'A', 'fire', t0 + 4999);
+  const r3 = await sendEmote(env, 'mr', 'A', 'bringit', t0 + 4999);
   eq(r3.ok, false, '4.999s later still rate-limited');
 
-  const r4 = await sendEmote(env, 'mr', 'A', 'fire', t0 + 5000);
+  const r4 = await sendEmote(env, 'mr', 'A', 'bringit', t0 + 5000);
   eq(r4.ok, true, 'exactly 5s later ok');
 
   // Other side is independent.
-  const rB = await sendEmote(env, 'mr', 'B', 'pray', t0 + 1000);
+  const rB = await sendEmote(env, 'mr', 'B', 'gl', t0 + 1000);
   eq(rB.ok, true, 'side B independent of side A rate limit');
 }
 
@@ -103,16 +103,16 @@ console.log('- per-match 10-emote cap per side');
   const env = makeEnv();
   const t0 = 2_000_000;
   for (let i = 0; i < 10; i++) {
-    const r = await sendEmote(env, 'mc', 'A', 'wave', t0 + i * 5_000);
+    const r = await sendEmote(env, 'mc', 'A', 'hello', t0 + i * 5_000);
     eq(r.ok, true, `emote ${i + 1}/10 ok`);
   }
-  const r11 = await sendEmote(env, 'mc', 'A', 'wave', t0 + 11 * 5_000);
+  const r11 = await sendEmote(env, 'mc', 'A', 'hello', t0 + 11 * 5_000);
   eq(r11.ok, false, '11th emote → ok:false');
   eq(r11.reason, 'match-cap', 'reason match-cap');
   eq(r11.count, 10, 'count reported = 10');
 
   // Other side still has its own 10-emote budget.
-  const rB = await sendEmote(env, 'mc', 'B', 'wave', t0 + 11 * 5_000);
+  const rB = await sendEmote(env, 'mc', 'B', 'hello', t0 + 11 * 5_000);
   eq(rB.ok, true, 'side B independent of side A cap');
 }
 
@@ -122,18 +122,18 @@ console.log('- readFeed returns recent emotes (and respects sinceTs)');
 {
   const env = makeEnv();
   const t0 = 3_000_000;
-  await sendEmote(env, 'mf', 'A', 'wave',  t0);
-  await sendEmote(env, 'mf', 'B', 'fire',  t0 + 1_000);   // independent side, ok
-  await sendEmote(env, 'mf', 'A', 'party', t0 + 5_000);
+  await sendEmote(env, 'mf', 'A', 'hello',  t0);
+  await sendEmote(env, 'mf', 'B', 'bringit',  t0 + 1_000);   // independent side, ok
+  await sendEmote(env, 'mf', 'A', 'wp', t0 + 5_000);
 
   const all = await readFeed(env, 'mf', 0);
   eq(all.length, 3, 'feed has 3 entries');
-  eq(all[0].emoteId, 'wave', 'oldest first');
-  eq(all[2].emoteId, 'party', 'newest last');
+  eq(all[0].emoteId, 'hello', 'oldest first');
+  eq(all[2].emoteId, 'wp', 'newest last');
 
   const recent = await readFeed(env, 'mf', t0 + 500);
   eq(recent.length, 2, 'sinceTs filters out the first');
-  eq(recent[0].emoteId, 'fire', 'first remaining is fire');
+  eq(recent[0].emoteId, 'bringit', 'first remaining is fire');
 
   const empty = await readFeed(env, 'mf', t0 + 999_999);
   eq(empty.length, 0, 'sinceTs after newest → empty');
@@ -152,7 +152,7 @@ console.log('- feed caps at FEED_CAP entries');
   // none get rate-limited; cap kicks in after 10 per side, so use both
   // sides and small batches).
   for (let i = 0; i < 12; i++) {
-    await sendEmote(env, 'mfeed', i % 2 === 0 ? 'A' : 'B', 'wave', t0 + i * 5_000);
+    await sendEmote(env, 'mfeed', i % 2 === 0 ? 'A' : 'B', 'hello', t0 + i * 5_000);
   }
   const feed = await readFeed(env, 'mfeed', 0);
   assert(feed.length <= __internals.FEED_CAP, `feed length ${feed.length} ≤ FEED_CAP ${__internals.FEED_CAP}`);
@@ -163,7 +163,7 @@ console.log('- feed caps at FEED_CAP entries');
 console.log('- missing LOADOUT_BOLTS → kv-unavailable');
 {
   const env = { AQUILO_SITE_WEB_SECRET: 'x' };
-  const r = await sendEmote(env, 'm', 'A', 'wave', 1);
+  const r = await sendEmote(env, 'm', 'A', 'hello', 1);
   eq(r.ok, false, 'no KV binding → ok:false');
   eq(r.reason, 'kv-unavailable', 'reason kv-unavailable');
 }
@@ -184,20 +184,20 @@ async function hmacSign(secret, ts, body) {
 console.log('- GET /web/boltbound/emote/feed/:matchId returns events');
 {
   const env = makeEnv();
-  await sendEmote(env, 'mhttp', 'A', 'fire', 5_000_000);
+  await sendEmote(env, 'mhttp', 'A', 'bringit', 5_000_000);
   const req = new Request('https://example.com/web/boltbound/emote/feed/mhttp', { method: 'GET' });
   const res = await handleEmoteRoute(req, env, '/web/boltbound/emote/feed/mhttp');
   eq(res.status, 200, 'status 200');
   const data = await res.json();
   eq(data.matchId, 'mhttp', 'matchId echoed');
   eq(data.events.length, 1, '1 event in feed');
-  eq(data.events[0].emoteId, 'fire', 'emote payload correct');
+  eq(data.events[0].emoteId, 'bringit', 'emote payload correct');
 }
 
 console.log('- POST /web/boltbound/emote requires valid HMAC');
 {
   const env = makeEnv();
-  const body = JSON.stringify({ matchId: 'mp', playerSide: 'A', emoteId: 'wave' });
+  const body = JSON.stringify({ matchId: 'mp', playerSide: 'A', emoteId: 'hello' });
 
   // Unsigned → 401.
   const reqBad = new Request('https://example.com/web/boltbound/emote', {
@@ -222,7 +222,7 @@ console.log('- POST /web/boltbound/emote requires valid HMAC');
   eq(resOk.status, 200, 'signed → 200');
   const data = await resOk.json();
   eq(data.ok, true, 'ok:true');
-  eq(data.broadcast.emoteId, 'wave', 'broadcast emoteId');
+  eq(data.broadcast.emoteId, 'hello', 'broadcast emoteId');
   eq(data.broadcast.playerSide, 'A', 'broadcast side');
   eq(data.broadcast.matchId, 'mp', 'broadcast matchId');
 }

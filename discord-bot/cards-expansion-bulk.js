@@ -203,23 +203,82 @@ const MANA_CURVE = {
 };
 const SPELL_EVERY = { common: 3, uncommon: 3, rare: 3, legendary: 5 };  // 1-in-N cards is a spell
 
+// Epithets for disambiguation once the adj x noun space is exhausted, so
+// the pools scale past their base size WITHOUT numeric suffixes. Read as
+// "<Adj> <Noun> the <Epithet>" -- reads like a title, not a serial number.
+const NAME_EPITHETS = [
+  'the Elder', 'the Lesser', 'the Patient', 'the Unbroken', 'the Wretched',
+  'the Nameless', 'the Wakeful', 'the Sullen', 'the Vast', 'the Hollowed',
+  'the Merciless', 'the Forgotten', 'the Ninth', 'the Undying', 'the Quiet',
+  'the Ravenous', 'the Twisted', 'the Warden', 'the Feral', 'the Grim',
+  'the Kindled', 'the Drowned', 'the Ashen', 'the Verdant', 'the Sworn',
+];
+
 // ── Name assignment (deterministic, de-duplicated) ───────────────────
+//
+// Walks the full adj x noun product (a x b unique base names) in a
+// coprime-strided order so names feel varied but the pair actually
+// enumerates every combination before repeating. When a bucket needs more
+// names than the product allows, disambiguate with a trailing epithet
+// ("Hollow Warden the Elder") rather than a numeric suffix. Deterministic:
+// same (slug,rarity,n) -> same ordered list.
 function buildNamePool(cfg, slug, n) {
   const out = [];
   const seen = new Set();
+  const A = cfg.adj.length, N = cfg.noun.length;
+  // Coprime strides over the flattened A*N index space so consecutive
+  // draws land on distinct (adj,noun) pairs and cover the whole product.
+  const total = A * N;
+  const strideA = 7, strideN = 11;             // both coprime with 25-size pools
   let i = 0;
-  // Walk adj x noun in a hash-shuffled order so names feel varied.
-  while (out.length < n && i < cfg.adj.length * cfg.noun.length * 2) {
-    const a = cfg.adj[(i * 7 + 3) % cfg.adj.length];
-    const nn = cfg.noun[(i * 13 + 5) % cfg.noun.length];
+  while (out.length < n && i < total) {
+    const a = cfg.adj[(i * strideA + 3) % A];
+    const nn = cfg.noun[(i * strideN + 5) % N];
     const name = `${a} ${nn}`;
     if (!seen.has(name)) { seen.add(name); out.push(name); }
     i++;
   }
-  // Fallback: number any shortfall (shouldn't happen with 25x25 pools).
-  while (out.length < n) out.push(`${choose(slug + out.length, cfg.adj)} ${choose(slug + 'b' + out.length, cfg.noun)} ${out.length}`);
+  // If the base product ran short (still not exhausted), fall back to a
+  // linear sweep of the remaining pairs so we never leave the product early.
+  for (let ai = 0; out.length < n && ai < A; ai++) {
+    for (let ni = 0; out.length < n && ni < N; ni++) {
+      const name = `${cfg.adj[ai]} ${cfg.noun[ni]}`;
+      if (!seen.has(name)) { seen.add(name); out.push(name); }
+    }
+  }
+  // Product exhausted: disambiguate with epithets, deterministically.
+  // Outer loop over epithets, inner over the full base product -> every
+  // "<Adj> <Noun> the <Epithet>" is unique by construction, no numeric
+  // suffix, terminates in total * NAME_EPITHETS.length names.
+  for (let e = 0; out.length < n && e < NAME_EPITHETS.length; e++) {
+    const epithet = NAME_EPITHETS[e];
+    for (let ai = 0; out.length < n && ai < A; ai++) {
+      for (let ni = 0; out.length < n && ni < N; ni++) {
+        const name = `${cfg.adj[ai]} ${cfg.noun[ni]} ${epithet}`;
+        if (!seen.has(name)) { seen.add(name); out.push(name); }
+      }
+    }
+  }
   return out;
 }
+
+// Short descriptive tags per keyword, appended to keyword-ONLY minions so
+// otherwise-identical bodies read distinctly (mirrors the card-text
+// override style). Purely cosmetic; picked deterministically by card id.
+// Labels here MUST stay the Aquilo badge names (boltbound-keywords.ts).
+const KW_TAGS = {
+  taunt: ['Guards the front.', 'Enemies must deal with it first.', 'Holds the line.', 'Nothing gets past until it falls.'],
+  charge: ['Swings the turn it lands.', 'No warm-up.', 'Attacks on arrival.', 'Straight into the fray.'],
+  rush: ['Trades the turn it lands.', 'Picks a target on arrival.', 'Hunts minions immediately.', 'Into the fray, on the board.'],
+  shield: ['Shrugs off the first blow.', 'The first wound glances away.', 'One free save.', 'Eats the opening hit.'],
+  stealth: ['Unseen until it strikes.', 'Cannot be targeted yet.', 'Waits in the dark.', 'Hidden until it acts.'],
+  lifesteal: ['Its hits mend your hero.', 'Feeds as it strikes.', 'Damage becomes healing.', 'Siphons life on hit.'],
+  poison: ['Any wound it lands is fatal.', 'One touch is enough.', 'A scratch will do.', 'Kills whatever it marks.'],
+  reach: ['Reaches past the wall.', 'Strikes the hero through Taunt.', 'No front line stops it.', 'Ignores the guard.'],
+  'spell-immune': ['Spells slide right off.', 'Enemy magic finds no purchase.', 'Untouched by spells.', 'No spell can land on it.'],
+  reborn: ['It comes back once.', 'Death is only a pause.', 'Returns with one life.', 'Not done the first time.'],
+  echo: ['Cast again while mana holds.', 'Play it until you run dry.', 'Repeats on the same turn.', 'One card, many plays.'],
+};
 
 // ── Effect text (display-only) from mechanics ────────────────────────
 function rulesText(card, cfg) {
@@ -227,6 +286,12 @@ function rulesText(card, cfg) {
   const kw = card.keywords || [];
   const KWLABEL = { taunt: 'Taunt', charge: 'Charge', rush: 'Rush', shield: 'Ward', stealth: 'Veiled', lifesteal: 'Drain', poison: 'Venomous', reach: 'Reach', 'spell-immune': 'Spell Warded', reborn: 'Reborn', echo: 'Echo' };
   for (const k of kw) if (KWLABEL[k]) parts.push(KWLABEL[k] + '.');
+  // Keyword-only bodies (no abilities): append one deterministic flavour
+  // tag for the primary keyword so identical statlines read distinctly.
+  if (kw.length && !(card.abilities || []).length && !card.overload) {
+    const bank = KW_TAGS[kw[0]];
+    if (bank) parts.push(choose(card.id + 'kwtag', bank));
+  }
   if (card.overload) parts.push(`Overload (${card.overload}).`);
   for (const a of card.abilities || []) {
     const tgtMin = a.target === 'allEnemyMinions' ? 'all enemy minions' : a.target === 'allEnemy' ? 'all enemies' : a.target === 'pickedTarget' ? (a.filter?.type === 'minion' ? 'a minion' : 'any target') : 'a target';
@@ -443,11 +508,16 @@ function buildAll() {
         flavor: '',
       });
     }
-    for (const rarity of ['common', 'uncommon', 'rare', 'legendary']) {
+    // Pool names across the WHOLE set (all rarities) so no two cards in a
+    // set share a display name; slice per-rarity in fixed order.
+    const rarities = ['common', 'uncommon', 'rare', 'legendary'];
+    const totalNames = rarities.reduce((s, r) => s + cfg.counts[r], 0);
+    const setNames = buildNamePool(cfg, slug, totalNames);
+    let nameCursor = 0;
+    for (const rarity of rarities) {
       const n = cfg.counts[rarity];
-      const names = buildNamePool(cfg, slug + rarity, n);
       for (let i = 0; i < n; i++) {
-        cards.push(buildCard(slug, cfg, rarity, i, names[i]));
+        cards.push(buildCard(slug, cfg, rarity, i, setNames[nameCursor++]));
       }
     }
   }

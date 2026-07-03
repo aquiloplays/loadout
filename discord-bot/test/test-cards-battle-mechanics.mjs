@@ -326,5 +326,189 @@ console.log('overload:');
   eq(m.overloadNext.A, 0, 'Overload is consumed after one turn');
 }
 
+// ── IRON SKIN / hero buffThisTurn wears off (engine-rules fix) ───────
+console.log('hero temp HP wears off:');
+{
+  const m = freshMatch();
+  m.hp.A = 20;
+  // Synthetic 'Iron Skin' spell: +4 HP to your hero THIS TURN only.
+  CARDS['test.ironskin'] = {
+    id: 'test.ironskin', name: 'Iron Skin', type: 'spell', mana: 1, atk: 0, hp: 0,
+    keywords: [], abilities: [{ trigger: 'onCast', effect: 'buffThisTurn', target: 'selfHero', valueHp: 4 }],
+  };
+  play(m, 'A', 'test.ironskin');
+  eq(m.hp.A, 24, 'hero this-turn HP applies immediately (+4)');
+  m.active = 'A';
+  applyAction(m, { kind: 'endTurn', side: 'A' });
+  eq(m.hp.A, 20, 'hero this-turn HP is subtracted back at end of turn');
+  eq((m.heroTempHp || {}).A || 0, 0, 'heroTempHp bookkeeping is cleared');
+}
+
+// ── SILENCE strips keywords + statuses (engine-rules fix) ────────────
+console.log('silence strips keywords:');
+{
+  const m = freshMatch();
+  play(m, 'B', 'r.boltknight');     // Taunt 4/5
+  const taunt = lastBoard(m, 'B');
+  ok((taunt.keywords || []).includes('taunt'), 'setup: minion has taunt');
+  // Synthetic silence spell targeting a picked minion.
+  CARDS['test.silence'] = {
+    id: 'test.silence', name: 'Hush', type: 'spell', mana: 1, atk: 0, hp: 0,
+    keywords: [], abilities: [{ trigger: 'onCast', effect: 'silence', target: 'pickedTarget' }],
+  };
+  play(m, 'A', 'test.silence', taunt.uid);
+  eq((taunt.keywords || []).length, 0, 'silence strips all keywords');
+  ok(has(taunt, 'silenced'), 'the silenced marker remains');
+  // A silenced taunt no longer forces targeting.
+  play(m, 'B', 'test.vanilla');
+  const other = lastBoard(m, 'B');
+  play(m, 'A', 'u.scrapper'); const atk = lastBoard(m, 'A'); atk.canAttack = true; atk.status = [];
+  const r = legal(m, 'A', { kind: 'attack', attackerUid: atk.uid, defenderUid: other.uid });
+  ok(r.ok === true, 'a silenced taunt no longer blocks other targets');
+}
+{
+  // Silence clears shield too.
+  const m = freshMatch();
+  play(m, 'B', 'u.tankknight');     // Shield 4/6
+  const sh = lastBoard(m, 'B');
+  ok(has(sh, 'shield'), 'setup: minion has a shield');
+  CARDS['test.silence'] = CARDS['test.silence'] || {
+    id: 'test.silence', name: 'Hush', type: 'spell', mana: 1, atk: 0, hp: 0,
+    keywords: [], abilities: [{ trigger: 'onCast', effect: 'silence', target: 'pickedTarget' }],
+  };
+  play(m, 'A', 'test.silence', sh.uid);
+  ok(!has(sh, 'shield'), 'silence clears the shield status');
+}
+
+// ── BOARD CAP (engine-rules fix) ─────────────────────────────────────
+console.log('board cap:');
+{
+  const m = freshMatch();
+  for (let i = 0; i < 7; i++) play(m, 'A', 'test.vanilla');
+  eq(m.board.A.length, 7, 'board fills to 7');
+  const r = play(m, 'A', 'test.vanilla');   // 8th, must be rejected
+  eq(r.error, 'board-full', 'playing an 8th minion is rejected (board-full)');
+  eq(m.board.A.length, 7, 'board stays at 7');
+  const lr = legal(m, 'A', { kind: 'playCard', handIdx: 0 });
+  // hand[0] is a vanilla we pushed; the legality helper should also block it.
+  m.hands.A = ['test.vanilla'];
+  const lr2 = legal(m, 'A', { kind: 'playCard', handIdx: 0 });
+  eq(lr2.reason, 'board-full', 'isLegalAction blocks a minion play on a full board');
+}
+{
+  // summon with count respects the cap.
+  const m = freshMatch();
+  for (let i = 0; i < 6; i++) play(m, 'A', 'test.vanilla');   // 6 on board
+  play(m, 'A', 'spire.s04.hollowheart');  // taunt body + summon two thorns
+  // Board was 6, Hollowheart makes 7, then summon of 2 can only fit 0.
+  eq(m.board.A.length, 7, 'summon stops at the board cap');
+}
+{
+  // Hollowheart summons two thorns on an empty-ish board (fix for the
+  // token:{id} -> cardId shape that used to no-op).
+  const m = freshMatch();
+  play(m, 'A', 'spire.s04.hollowheart');
+  eq(countCard(m, 'A', 'spire.token.thorn'), 2, 'Hollowheart summons two Thorn Vines');
+}
+
+// ── STEALTH-TAUNT does not soft-lock (engine-rules fix) ──────────────
+console.log('stealth taunt:');
+{
+  const m = freshMatch();
+  play(m, 'B', 'u.daggerthief');    // Stealth 3/2
+  const st = lastBoard(m, 'B');
+  st.keywords = (st.keywords || []).concat('taunt');   // stealthed + taunt
+  ok(has(st, 'stealth-fresh') || has(st, 'stealth'), 'setup: minion is stealthed');
+  play(m, 'A', 'u.scrapper'); const atk = lastBoard(m, 'A'); atk.canAttack = true; atk.status = [];
+  // Face should be reachable: a stealthed taunt does not block.
+  const r = legal(m, 'A', { kind: 'attack', attackerUid: atk.uid, defenderUid: 'hero' });
+  ok(r.reason !== 'taunt-blocks', 'a stealthed taunt does not block the hero');
+}
+
+// ── GHOST MINION reaped at end of turn (engine-rules fix) ────────────
+console.log('temp-buff ghost minions:');
+{
+  const m = freshMatch();
+  play(m, 'A', 'test.vanilla');   // 7/6
+  const v = lastBoard(m, 'A');
+  // Grant +3 temp HP this turn (6 -> 9), THEN take 8 damage down to 1 while
+  // the temp cushion is up. Wear-off subtracts 3 -> -2 -> death.
+  CARDS['test.tempbuff'] = {
+    id: 'test.tempbuff', name: 'Fleeting Vigor', type: 'spell', mana: 0, atk: 0, hp: 0,
+    keywords: [], abilities: [{ trigger: 'onCast', effect: 'buffThisTurn', target: 'pickedTarget', valueHp: 3 }],
+  };
+  play(m, 'A', 'test.tempbuff', v.uid);
+  eq(v.hp, 9, 'temp HP applied (6 + 3)');
+  v.hp = 1;                        // took 8 damage while cushioned
+  m.active = 'A';
+  applyAction(m, { kind: 'endTurn', side: 'A' });
+  ok(!m.board.A.find(x => x.uid === v.uid), 'a minion that hits 0 HP on wear-off is reaped, not a ghost');
+}
+
+// ── onAttack ordering: dead defender does not retaliate (engine fix) ─
+console.log('onAttack kills defender pre-strike:');
+{
+  const m = freshMatch();
+  // Attacker whose onAttack deals 5 to a picked target (enough to kill a
+  // 1/1) before combat. Give it charge so it can swing this turn.
+  CARDS['test.onattack'] = {
+    id: 'test.onattack', name: 'Preemptive Wyrm', type: 'minion', mana: 1, atk: 2, hp: 1,
+    keywords: ['charge'], abilities: [{ trigger: 'onAttack', effect: 'damage', target: 'pickedTarget', value: 5 }],
+  };
+  // A 3/5 defender: onAttack's 5 damage kills it; its 3-atk retaliation
+  // would kill the 1-hp wyrm if combat wrongly resolved against the corpse.
+  CARDS['test.defender'] = {
+    id: 'test.defender', name: 'Retaliator', type: 'minion', mana: 3, atk: 3, hp: 5,
+    keywords: [], abilities: [],
+  };
+  play(m, 'B', 'test.defender');
+  const big = lastBoard(m, 'B');
+  play(m, 'A', 'test.onattack');
+  const wyrm = lastBoard(m, 'A'); wyrm.canAttack = true;
+  applyAction(m, { kind: 'attack', side: 'A', attackerUid: wyrm.uid, defenderUid: big.uid });
+  ok(!m.board.B.find(x => x.uid === big.uid), 'onAttack killed the defender');
+  const survived = m.board.A.find(x => x.uid === wyrm.uid);
+  ok(survived && survived.hp === 1, 'the dead defender did NOT retaliate (attacker keeps full HP)');
+}
+
+// ── SPIRE s03: returnToHand allEnemyMinions (spire fix) ──────────────
+console.log('spire s03 tidescepter bounce:');
+{
+  const m = freshMatch();
+  m.hands.B = [];
+  play(m, 'B', 'test.vanilla');
+  play(m, 'B', 'r.boltknight');
+  const boardBefore = m.board.B.length;
+  ok(boardBefore >= 2, 'setup: enemy has minions');
+  play(m, 'A', 'spire.s03.tidescepter');
+  eq(m.board.B.length, 0, 'Tidescepter bounces all enemy minions off the board');
+  ok(m.hands.B.length >= 2, 'the bounced minions land in the enemy hand');
+}
+
+// ── SPIRE s12: onAttack self-heal actually heals (spire fix) ─────────
+console.log('spire s12 crimsongoblet self-heal:');
+{
+  const m = freshMatch();
+  play(m, 'A', 'spire.s12.crimsongoblet');   // 4/6 lifesteal, onAttack heal self 2
+  const gob = lastBoard(m, 'A');
+  gob.hp = 3; gob.canAttack = true; gob.status = [];
+  applyAction(m, { kind: 'attack', side: 'A', attackerUid: gob.uid, defenderUid: 'hero' });
+  const g = m.board.A.find(x => x.uid === gob.uid);
+  eq(g.hp, 5, 'Crimsongoblet heals itself 2 when it attacks (3 -> 5)');
+}
+
+// ── SPIRE s09: reSummon comes back with -1 attack (spire fix) ────────
+console.log('spire s09 relicspine -1 attack:');
+{
+  const m = freshMatch();
+  play(m, 'A', 'spire.s09.relicspine');   // 6/4
+  const first = m.board.A.find(x => x.cardId === 'spire.s09.relicspine');
+  first.hp = 0;
+  play(m, 'A', 'tok.boneknight');
+  const revived = m.board.A.find(x => x.cardId === 'spire.s09.relicspine');
+  ok(revived && revived.uid !== first.uid, 'reSummon resurrects the reaver');
+  eq(revived.atk, 5, 'the resurrected reaver comes back at -1 attack (6 -> 5)');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
