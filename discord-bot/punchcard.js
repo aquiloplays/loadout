@@ -801,6 +801,7 @@ async function handleCheckin(env, body) {
     display, card: user.card || null, stats: user.stats || undefined, lastTs: now,
     firstTs: firstTs || undefined,
     annivYear: anniversary || user.annivYear || undefined,
+    cardNudged: user.cardNudged || undefined,
   };
   await kvPut(env, KEY.user(ch, vk), stored);
 
@@ -842,6 +843,15 @@ async function handleCheckin(env, body) {
     } else if (!next.dup && next.t === 1 && cfg.announceWelcome) {
       await sendChat(env, ch, chan,
         `👊 Welcome to the punch club, ${display}! Make your check-in card yours: aquilo.gg/punchcard/card/?ch=${ch}`);
+      posted = true;
+    } else if (!next.dup && next.t >= 3 && !stored.card && !stored.cardNudged
+               && cfg.remindCustomize !== false) {
+      // One-time nudge for regulars still on the default card. Fires once
+      // ever per viewer, from their 3rd check-in on, and only while they
+      // have never saved a customization.
+      await sendChat(env, ch, chan,
+        `🎨 ${display}, ${next.t} check-ins on the default card? Make it yours: aquilo.gg/punchcard/card/?ch=${ch}`);
+      await kvPut(env, KEY.user(ch, vk), { ...stored, cardNudged: true });
       posted = true;
     } else if (next.milestone && cfg.announceMilestones) {
       const flair = next.milestone >= 100 ? ' 🏆' : '';
@@ -1115,6 +1125,7 @@ async function handleCfg(env, body) {
   if (typeof cfg.announceFirst === 'boolean') next.announceFirst = cfg.announceFirst;
   if (typeof cfg.checkinReply === 'boolean') next.checkinReply = cfg.checkinReply;
   if (typeof cfg.checkinReplyMsg === 'string') next.checkinReplyMsg = cfg.checkinReplyMsg.slice(0, 200);
+  if (typeof cfg.remindCustomize === 'boolean') next.remindCustomize = cfg.remindCustomize;
   if (typeof cfg.ttsCensor === 'string') next.ttsCensor = cfg.ttsCensor.slice(0, 2000);
   if (typeof cfg.viewerSoundSearch === 'boolean') next.viewerSoundSearch = cfg.viewerSoundSearch;
   if (typeof cfg.maxSoundSec === 'number') next.maxSoundSec = Math.max(0, Math.min(30, Math.round(cfg.maxSoundSec)));
