@@ -29,9 +29,11 @@
 import { verifyHmac } from './auth.js';
 
 // Locked set, adding emotes is a server+client change so we freeze
-// the array to make accidental mutations a clear runtime error.
+// the array to make accidental mutations a clear runtime error. These
+// are the SITE-canonical ids (src/lib/boltbound/emotes.ts): the client
+// ships them in the emote bar, so they are authoritative.
 export const ALLOWED_EMOTES = Object.freeze([
-  'wave', 'party', 'think', 'embarrassed', 'fire', 'pray',
+  'hello', 'wp', 'think', 'oops', 'bringit', 'gl',
 ]);
 const EMOTE_SET = new Set(ALLOWED_EMOTES);
 

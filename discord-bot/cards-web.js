@@ -16,6 +16,7 @@ import {
   listPendingPacks,
   getActiveMatch, readLog, getTrophies,
   hasClaimedFreePackToday,
+  getDeck, resolveDeckChampion,
   newId,
 } from './cards-state.js';
 import {
@@ -53,6 +54,8 @@ import { listEffectiveReleases, releasedSetIds } from './boltbound-release.js';
 import { getChannelBinding } from './channel-bindings.js';
 import { postChannelMessage } from './aquilo/util.js';
 import { publishActivity } from './activity-do.js';
+import { sendEmote, readFeed } from './boltbound-emotes.js';
+import { verifyHmac } from './auth.js';
 
 // Boltbound → live-activity overlay. Emitted from the web transport layer
 // only (never the cards-battle resolver): match lifecycle + throttled
@@ -107,6 +110,9 @@ const ROUTES = new Set([
   'boltbound/decks/delete',
   'boltbound/decks/activate',
   'boltbound/decks/starter',
+  // Single-deck read by deckId (2026-07-02). Distinct from the RET-7
+  // deck/get community-share read (which keys off sharedId).
+  'boltbound/decks/get',
   'boltbound/starter-deck',
   'boltbound/packs/buy',
   'boltbound/packs/open',
@@ -121,6 +127,9 @@ const ROUTES = new Set([
   'boltbound/match/action',
   'boltbound/match/mulligan',
   'boltbound/match/concede',
+  // 2026-05-30 trash-talk emotes (write). Relayed to the opponent via
+  // the match-state poll's side.emote field. See boltbound-emotes.js.
+  'boltbound/emote',
   'boltbound/log',
   // RET-1: grindy daily login rewards (streak-gated; no daily packs).
   'boltbound/login/status',
@@ -157,6 +166,7 @@ const READ_ROUTES = new Set([
   'boltbound/room/mine',
   'boltbound/deck/community',
   'boltbound/deck/get',
+  'boltbound/decks/get',
   'boltbound/sets',
   'boltbound/match/state',
   'boltbound/log',
@@ -448,6 +458,29 @@ async function routeDecksStarter(env, guildId, userId) {
   if (r.ok) await activateDeck(env, guildId, userId, r.deck.id);
   return json(r);
 }
+// Single-deck read by deckId. Returns { ok, deck: { id, name, champion,
+// cards } } where `cards` is the full 20-card list INCLUDING duplicates
+// and the champion re-inserted (decks are stored without the champion
+// slot; resolveDeckChampion restores it), and `champion` is that
+// champion card id. 404-shaped { ok:false } on a missing/foreign deck.
+async function routeDecksGet(env, guildId, userId, body) {
+  const deckId = String((body && body.deckId) || '').trim();
+  if (!deckId) return json({ ok: false, error: 'bad-deck' }, 400);
+  const raw = await getDeck(env, guildId, userId, deckId);
+  if (!raw) return json({ ok: false, error: 'not-found' }, 404);
+  const resolved = resolveDeckChampion(raw);
+  const cards = Array.isArray(resolved.cards) ? resolved.cards.slice() : [];
+  const champion = cards.find(id => CARDS[id]?.rarity === 'champion') || null;
+  return json({
+    ok: true,
+    deck: {
+      id: resolved.id,
+      name: resolved.name,
+      champion,
+      cards,
+    },
+  });
+}
 
 // POST /web/boltbound/starter-deck, one-click "Get a starter deck" CTA
 // for players with no deck. Idempotent: if the player already has any
@@ -544,7 +577,14 @@ async function routeMatchAccept(env, guildId, userId, body) {
 async function routeMatchState(env, guildId, userId) {
   const m = await getActiveMatch(env, guildId, userId);
   if (!m) return json({ ok: true, match: null });
-  return json({ ok: true, match: renderableState(m, userId) });
+  const view = renderableState(m, userId);
+  // Merge the opponent's latest emote onto the poll response so the
+  // client can render the trash-talk bubble.
+  if (view && view.them) {
+    const em = await mergeOpponentEmote(env, m.matchId, view.opp);
+    if (em) view.them.emote = em;
+  }
+  return json({ ok: true, match: view });
 }
 async function routeMatchAction(env, guildId, userId, body) {
   const m = await getActiveMatch(env, guildId, userId);
@@ -584,6 +624,16 @@ async function routeMatchAction(env, guildId, userId, body) {
     action = { kind: 'endTurn' };
   } else if (kind === 'concede') {
     action = { kind: 'concede' };
+  } else if (kind === 'hero_power') {
+    // Site sends { kind:'hero_power', powerId, target }. powerId is not
+    // forwarded (each side has exactly one power, derived from its
+    // champion class), so we only translate the picked target. The
+    // sentinels 'hero'/'oppHero' hit the enemy hero, 'selfHero' the own
+    // hero, else a board minion uid. Auto-target powers (Coin Strike,
+    // Lesser Heal) resolve server-side regardless of target.
+    const t = body && body.target;
+    const targetId = (t === null || t === undefined || t === '') ? null : String(t);
+    action = { kind: 'heroPower', targetId };
   } else {
     return json({ ok: false, error: 'bad-kind' });
   }
@@ -642,6 +692,36 @@ async function routeMatchConcede(env, guildId, userId) {
   const r = await takeAction(env, m, side, { kind: 'concede' });
   return json({ ok: !!r.ok, match: r.match ? renderableState(r.match, userId) : null, ended: true });
 }
+// Trash-talk emote. Body { matchId?, emoteId }. The sender's side is
+// resolved server-side from the active match (never trusted from the
+// client). boltbound-emotes.js enforces the 5s gap + per-match cap and
+// persists the feed; the opponent picks it up on their next match-state
+// poll (see mergeOpponentEmote).
+async function routeEmote(env, guildId, userId, body) {
+  const m = await getActiveMatch(env, guildId, userId);
+  if (!m) return json({ ok: false, error: 'no-active-match' });
+  const side = sideOf(m, userId);
+  if (!side) return json({ ok: false, error: 'not-in-match' });
+  const emoteId = String((body && body.emoteId) || '').trim();
+  const r = await sendEmote(env, m.matchId, side, emoteId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+// Read the opponent's most-recent emote from the match feed and shape it
+// as { id, ts } for the site's MatchSideView.emote field. Best-effort,
+// returns null on any miss. `opp` is the OTHER side ('A'/'B').
+async function mergeOpponentEmote(env, matchId, opp) {
+  try {
+    const feed = await readFeed(env, matchId, 0);
+    if (!Array.isArray(feed) || !feed.length) return null;
+    for (let i = feed.length - 1; i >= 0; i--) {
+      const e = feed[i];
+      if (e && e.side === opp) return { id: e.emoteId, ts: e.ts };
+    }
+  } catch { /* non-fatal */ }
+  return null;
+}
+
 async function routeLog(env, guildId, userId) {
   const log = await readLog(env, guildId, userId);
   return json({ ok: true, log: (log || []).slice(0, 25) });
@@ -1067,6 +1147,48 @@ function describeSide(cardIds, bolts) {
   return parts.join(', ');
 }
 
+// ── Idempotency ────────────────────────────────────────────────────
+//
+// Non-idempotent writes (packs/open, match/action, trade/accept,
+// quests/claim, login/claim) accept an optional client-minted
+// `actionId`. When present, we dedupe on KV bb-act:<userId>:<actionId>
+// (expirationTtl 120, KV's 60s floor respected): the FIRST call stores
+// its response body + status; a retry with the same id REPLAYS the
+// stored response instead of re-running the mutation (prefer-replay,
+// which matters most for packs/open so a double-submit can't grant two
+// packs). Absent / empty actionId behaves exactly as before.
+const ACTID_TTL_S = 120;
+const ACTID_KEY = (userId, actionId) => `bb-act:${userId}:${actionId}`;
+
+async function dedupeAction(env, userId, body, producer) {
+  const actionId = String((body && body.actionId) || '').trim();
+  if (!actionId) return await producer();
+  const key = ACTID_KEY(userId, actionId);
+  // Replay a stored response if this id was already processed.
+  try {
+    const stored = await env.LOADOUT_BOLTS.get(key, { type: 'json' });
+    if (stored && typeof stored.body === 'string') {
+      return new Response(stored.body, {
+        status: stored.status || 200,
+        headers: { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-bb-replay': '1' },
+      });
+    }
+  } catch { /* fall through and produce fresh */ }
+  const resp = await producer();
+  // Persist the response body for replay. Best-effort, a store failure
+  // just means a retry re-runs the producer.
+  try {
+    const clone = resp.clone();
+    const bodyText = await clone.text();
+    await env.LOADOUT_BOLTS.put(
+      key,
+      JSON.stringify({ status: resp.status, body: bodyText }),
+      { expirationTtl: ACTID_TTL_S },
+    );
+  } catch { /* non-fatal */ }
+  return resp;
+}
+
 // ── Public dispatch ────────────────────────────────────────────────
 
 export async function routeBoltbound(env, guildId, userId, route, body, opts) {
@@ -1079,9 +1201,10 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/decks/delete')    return await routeDecksDelete(env, guildId, userId, body);
     if (route === 'boltbound/decks/activate')  return await routeDecksActivate(env, guildId, userId, body);
     if (route === 'boltbound/decks/starter')   return await routeDecksStarter(env, guildId, userId);
+    if (route === 'boltbound/decks/get')       return await routeDecksGet(env, guildId, userId, body);
     if (route === 'boltbound/starter-deck')    return await routeStarterDeck(env, guildId, userId);
     if (route === 'boltbound/packs/buy')       return await routePacksBuy(env, guildId, userId, body);
-    if (route === 'boltbound/packs/open')      return await routePacksOpen(env, guildId, userId, body);
+    if (route === 'boltbound/packs/open')      return await dedupeAction(env, userId, body, () => routePacksOpen(env, guildId, userId, body));
     if (route === 'boltbound/packs/free-daily') return await routePacksFreeDaily(env, guildId, userId);
     if (route === 'boltbound/sets')            return await routeSets(env, guildId, userId);
     if (route === 'boltbound/match/start-npc') return await routeMatchStartNpc(env, guildId, userId, body);
@@ -1089,14 +1212,15 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/match/challenge') return await routeMatchChallenge(env, guildId, userId, body);
     if (route === 'boltbound/match/accept')    return await routeMatchAccept(env, guildId, userId, body);
     if (route === 'boltbound/match/state')     return await routeMatchState(env, guildId, userId);
-    if (route === 'boltbound/match/action')    return await routeMatchAction(env, guildId, userId, body);
+    if (route === 'boltbound/match/action')    return await dedupeAction(env, userId, body, () => routeMatchAction(env, guildId, userId, body));
     if (route === 'boltbound/match/mulligan')  return await routeMatchMulligan(env, guildId, userId, body);
     if (route === 'boltbound/match/concede')   return await routeMatchConcede(env, guildId, userId);
+    if (route === 'boltbound/emote')           return await routeEmote(env, guildId, userId, body);
     if (route === 'boltbound/log')             return await routeLog(env, guildId, userId);
     if (route === 'boltbound/login/status')    return await routeLoginStatus(env, guildId, userId);
-    if (route === 'boltbound/login/claim')     return await routeLoginClaim(env, guildId, userId);
+    if (route === 'boltbound/login/claim')     return await dedupeAction(env, userId, body, () => routeLoginClaim(env, guildId, userId));
     if (route === 'boltbound/quests/today')    return await routeQuestsToday(env, guildId, userId);
-    if (route === 'boltbound/quests/claim')    return await routeQuestsClaim(env, guildId, userId, body);
+    if (route === 'boltbound/quests/claim')    return await dedupeAction(env, userId, body, () => routeQuestsClaim(env, guildId, userId, body));
     if (route === 'boltbound/quests/reroll')   return await routeQuestsReroll(env, guildId, userId, body);
     if (route === 'boltbound/achievements/list') return await routeAchievementsList(env, guildId, userId);
     if (route === 'boltbound/achievements/me')   return await routeAchievementsMe(env, guildId, userId);
@@ -1125,7 +1249,7 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/trade/propose')    return await routeTradePropose(env, guildId, userId, body);
     if (route === 'boltbound/trade/list')       return await routeTradeList(env, guildId, userId, body);
     if (route === 'boltbound/trade/get')        return await routeTradeGet(env, guildId, userId, body);
-    if (route === 'boltbound/trade/accept')     return await routeTradeAccept(env, guildId, userId, body);
+    if (route === 'boltbound/trade/accept')     return await dedupeAction(env, userId, body, () => routeTradeAccept(env, guildId, userId, body));
     if (route === 'boltbound/trade/decline')    return await routeTradeDecline(env, guildId, userId, body);
     if (route === 'boltbound/trade/cancel')     return await routeTradeCancel(env, guildId, userId, body);
     if (route === 'boltbound/trade/collection') return await routeTradeCollection(env, guildId, userId, body);
@@ -1133,4 +1257,63 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
   } catch (e) {
     return wrap({ error: 'server', message: String((e && e.message) || e) }, 500);
   }
+}
+
+// ── Top-level HTTP entry: /web/boltbound/* ─────────────────────────
+//
+// Re-wires the Boltbound web surface on the sunset worker line. The
+// site proxy (functions/api/web/boltbound/[[route]].js) POSTs to
+// /web/boltbound/<sub> HMAC-signed with AQUILO_SITE_WEB_SECRET, with a
+// server-stamped { discordId, guildId } + allow-listed body keys.
+//
+// This mirrors the /web/* auth flow (verify HMAC over the raw body,
+// then trust the discordId/guildId inside it) so Boltbound doesn't
+// depend on web.js (which was scrubbed of the game at sunset). The
+// emote FEED read is a public GET and skips the HMAC.
+export async function handleBoltboundWeb(req, env, path) {
+  // Path is normally passed by the worker router; fall back to the request
+  // URL so callers (and tests) can invoke with just (req, env).
+  if (!path) path = new URL(req.url).pathname;
+  // Public emote-feed poll: GET /web/boltbound/emote/feed/<matchId>.
+  if (req.method === 'GET' && path.startsWith('/web/boltbound/emote/feed/')) {
+    const { handleEmoteRoute } = await import('./boltbound-emotes.js');
+    return handleEmoteRoute(req, env, path);
+  }
+
+  if (req.method !== 'POST') return json({ error: 'method' }, 405);
+  if (!env.AQUILO_SITE_WEB_SECRET) {
+    return json({ error: 'not-configured', message: 'AQUILO_SITE_WEB_SECRET missing on the bot' }, 503);
+  }
+
+  // route = the sub-path under /web/, e.g. 'boltbound/state'.
+  const route = path.replace(/^\/web\//, '').replace(/\/+$/, '');
+  if (!isBoltboundRoute(route)) return json({ error: 'not-found' }, 404);
+
+  // Read the body once; verify HMAC over the raw bytes; only then parse.
+  const bodyText = await req.text();
+  const ts  = req.headers.get('x-aquilo-web-ts');
+  const sig = req.headers.get('x-aquilo-web-sig');
+  const ok  = await verifyHmac(env.AQUILO_SITE_WEB_SECRET, ts || '', bodyText, sig || '');
+  if (!ok) return json({ error: 'unauthorized' }, 401);
+
+  let body;
+  try { body = bodyText ? JSON.parse(bodyText) : {}; }
+  catch { return json({ error: 'bad-json' }, 400); }
+
+  const discordId = String((body && body.discordId) || '').trim();
+  const guildId   = String((body && body.guildId)   || '').trim();
+  if (!/^\d{5,25}$/.test(discordId)) return json({ error: 'bad-discord-id' }, 400);
+  if (!/^\d{5,25}$/.test(guildId))   return json({ error: 'bad-guild-id' }, 400);
+
+  // Multi-tenant gate, same as /web/*: the guild must have run /setup
+  // (Aquilo grandfathered via env). A forged session for an unregistered
+  // guild still 403s here.
+  try {
+    const { isRegisteredTenant } = await import('./tenants.js');
+    if (!(await isRegisteredTenant(env, guildId))) {
+      return json({ error: 'guild-not-registered', message: 'This server has not completed /setup yet.' }, 403);
+    }
+  } catch { /* tenant check unavailable → fall through, dispatch still HMAC-gated */ }
+
+  return routeBoltbound(env, guildId, discordId, route, body);
 }

@@ -240,6 +240,28 @@ export async function handleEventSubWebhook(req, env, ctx) {
         } catch (e) { console.warn('[twitch-eventsub] stats accumulate', e?.message || e); }
       })());
     }
+    // 2026-07-03: Warden moderator-suite ingestion. Independent side-effect
+    // so it can't disturb the primary dispatch above. Chat messages feed the
+    // unified live console + banned-terms auto-actions; moderation events
+    // (incl. the pre-existing channel.ban/unban subs) reconcile external mod
+    // actions into the audit feed. Dynamic import keeps the cost off the hot
+    // path for non-moderation events. No-ops for streamers without Warden on.
+    if (subType === 'channel.chat.message') {
+      ctx.waitUntil((async () => {
+        try {
+          const w = await import('./warden-eventsub.js');
+          await w.onChatMessage(env, payload);
+        } catch (e) { console.warn('[twitch-eventsub] warden chat', e?.message || e); }
+      })());
+    } else if (subType === 'channel.moderate' || subType === 'channel.ban' || subType === 'channel.unban') {
+      ctx.waitUntil((async () => {
+        try {
+          const w = await import('./warden-eventsub.js');
+          await w.onModerationEvent(env, payload);
+        } catch (e) { console.warn('[twitch-eventsub] warden moderate', e?.message || e); }
+      })());
+    }
+
     return new Response(null, { status: 204 });
   }
 
@@ -315,6 +337,24 @@ function buildWantTypes(broadcasterId) {
   ];
 }
 
+// Warden additive want-types. Returns [] unless the streamer has Warden
+// enabled (KV flag `warden:on:<id>`), so the moderator-suite subscriptions
+// are only created for opted-in channels and everyone else is unaffected.
+// Both require the broadcaster USER grant (user:read:chat for chat.message,
+// the moderate read scopes + channel:moderate for channel.moderate).
+async function wardenWantTypes(env, broadcasterId) {
+  try {
+    const on = await env.LOADOUT_BOLTS.get(`warden:on:${broadcasterId}`);
+    if (!on) return [];
+  } catch { return []; }
+  return [
+    { type: 'channel.chat.message', version: '1',
+      condition: { broadcaster_user_id: broadcasterId, user_id: broadcasterId }, userToken: true },
+    { type: 'channel.moderate', version: '2',
+      condition: { broadcaster_user_id: broadcasterId, moderator_user_id: broadcasterId }, userToken: true },
+  ];
+}
+
 // Two existing subs are "the same" when the (type, version, condition,
 // callback) tuple matches. We only consider enabled or pending status
 // as the "already" predicate, failed/auth-revoked subs should be
@@ -363,6 +403,11 @@ export async function setupTwitchSubscriptions(env, opts = {}) {
   const hasUserAuth = await hasTwitchUserAuth(env);
   const existing = await listSubscriptions(env);
   let wantTypes = buildWantTypes(broadcasterId);
+  // Warden (moderator suite) subscriptions are ADDITIVE and gated on the
+  // per-streamer `warden:on:<id>` KV flag so non-Warden streamers are
+  // completely unaffected. When the flag is set, append channel.chat.message
+  // (v1) + channel.moderate (v2) to the wanted set for this broadcaster.
+  wantTypes = wantTypes.concat(await wardenWantTypes(env, broadcasterId));
   if (Array.isArray(opts.only) && opts.only.length) {
     const set = new Set(opts.only.map(String));
     wantTypes = wantTypes.filter(w => set.has(w.type));

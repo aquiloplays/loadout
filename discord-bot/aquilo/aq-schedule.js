@@ -1,18 +1,14 @@
-// Stream schedule v5 (rev 2026-06-24): two shows.
-//   Sun / Mon / Wed / Fri -> Crowd Control playthrough ("Triple-C"). The
-//                            current campaign game is admin-selectable on
-//                            aquilo.gg/admin (KV triple-c:current:<g>);
-//                            defaults to Fallout 4. One game at a time,
-//                            swapped when Clay finishes it.
-//   Tue / Thu / Sat       -> Community Night. The game is picked AT RANDOM
-//                            each week from the community pool (games:v1,
-//                            pool 'community', managed on aquilo.gg/admin),
-//                            a different game per night, stable Sun-Sat,
-//                            re-rolled weekly. No more per-night voting.
-// Per-day games resolve DYNAMICALLY so the embed + site never drift. A
-// one-shot per-date override (schedule:override:<ISO>, admin-set on
-// aquilo.gg) wins over the show default for any single night, so any
-// night can still be hand-pinned.
+// Stream schedule v6 (rev 2026-06-26): SOLO CROWD CONTROL every night.
+//   All 7 nights -> Crowd Control playthrough ("Triple-C"). The current
+//                   campaign game is admin-selectable on aquilo.gg/admin
+//                   (KV triple-c:current:<g>); defaults to Fallout 4. One
+//                   game at a time, swapped when Clay finishes it.
+// Community Night was dropped 2026-06-26 (was Tue/Thu/Sat random picks); the
+// `community` kind + weeklyCommunityPick + cn-change-vote stay in the code
+// but are DORMANT (no `community` day in WEEKLY, cnvote disabled). Per-day
+// games resolve DYNAMICALLY so the embed + site never drift. A one-shot
+// per-date override (schedule:override:<ISO>, admin-set on aquilo.gg) wins
+// over the show default for any single night, so any night can still be pinned.
 
 import {
   postChannelMessage, editChannelMessage, discordFetch, COLOR_SCHEDULE, cap, getETInfo
@@ -23,13 +19,13 @@ import { gameSlug } from './today-game.js';
 // Fixed weekly cadence, Sun -> Sat. `dow` drives per-day override +
 // date resolution; `kind` drives the public slot enum + game source.
 const WEEKLY = [
-  { day: 'sunday',    dow: 0, kind: 'fo4cc'     },
-  { day: 'monday',    dow: 1, kind: 'fo4cc'     },
-  { day: 'tuesday',   dow: 2, kind: 'community' },
-  { day: 'wednesday', dow: 3, kind: 'fo4cc'     },
-  { day: 'thursday',  dow: 4, kind: 'community' },
-  { day: 'friday',    dow: 5, kind: 'fo4cc'     },
-  { day: 'saturday',  dow: 6, kind: 'community' },
+  { day: 'sunday',    dow: 0, kind: 'fo4cc' },
+  { day: 'monday',    dow: 1, kind: 'fo4cc' },
+  { day: 'tuesday',   dow: 2, kind: 'fo4cc' },
+  { day: 'wednesday', dow: 3, kind: 'fo4cc' },
+  { day: 'thursday',  dow: 4, kind: 'fo4cc' },
+  { day: 'friday',    dow: 5, kind: 'fo4cc' },
+  { day: 'saturday',  dow: 6, kind: 'fo4cc' },
 ];
 
 // kind -> the public `slot` enum the site + Discord embed consume.
@@ -199,7 +195,7 @@ async function buildSchedulePayload(env, guildId, sched) {
     title: `📅 Aquilo · Weekly Stream Schedule`,
     description:
       `🗓️ **Week of ${weekDateLabel(0)} – ${weekDateLabel(6)}** · refreshes every Sunday\n` +
-      'Crowd Control playthrough **Sun / Mon / Wed / Fri**, Community Night **Tue / Thu / Sat** (a Crowd Control game picked at random each week). All shows **' + TIME_LABEL + '**.',
+      'Solo **Crowd Control** runs every night — chat controls the chaos. All streams **' + TIME_LABEL + '**.',
     color: COLOR_SCHEDULE,
   };
 

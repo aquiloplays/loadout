@@ -52,6 +52,11 @@ export { ActivityBroadcaster } from './activity-do.js';
 // wrangler.toml [[migrations]] v3-tts-do. Drives the OBS overlay at
 // aquilo.gg/overlays/tts-feed.
 export { TtsBroadcaster } from './tts-do.js';
+// Warden per-streamer moderator-room WebSocket DO (aquilo/warden-room-do.js).
+// Bound as WARDEN_DO; see wrangler.toml [[migrations]] v4-warden-room.
+// Holds the mod team's live sockets, fans out chat + mod-action + audit
+// frames, and runs re-authorized inbound mod commands.
+export { WardenRoom } from './aquilo/warden-room-do.js';
 
 // Discord interaction "claim" command custom handler, defined here rather
 // than commands.js because it touches the claim KV and cross-cuts the
@@ -516,9 +521,10 @@ export default {
         path.startsWith('/admin/_twitch-prune/')) {
       return handleTwitchPrune(req, env, path);
     }
-    // (Bolts economy sunset: the Boltbound card-art admin routes
-    // /admin/_card-art-summary + /admin/card-art/{list,set,clear} were
-    // unwired with the dormant Boltbound surface.)
+    // (The Boltbound card-art admin routes /admin/_card-art-summary +
+    // /admin/card-art/{list,set,clear} stay unwired. They were dropped at
+    // the Bolts economy sunset and were not restored by the Boltbound
+    // revival, which re-wired only the player-facing /web/boltbound surface.)
     // Post or refresh the pinned Games-Menu message in #games
     // (channel defaults to 1507973935973531808 for the Aquilo guild,
     // can be overridden via body {channelId}). Idempotent, uses
@@ -706,6 +712,12 @@ export default {
     // ?bust=1 forces a fresh Helix lookup (admin cache-bust).
     if (path === '/api/twitch/login') {
       return handleTwitchLogin(req, env);
+    }
+    // Public: GET /api/twitch/category?login=<user> → the channel's current
+    // category via Helix (app token). Powers Gift Guide direct-mode auto-switch
+    // without a third-party (decapi) dependency. CORS-open, short-cached.
+    if (path === '/api/twitch/category') {
+      return handleTwitchCategory(req, env);
     }
     // StreamFusion chat dock backend: premium gate, Haiku translate proxy,
     // mod/clip stubs. See sfdock.js.
@@ -1134,14 +1146,43 @@ export default {
       const { handleFriendsRoute } = await import('./friends.js');
       return handleFriendsRoute(req, env, path);
     }
-    // (Removed with the Bolts economy sunset: the Daily Quests routes
-    // /web/quests/* — daily-quests.js was deleted. Boltbound web routes
-    // /web/boltbound/* were unwired — the card game is dormant, its
-    // files stay on disk but are no longer bundled.)
-    // (Bolts economy sunset: the Spire routes /web/spire-map/* were
-    // unwired. Spire is a Boltbound-deck roguelike — it snapshots the
-    // player's Boltbound deck — so it rides with the dormant Boltbound
-    // surface. spire*.js stay on disk but are no longer bundled.)
+    // Boltbound web TCG, re-wired on the sunset line (revive). Same
+    // lazy-import dispatch pattern as /web/friends/. cards-web.js owns
+    // HMAC verification + server-stamped identity + tenant gate before
+    // dispatching to routeBoltbound. (Daily Quests /web/quests/* stay
+    // removed — daily-quests.js is invoked in-process by cards-web.js,
+    // not exposed as its own web surface.)
+    if (path.startsWith('/web/boltbound/')) {
+      const { handleBoltboundWeb } = await import('./cards-web.js');
+      return handleBoltboundWeb(req, env, path);
+    }
+    // Spire branching-path map (Slay-the-Spire-style roguelike over a
+    // snapshotted Boltbound deck). Rides with the revived Boltbound
+    // surface; handler does its own HMAC gate (public GET for the map).
+    if (path.startsWith('/web/spire-map/')) {
+      const { handleSpireMapRoute } = await import('./spire-map.js');
+      return handleSpireMapRoute(req, env, path);
+    }
+    // Warden — multi-platform moderator suite. The mod-room WebSocket
+    // upgrade routes straight to the per-streamer WardenRoom DO (the
+    // 60s ticket travels in the query and is re-verified by the DO); all
+    // other /web/warden/* routes are POST + HMAC-gated inside
+    // warden-router.js. Claimed BEFORE the generic /web/ dispatcher.
+    if (path === '/web/warden/room/ws') {
+      if (!env.WARDEN_DO) return new Response('warden-not-configured', { status: 503 });
+      const { verifyRoomTicket } = await import('./warden-db.js');
+      const ticket = url.searchParams.get('ticket') || '';
+      const claim = await verifyRoomTicket(env, ticket);
+      if (!claim || !claim.streamerId) return new Response('unauthorized', { status: 401 });
+      const stub = env.WARDEN_DO.get(env.WARDEN_DO.idFromName(String(claim.streamerId)));
+      const doUrl = new URL(req.url);
+      doUrl.pathname = '/ws';
+      return stub.fetch(new Request(doUrl.toString(), req));
+    }
+    if (path.startsWith('/web/warden/')) {
+      const { handleWardenRoute } = await import('./warden-router.js');
+      return handleWardenRoute(req, env, path, ctx);
+    }
     // F3, Community activity feed (public GET)
     if (path === '/community/feed') {
       const { handleCommunityFeedRoute } = await import('./activity-feed.js');
@@ -1470,9 +1511,11 @@ export default {
             }
           })());
         }
-        // (Removed with the Bolts economy sunset: the daily-quests
-        // rotation pre-warm (daily-quests.js, deleted) and the Boltbound
-        // ranked monthly season-close (boltbound-ranked.js, unwired).)
+        // (No cron here for the daily-quests rotation pre-warm or the
+        // Boltbound ranked monthly season-close. Both daily-quests.js and
+        // boltbound-ranked.js are live again via the revived Boltbound web
+        // surface (cards-web.js), but their scheduled-cron drivers were
+        // dropped with the Bolts economy sunset and stay unwired.)
         // Mirror the stream schedule into Discord guild scheduled
         // events (idempotent, skips dateKeys already created). See
         // stream-events.js.
@@ -1553,9 +1596,10 @@ export default {
             console.warn('[cron] support-tickets auto-close', e?.message || e);
           }
         })());
-        // (Bolts economy sunset: the seasonal Spire monthly-rotation
-        // cron was unwired — Spire rides with the dormant Boltbound
-        // surface.)
+        // (The seasonal Spire monthly-rotation cron stays unwired. The
+        // Spire web surface itself is live again via the Boltbound revival,
+        // but its scheduled rotation driver was dropped at the Bolts
+        // economy sunset and was not restored.)
         // Unified vote-hub phase transitions, runs hourly, re-renders
         // the hub embed on phase change. See vote-hub.js.
         const guildIdForVoteHub = env.AQUILO_VAULT_GUILD_ID;
@@ -2389,6 +2433,36 @@ async function handleTwitchLogin(req, env) {
   };
   if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
   return new Response(JSON.stringify(data), { status: data.ok ? 200 : 502, headers });
+}
+
+// GET /api/twitch/category?login=<user> — the channel's CURRENT category via
+// Helix (app token). Public data; CORS-open, edge-cached ~12s. Lets the Gift
+// Guide overlay auto-switch by category without the third-party decapi proxy.
+async function handleTwitchCategory(req, env) {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, OPTIONS',
+    'access-control-allow-headers': '*',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=12', ...cors };
+  const login = (new URL(req.url).searchParams.get('login') || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+  if (!login) return new Response(JSON.stringify({ ok: false, error: 'no-login', game: '' }), { status: 200, headers });
+  try {
+    const { helixGet } = await import('./ext-loadout.js');
+    const ur = await helixGet(env, 'users?login=' + encodeURIComponent(login));
+    if (!ur || !ur.ok) throw new Error('helix-users-' + (ur ? ur.status : 'no-token'));
+    const uj = await ur.json();
+    const user = uj && uj.data && uj.data[0];
+    if (!user) return new Response(JSON.stringify({ ok: true, login, game: '' }), { status: 200, headers });
+    const cr = await helixGet(env, 'channels?broadcaster_id=' + user.id);
+    if (!cr || !cr.ok) throw new Error('helix-channels-' + (cr ? cr.status : 'no-token'));
+    const cj = await cr.json();
+    const ch = cj && cj.data && cj.data[0];
+    return new Response(JSON.stringify({ ok: true, login, game: (ch && ch.game_name) || '' }), { status: 200, headers });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: String(e && e.message || e).slice(0, 50), game: '' }), { status: 200, headers });
+  }
 }
 
 // ── Community-activity SSE feed ─────────────────────────────────

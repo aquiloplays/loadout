@@ -64,7 +64,7 @@
 //          template (template page lives in v2; the row column is wired)
 //   Owner bypass: Clay's discord id and email skip every limit.
 
-import { getTwitchAppToken } from './ext-loadout.js';
+import { getTwitchAppToken, helixGet } from './ext-loadout.js';
 
 const SCHEMA_VERSION = 1;
 const MAX_BODY = 32 * 1024;
@@ -596,14 +596,9 @@ export async function searchTwitchCategories(env, q) {
       try { return JSON.parse(cached); } catch { /* */ }
     }
   }
-  const token = await getTwitchAppToken(env);
-  if (!token || !env.TWITCH_CLIENT_ID) return [];
   try {
-    const res = await fetch(
-      'https://api.twitch.tv/helix/search/categories?query=' + encodeURIComponent(query),
-      { headers: { 'Client-Id': env.TWITCH_CLIENT_ID, Authorization: 'Bearer ' + token } },
-    );
-    if (!res.ok) return [];
+    const res = await helixGet(env, 'search/categories?query=' + encodeURIComponent(query));
+    if (!res || !res.ok) return [];
     const d = await res.json();
     const list = Array.isArray(d?.data) ? d.data.map((c) => ({
       id: String(c.id || ''),

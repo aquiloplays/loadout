@@ -62,7 +62,10 @@ export const EFFECTS = [
   'counter',        // mark next opponent spell as countered
   'manaThisTurn',   // value: N. Adds temporary mana to self this turn only.
   'peekDeck',       // value: N. Look at the top N of deck (UI affordance).
-  'fatigue',        // value: N. Self-damage per turn for stall games.
+  // ('fatigue' as a card EFFECT was declared but never implemented in
+  // runEffect; removed so schemaCheck can't approve a silent-no-op card.
+  // Deck-empty fatigue lives in drawTurnStart; the Cinder Apex boss's
+  // fatigue doubling is a separate spire mechanic, both unaffected.)
   'freeze',         // target: see TARGETS. Frozen minions skip their next turn.
   'cloneSelf',      // summon a fresh copy of the source minion (self side).
   'reSummon',       // onDeath: resurrect the dying minion once (no loop).
@@ -92,6 +95,7 @@ export const TARGETS = [
   'oppHand',
   'selfHand',
   'self',                 // the card itself (for onDeath returnToHand etc.)
+  'sourceMinion',         // the minion that owns the ability (onAttack self-heal)
   'lastDeadFriendly',     // resurrect target, last friendly that hit graveyard
   'allFriendlyTribe',     // friendly minions sharing ab.tribe (tribal synergy)
 ];
@@ -639,7 +643,11 @@ export const CARDS = Object.fromEntries(
     // few vestigial-but-harmless target strings; we don't retroactively
     // rewrite it. New sets (voidborn and onward) get the strict check so
     // a typo can never ship as a silent no-op.
-    if ((c.set || 'core') === 'core') continue;
+    // Spire exclusives read as set:'core' (they predate the set field) but
+    // are hand-authored prestige cards, not legacy-generated filler, so we
+    // still hold them to the strict schema, catching a no-op battlecry.
+    const isSpire = (c.id || '').startsWith('spire.');
+    if ((c.set || 'core') === 'core' && !isSpire) continue;
     for (const k of c.keywords || []) {
       if (!KW.has(k)) throw new Error(`cards-content.js: card ${c.id} has unknown keyword "${k}"`);
     }
@@ -846,6 +854,62 @@ export const NPC_DECKS = {
       'goblin.cs01',
       'demon.cs01',
       'goblin.l001',
+    ],
+  },
+  // ── Expansion-set archetype decks (2026-07-03) ──────────────────────
+  // Each uses REAL ids verified to exist in the generated catalogue.
+  // Frostbite: Tides-of-Aether freeze/tempo. Control-flavoured policy
+  // (leans on freeze spells to lock the board, then grinds).
+  frostbite: {
+    champion: 'mage',
+    policy: 'control',
+    cards: [
+      'tides-of-aether.x001', 'tides-of-aether.x001',
+      'tides-of-aether.x005', 'tides-of-aether.x005',
+      'tides-of-aether.x003', 'tides-of-aether.x003',
+      'tides-of-aether.x063', 'tides-of-aether.x063',
+      'tides-of-aether.x030', 'tides-of-aether.x066',
+      'tides-of-aether.x004', 'tides-of-aether.x004',
+      'tides-of-aether.x007', 'tides-of-aether.x007',
+      'tides-of-aether.x010', 'tides-of-aether.x011',
+      'tides-of-aether.x006', 'tides-of-aether.x009',
+      'tides-of-aether.x013', 'tides-of-aether.x002',
+    ],
+  },
+  // Ember: Embercrown-Rising burn. Aggro-flavoured (charge bodies +
+  // direct-damage removal + a couple of face reach spells).
+  ember: {
+    champion: 'mage',
+    policy: 'aggro',
+    cards: [
+      'embercrown-rising.x004', 'embercrown-rising.x004',
+      'embercrown-rising.x005', 'embercrown-rising.x005',
+      'embercrown-rising.x007', 'embercrown-rising.x007',
+      'embercrown-rising.x008', 'embercrown-rising.x008',
+      'embercrown-rising.x009', 'embercrown-rising.x009',
+      'embercrown-rising.x010', 'embercrown-rising.x010',
+      'embercrown-rising.x011', 'embercrown-rising.x012',
+      'embercrown-rising.x006', 'embercrown-rising.x001',
+      'embercrown-rising.x002', 'embercrown-rising.x003',
+      'voidborn.u15', 'voidborn.r09',
+    ],
+  },
+  // Umbra: Voidborn reborn/tribe. Midrange-flavoured (sticky reborn
+  // bodies that demand two removals apiece).
+  umbra: {
+    champion: 'rogue',
+    policy: 'midrange',
+    cards: [
+      'voidborn.x028', 'voidborn.x028',
+      'voidborn.c07', 'voidborn.c07',
+      'voidborn.x007', 'voidborn.x019',
+      'voidborn.x068', 'voidborn.x131',
+      'voidborn.u04', 'voidborn.u04',
+      'voidborn.r04', 'voidborn.x034',
+      'voidborn.x035', 'voidborn.u09',
+      'voidborn.x076', 'voidborn.x097',
+      'voidborn.l04', 'voidborn.x115',
+      'voidborn.x094', 'voidborn.x127',
     ],
   },
 };

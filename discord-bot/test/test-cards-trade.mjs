@@ -244,7 +244,7 @@ ok('tradeableCollection includes name + rarity', view.items[0].name && view.item
 // DM; without DISCORD_BOT_TOKEN it's silently skipped, which is the
 // path tests exercise.
 
-const { handleWeb } = await import('../web.js');
+const { handleBoltboundWeb } = await import('../cards-web.js');
 
 const WEB_SECRET = 'test-web-secret-please-ignore';
 const webEnv = { ...env, AQUILO_SITE_WEB_SECRET: WEB_SECRET, AQUILO_VAULT_GUILD_ID: G };
@@ -296,7 +296,7 @@ const proposeReq = await webPost('/web/boltbound/trade/propose', {
   fromCards: [CARD1], toCards: [CARD3],
   fromBolts: 50,
 });
-const proposeResp = await handleWeb(proposeReq, webEnv);
+const proposeResp = await handleBoltboundWeb(proposeReq, webEnv);
 const proposeBody = await proposeResp.json();
 ok('HTTP propose returns 200', proposeResp.status === 200, `status=${proposeResp.status} body=${JSON.stringify(proposeBody).slice(0, 200)}`);
 ok('HTTP propose ok=true', proposeBody.ok === true, JSON.stringify(proposeBody).slice(0, 200));
@@ -307,7 +307,7 @@ ok('HTTP propose returns tradeId', !!HTTP_TID);
 const listReq = await webPost('/web/boltbound/trade/list', {
   discordId: B, guildId: G, direction: 'incoming',
 });
-const listResp = await handleWeb(listReq, webEnv);
+const listResp = await handleBoltboundWeb(listReq, webEnv);
 const listBody = await listResp.json();
 ok('HTTP list returns trades', listBody.ok && Array.isArray(listBody.trades) && listBody.trades.length === 1, JSON.stringify(listBody).slice(0, 200));
 
@@ -315,7 +315,7 @@ ok('HTTP list returns trades', listBody.ok && Array.isArray(listBody.trades) && 
 const getReq = await webPost('/web/boltbound/trade/get', {
   discordId: B, guildId: G, tradeId: HTTP_TID,
 });
-const getResp = await handleWeb(getReq, webEnv);
+const getResp = await handleBoltboundWeb(getReq, webEnv);
 const getBody = await getResp.json();
 ok('HTTP get returns trade', getBody.ok && getBody.trade?.tradeId === HTTP_TID);
 
@@ -323,7 +323,7 @@ ok('HTTP get returns trade', getBody.ok && getBody.trade?.tradeId === HTTP_TID);
 const carlGetReq = await webPost('/web/boltbound/trade/get', {
   discordId: C, guildId: G, tradeId: HTTP_TID,
 });
-const carlGetResp = await handleWeb(carlGetReq, webEnv);
+const carlGetResp = await handleBoltboundWeb(carlGetReq, webEnv);
 const carlGetBody = await carlGetResp.json();
 ok('HTTP get by third party forbidden', carlGetResp.status === 403 && carlGetBody.error === 'forbidden');
 
@@ -331,7 +331,7 @@ ok('HTTP get by third party forbidden', carlGetResp.status === 403 && carlGetBod
 const colReq = await webPost('/web/boltbound/trade/collection', {
   discordId: A, guildId: G, ownerId: B,
 });
-const colResp = await handleWeb(colReq, webEnv);
+const colResp = await handleBoltboundWeb(colReq, webEnv);
 const colBody = await colResp.json();
 ok('HTTP collection returns items', colBody.ok && Array.isArray(colBody.items) && colBody.items.length >= 2, `items=${colBody.items?.length}`);
 
@@ -339,7 +339,7 @@ ok('HTTP collection returns items', colBody.ok && Array.isArray(colBody.items) &
 const acceptReq = await webPost('/web/boltbound/trade/accept', {
   discordId: B, guildId: G, tradeId: HTTP_TID,
 });
-const acceptResp = await handleWeb(acceptReq, webEnv);
+const acceptResp = await handleBoltboundWeb(acceptReq, webEnv);
 const acceptBody = await acceptResp.json();
 ok('HTTP accept succeeds', acceptResp.status === 200 && acceptBody.ok && acceptBody.trade?.status === 'accepted', JSON.stringify(acceptBody).slice(0, 200));
 
@@ -349,7 +349,7 @@ const badSigReq = new Request('https://bot.example.com/web/boltbound/trade/list'
   headers: { 'content-type': 'application/json', 'x-aquilo-web-ts': '1', 'x-aquilo-web-sig': 'deadbeef' },
   body: JSON.stringify({ discordId: A, guildId: G }),
 });
-const badSigResp = await handleWeb(badSigReq, webEnv);
+const badSigResp = await handleBoltboundWeb(badSigReq, webEnv);
 ok('HTTP bad signature rejected', badSigResp.status === 401);
 
 console.log('--- ' + passed + ' pass, ' + failed + ' fail ---');
