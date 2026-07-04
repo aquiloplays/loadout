@@ -106,6 +106,13 @@ export async function handleExt(req, env, ctx) {
     if (req.method === 'GET' && route === 'checkin/card') {
       return await extCheckinCard(env, guildId, twId);
     }
+    // Punchcard customizer (panel): read the config + entitlement-filtered
+    // catalogs, and save edits — both edit the SAME Discord-keyed stream
+    // check-in card that shows on the OBS overlay, so panel customization
+    // appears on stream. Linked viewers only (the card is Discord-keyed).
+    if (route === 'checkin/card/me' || route === 'checkin/card/save') {
+      return await extCheckinCardEdit(env, guildId, twId, route, req);
+    }
     if (req.method === 'GET' && route === 'recap') return await extRecap(env, guildId, userId);
     if (req.method === 'GET' && route === 'schedule') {
       const { handleExtSchedule } = await import('./schedule.js');
@@ -140,6 +147,10 @@ export async function handleExt(req, env, ctx) {
     if (route.indexOf('tanks/') === 0) {
       const { handleExtTanks } = await import('./ext-tanks.js');
       return await handleExtTanks(env, ctx, guildId, userId, payload, route.slice(6), req);
+    }
+    if (route.indexOf('blackjack/') === 0) {
+      const { handleExtBlackjack } = await import('./ext-blackjack.js');
+      return await handleExtBlackjack(env, ctx, guildId, userId, payload, route.slice(10), req);
     }
     return json({ error: 'not-found' }, 404);
   } catch (e) {
@@ -263,6 +274,33 @@ async function extCheckinCard(env, guildId, twId) {
     },
     earnedCount: earned.length,
   });
+}
+
+// GET  /ext/checkin/card/me   — config + entitlement-filtered catalogs for the
+//                               panel customizer (frames/anims unlocked flags,
+//                               earned badges).
+// POST /ext/checkin/card/save — validate a config patch against the viewer's
+//                               real entitlements + upsert. Both edit the same
+//                               Discord-keyed card the OBS overlay renders, so
+//                               panel edits show on stream. Linked viewers only.
+async function extCheckinCardEdit(env, guildId, twId, route, req) {
+  let discordId = null;
+  try { discordId = await env.LOADOUT_BOLTS.get(`plink:twitch:${twId}`); } catch { /* unlinked */ }
+  if (!discordId) {
+    return json({ ok: true, linked: false, message: 'Link your Twitch to your aquilo.gg account to customize your check-in card.' }, route === 'checkin/card/save' ? 403 : 200);
+  }
+  const { cardMe, saveCardConfig } = await import('./stream-checkin.js');
+  if (route === 'checkin/card/me') {
+    const me = await cardMe(env, guildId, discordId);
+    return json({ ok: true, linked: true, ...me });
+  }
+  // save
+  if (req.method !== 'POST') return json({ error: 'method' }, 405);
+  let body = {}; try { body = await req.json(); } catch { body = {}; }
+  const patch = body && typeof body.config === 'object' ? body.config : body;
+  const r = await saveCardConfig(env, guildId, discordId, patch || {});
+  if (!r.ok) return json({ ok: false, linked: true, error: r.error, message: r.message }, 400);
+  return json({ ok: true, linked: true, config: r.config });
 }
 
 // ASCII control characters (range 0x00-0x1f plus DEL 0x7f), stripped

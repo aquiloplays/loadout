@@ -216,7 +216,9 @@ export function validateConfig(patch, viewerStatus, earnedBadgeIds) {
   const badges = [...new Set(requested)].slice(0, MAX_BADGES);
 
   let tagline = '';
-  if (patch.tagline != null) tagline = String(patch.tagline).replace(/\s+/g, ' ').trim().slice(0, TAGLINE_MAX);
+  // Strip angle brackets so a tagline can never inject markup into the OBS
+  // check-in overlay (defense-in-depth; the overlay should also escape).
+  if (patch.tagline != null) tagline = String(patch.tagline).replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, TAGLINE_MAX);
 
   return { ok: true, config: { frame: frame.id, bg, anim: anim.id, badges, tagline } };
 }

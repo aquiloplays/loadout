@@ -15,6 +15,10 @@ import { json, debounced } from './ext-shared.js';
 import { getWallet, putWallet } from './wallet.js';
 import { sendChatMessage, helixFetch } from './twitch-helix.js';
 
+// Shared with ext-blackjack.js so both games use the same wallet settle,
+// bet limits, wallet view, rank tiers, and chat-announce behavior.
+export { settle, parseBet, walletView, announce, cleanName, rankFor };
+
 const MIN_BET = 5;
 const MAX_BET = 1000;
 const DAILY_BASE = 100;
