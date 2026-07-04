@@ -238,6 +238,13 @@ class_name = "WardenRoom"
 binding = "OVERLAY_REFERENCES"
 bucket_name = "aquilo-overlay-references"
 
+# NOTE (2026-07-04): the live script's migration_tag is currently desynced to
+# null while all four DO namespaces already exist — OverlayBroadcaster
+# (sqlite), Activity/Tts/WardenRoom (non-sqlite). Until it's reconciled (adopt
+# these four into a fresh migration_tag), `wrangler deploy` fails with CF
+# 10074; ship via `wrangler versions upload` + `versions deploy` instead
+# (that path leaves the existing namespaces untouched). These declarations are
+# correct and MUST stay for a clean-environment deploy / post-reconcile.
 [[migrations]]
 tag = "v1-aquilo-overlay-do"
 new_sqlite_classes = ["OverlayBroadcaster"]
