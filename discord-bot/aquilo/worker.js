@@ -44,7 +44,7 @@ import {
 import { postWeeklyRecap } from './recap.js';
 import { postDailyPrompt, handlePromptsEditSubmit } from './prompts.js';
 import { refreshCountdown } from './countdown.js';
-import { postPatronSpotlight } from './spotlight.js';
+import { postSubSpotlight } from './sub-spotlight.js';
 import {
   runDailyPoll, handleDailyPollVote, handleDailyPollEditSubmit
 } from './daily-poll.js';
@@ -503,10 +503,11 @@ async function handleScheduled(event, env, ctx) {
     catch (e) { console.error('[cron prompt]', e?.message || e); }
   }
 
-  // Friday 10 AM ET: patron spotlight.
+  // Friday 10 AM ET: Twitch sub spotlight (replaced the Patreon-role
+  // patron spotlight after the Twitch-native pivot).
   if (weekday === 'friday' && hour === 10) {
-    try { await postPatronSpotlight(env); }
-    catch (e) { console.error('[cron spotlight]', e?.message || e); }
+    try { await postSubSpotlight(env); }
+    catch (e) { console.error('[cron sub-spotlight]', e?.message || e); }
   }
 
   // Saturday 8 PM ET: vote-reminder DMs (1h before CN poll closes).
