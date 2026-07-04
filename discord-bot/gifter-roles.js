@@ -576,12 +576,56 @@ export async function handleTopGiftersCommand(env, data) {
   };
 }
 
+// ── Public: supporter wall (aquilo.gg) ───────────────────────────
+//
+// GET /community/top-supporters?platforms=tiktok,kick&limit=12
+// Cached, CORS-open, no auth. Returns the rolling-30d leaderboard per
+// requested category by platform handle (no Discord resolution — the
+// wall shows the supporter's platform name, so we skip the wallet/
+// pprofile scan entirely by passing an empty index).
+//
+//   { ok, generatedUtc, windowDays, categories: {
+//       tiktok: [{ rank, name, total, platform }], kick: [...] } }
+
+export async function handlePublicTopSupporters(req, env) {
+  const guildId = String(env.AQUILO_VAULT_GUILD_ID || '').trim();
+  const url = new URL(req.url);
+  const wanted = (url.searchParams.get('platforms') || 'tiktok,kick')
+    .split(',').map(s => s.trim().toLowerCase()).filter(c => GIFTER_CATEGORIES[c]);
+  const limit = Math.min(25, Math.max(1, parseInt(url.searchParams.get('limit') || '12', 10) || 12));
+  const categories = {};
+  if (guildId) {
+    const noResolve = new Map();   // wall shows platform handles, not Discord ids
+    for (const cat of wanted) {
+      const board = await rolling30dLeaderboard(env, cat, guildId, limit, noResolve);
+      categories[cat] = board.map((r, i) => ({
+        rank: i + 1,
+        name: r.login || r.key,
+        total: r.total,
+        platform: r.platform || cat,
+      }));
+    }
+  }
+  return jsonPublic({ ok: true, generatedUtc: Date.now(), windowDays: ROLLING_WINDOW_DAYS, categories });
+}
+
 // ── helpers ──────────────────────────────────────────────────────
 
 function jsonResp(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
     status,
     headers: { 'content-type': 'application/json' },
+  });
+}
+
+function jsonPublic(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'public, max-age=0, s-maxage=300',
+      'access-control-allow-origin': '*',
+    },
   });
 }
 

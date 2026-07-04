@@ -1266,6 +1266,13 @@ export default {
       return handleTwitchStats(req, env);
     }
 
+    // Public supporter wall (aquilo.gg): rolling-30d Top Supporters per
+    // platform. Defaults to tiktok,kick. See gifter-roles.js.
+    if (method === 'GET' && path === '/community/top-supporters') {
+      const { handlePublicTopSupporters } = await import('./gifter-roles.js');
+      return handlePublicTopSupporters(req, env);
+    }
+
     // StreamFusion community-night queue manager, see sf-queue.js.
     //   POST /sf/queue          full queue + per-joiner links for the panel
     //   POST /sf/queue/remove   drop a joiner after the streamer marks done
