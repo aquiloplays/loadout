@@ -238,28 +238,29 @@ class_name = "WardenRoom"
 binding = "OVERLAY_REFERENCES"
 bucket_name = "aquilo-overlay-references"
 
-# NOTE (2026-07-04): the live script's migration_tag is currently desynced to
-# null while all four DO namespaces already exist — OverlayBroadcaster
-# (sqlite), Activity/Tts/WardenRoom (non-sqlite). Until it's reconciled (adopt
-# these four into a fresh migration_tag), `wrangler deploy` fails with CF
-# 10074; ship via `wrangler versions upload` + `versions deploy` instead
-# (that path leaves the existing namespaces untouched). These declarations are
-# correct and MUST stay for a clean-environment deploy / post-reconcile.
-[[migrations]]
-tag = "v1-aquilo-overlay-do"
-new_sqlite_classes = ["OverlayBroadcaster"]
+# NOTE (2026-07-04): migrations COMMENTED OUT on this branch on purpose. The
+# live script's migration_tag desynced to null while all four DO namespaces
+# already exist — OverlayBroadcaster (sqlite), Activity/Tts/WardenRoom
+# (non-sqlite). With migrations present, `wrangler deploy` fails CF 10074 and
+# `wrangler versions upload` fails CF 10211. Commented out, `versions upload` +
+# `versions deploy` ships code cleanly against the existing namespaces. These
+# declarations are the CORRECT ones — RESTORE + reconcile migration_tag (adopt
+# the four classes) before any DO-schema change or clean-environment deploy.
+# [[migrations]]
+# tag = "v1-aquilo-overlay-do"
+# new_sqlite_classes = ["OverlayBroadcaster"]
+#
+# [[migrations]]
+# tag = "v2-activity-do"
+# new_classes = ["ActivityBroadcaster"]
+#
+# [[migrations]]
+# tag = "v3-tts-do"
+# new_classes = ["TtsBroadcaster"]
 
-[[migrations]]
-tag = "v2-activity-do"
-new_classes = ["ActivityBroadcaster"]
-
-[[migrations]]
-tag = "v3-tts-do"
-new_classes = ["TtsBroadcaster"]
-
-[[migrations]]
-tag = "v4-warden-room"
-new_classes = ["WardenRoom"]
+# [[migrations]]
+# tag = "v4-warden-room"
+# new_classes = ["WardenRoom"]
 
 # Worker crons. worker.js's `scheduled` handler dispatches by
 # event.cron so each cron can drive a different job.

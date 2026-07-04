@@ -1,9 +1,16 @@
-// Top Sub Gifter / Top TikTok Gifter / Top Cheerer rolling roles.
+// Cross-platform "Top Supporters" rolling roles.
 //
-// Three Discord roles, each held by the current TOP 3 in that
-// category over the last 30 days. Driven by Streamer.bot HTTP
-// actions posting to /streamerbot/event, payload schema documented
-// at the top of handleStreamerbotEvent below.
+// Five Discord roles, each held by the current TOP 3 in that category
+// over the last 30 days:
+//   sub / cheer (Twitch) · tiktok · youtube · kick
+// Event sources:
+//   • Twitch sub-gifts  → Streamer.bot HTTP action → /streamerbot/event
+//   • TikTok tips       → TikFinity webhook → /tikfinity/event
+//   • YouTube / Kick    → StreamFusion community-event relay (sf-community.js)
+// All normalize through recordGifterEvent(). Contributors resolve to a
+// Discord member via loadLinksReverseIndex (wallet links + OAuth
+// account-links), so anyone who linked the platform on aquilo.gg earns
+// the role.
 //
 // Rolling-window math:
 //   • Per-user-per-day cumulative amount → `gifter:<cat>:<g>:<uid>:<YYYY-MM-DD>`
@@ -15,8 +22,8 @@
 //     REST + revoking from the set difference.
 //
 // Per-guild config:
-//   gifter-roles:<guildId>  → { sub: '<roleId>', tiktok: '<roleId>',
-//                               cheer: '<roleId>' }
+//   gifter-roles:<guildId>  → { sub, tiktok, cheer, youtube, kick }
+//                             (each a '<roleId>'; tolerant of partial maps)
 //
 // Per-event identity buckets (for the slash command + report, keep
 // the username even for unlinked contributors so they still appear
@@ -30,10 +37,21 @@
 import { verifyHmac } from './auth.js';
 
 export const GIFTER_CATEGORIES = Object.freeze({
-  sub:    { name: 'Top Sub Gifter',    color: 0x9146FF, eventType: 'sub-gift' },
-  tiktok: { name: 'Top TikTok Gifter', color: 0xFF0050, eventType: 'tip' },
-  cheer:  { name: 'Top Cheerer',       color: 0x5A3AFF, eventType: 'cheer' },
+  sub:     { name: 'Top Sub Gifter',     color: 0x9146FF, eventType: 'sub-gift' },
+  tiktok:  { name: 'Top TikTok Gifter',  color: 0xFF0050, eventType: 'tip' },
+  cheer:   { name: 'Top Cheerer',        color: 0x5A3AFF, eventType: 'cheer' },
+  youtube: { name: 'Top YouTube Gifter', color: 0xFF0000, eventType: 'tip' },
+  kick:    { name: 'Top Kick Supporter', color: 0x53FC18, eventType: 'tip' },
 });
+
+// YouTube/Kick arrive via the StreamFusion community-event relay
+// (sf-community.js) with varied eventType strings; any monetization
+// event counts toward that platform's single "Top Supporter" role.
+const SUPPORT_EVENTS = new Set([
+  'tip', 'donation', 'superchat', 'super_chat', 'supersticker', 'super_sticker',
+  'gift', 'gift-sub', 'giftsub', 'sub-gift', 'sub', 'resub', 'subscription',
+  'member', 'membership', 'kicks',
+]);
 
 const ROLE_MAP_KEY    = (g) => `gifter-roles:${g}`;
 const BUCKET_KEY      = (cat, g, uid, day) => `gifter:${cat}:${g}:${uid}:${day}`;
@@ -71,6 +89,10 @@ function categoryFor(eventType, platform) {
   if (t === 'sub-gift' && p === 'twitch') return 'sub';
   if (t === 'tip'      && p === 'tiktok') return 'tiktok';
   if (t === 'cheer'    && p === 'twitch') return 'cheer';
+  // YouTube + Kick: one recognition role per platform, fed any
+  // monetization event type from the StreamFusion relay.
+  if (p === 'youtube' && SUPPORT_EVENTS.has(t)) return 'youtube';
+  if (p === 'kick'    && SUPPORT_EVENTS.has(t)) return 'kick';
   return null;
 }
 
@@ -84,12 +106,22 @@ function identityKeyOf(platform, login) {
 }
 
 async function loadLinksReverseIndex(env, guildId) {
-  // Twitch login (lowercase) → Discord user id. Scans wallet:<g>:*
-  // entries' `links: [{ platform, username }]` arrays. Bounded ≤
-  // 5 pages × 1000 keys; aquilo's roster is small (hundreds).
+  // `<platform>:<handle-or-id>` (lowercase) → Discord user id. Merges
+  // TWO link sources so both DLL-wallet linkers and aquilo.gg OAuth
+  // linkers resolve:
+  //   1. wallet:<g>:* `links: [{ platform, username }]`  (DLL / site wallet)
+  //   2. pprofile:<uid>.linkedAccounts.<platform>          (OAuth account-link)
+  // Bounded ≤ 8 pages × 1000 keys each; aquilo's roster is small.
   const idx = new Map();
+  const put = (platform, val, uid) => {
+    if (!platform || !val || !uid) return;
+    const key = `${String(platform).toLowerCase()}:${String(val).toLowerCase()}`;
+    if (!idx.has(key)) idx.set(key, uid);  // wallet wins over OAuth on conflict
+  };
+
+  // 1. Wallet links (existing).
   let cursor;
-  for (let page = 0; page < 5; page++) {
+  for (let page = 0; page < 8; page++) {
     const r = await env.LOADOUT_BOLTS.list({
       prefix: `wallet:${guildId}:`, cursor, limit: 1000,
     });
@@ -97,39 +129,40 @@ async function loadLinksReverseIndex(env, guildId) {
       const w = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
       const discordUserId = k.name.split(':').pop();
       const links = (w?.links || []).filter(l => l?.platform && l?.username);
-      for (const l of links) {
-        idx.set(`${String(l.platform).toLowerCase()}:${String(l.username).toLowerCase()}`, discordUserId);
-      }
+      for (const l of links) put(l.platform, l.username, discordUserId);
     }
     if (r.list_complete) break;
     cursor = r.cursor;
   }
+
+  // 2. OAuth-linked accounts (pprofile:<uid>.linkedAccounts). Key each
+  // link by handle, id, AND displayName so an inbound event that carries
+  // any one of them (Twitch login, TikTok @, YouTube channelId, or a raw
+  // display name from the SF relay) resolves to the linker.
+  let pc;
+  for (let page = 0; page < 8; page++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'pprofile:', cursor: pc, limit: 1000 });
+    for (const k of r.keys) {
+      const uid = k.name.slice('pprofile:'.length);
+      if (uid.includes(':')) continue;   // skip pprofile:handle:* index keys
+      const prof = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      const la = prof?.linkedAccounts || {};
+      for (const [platform, rec] of Object.entries(la)) {
+        if (!rec || rec.removedUtc || !rec.id) continue;
+        put(platform, rec.handle, uid);
+        put(platform, rec.id, uid);
+        put(platform, rec.displayName, uid);
+      }
+    }
+    if (r.list_complete) break;
+    pc = r.cursor;
+  }
   return idx;
 }
 
-// Resolve a single event's contributor to a Discord user id (or
-// null if not linked). Used in the webhook hot path; takes the
-// reverse-index map as an arg so we don't re-walk wallet:* per event.
-function resolveDiscordId(event, linkIdx) {
-  if (event.platform === 'twitch') {
-    if (event.twitchUserId) {
-      for (const [k, v] of linkIdx) {
-        // Twitch ids aren't tracked in the link records (only the
-        // login is), so this branch is unused today; here for when
-        // we add id-based links.
-      }
-    }
-    if (event.twitchLogin) {
-      return linkIdx.get(`twitch:${String(event.twitchLogin).toLowerCase()}`) || null;
-    }
-  }
-  if (event.platform === 'tiktok') {
-    if (event.tiktokUsername) {
-      return linkIdx.get(`tiktok:${String(event.tiktokUsername).toLowerCase()}`) || null;
-    }
-  }
-  return null;
-}
+// (Contributor→Discord resolution happens in rolling30dLeaderboard via
+// linkIdx.get(identityKey); the old per-event resolveDiscordId helper was
+// dead code and has been removed.)
 
 // ── Webhook: /streamerbot/event ──────────────────────────────────
 //
@@ -221,7 +254,7 @@ export async function recordGifterEvent(env, guildId, eventType, platform, login
 // desc by total. Bounded scan: at most (categories × 30) KV list
 // calls per cron tick.
 
-export async function rolling30dLeaderboard(env, category, guildId, limit = 50) {
+export async function rolling30dLeaderboard(env, category, guildId, limit = 50, linkIdxArg = null) {
   if (!guildId || !GIFTER_CATEGORIES[category]) return [];
   const totals = new Map();   // identityKey → number
   const days = lastNDays(ROLLING_WINDOW_DAYS);
@@ -252,8 +285,10 @@ export async function rolling30dLeaderboard(env, category, guildId, limit = 50) 
     if (r.list_complete) break;
     cursor = r.cursor;
   }
-  // Resolve identities + Discord links.
-  const linkIdx = await loadLinksReverseIndex(env, guildId);
+  // Resolve identities + Discord links. Reuse a caller-supplied index
+  // (the daily cron builds it once for all categories) to avoid
+  // re-walking wallet:* + pprofile:* per category.
+  const linkIdx = linkIdxArg || await loadLinksReverseIndex(env, guildId);
   const rows = [];
   for (const [key, total] of totals) {
     const ident = await env.LOADOUT_BOLTS.get(IDENTITY_KEY(category, guildId, key), { type: 'json' });
@@ -265,8 +300,22 @@ export async function rolling30dLeaderboard(env, category, guildId, limit = 50) 
       discordUserId: linkIdx.get(key) || null,
     });
   }
-  rows.sort((a, b) => b.total - a.total);
-  return rows.slice(0, limit);
+  // Merge rows that resolve to the SAME Discord user before ranking. A
+  // contributor can surface under multiple identity keys (e.g. a YouTube
+  // Super Chat relayed once by channelId and once by display name), which
+  // would otherwise split their total across rows and cost them the role.
+  // Unlinked contributors (no discordUserId) stay as distinct rows.
+  const byUser = new Map();
+  const unlinked = [];
+  for (const row of rows) {
+    if (!row.discordUserId) { unlinked.push(row); continue; }
+    const ex = byUser.get(row.discordUserId);
+    if (ex) ex.total += row.total;
+    else byUser.set(row.discordUserId, { ...row });
+  }
+  const merged = [...byUser.values(), ...unlinked];
+  merged.sort((a, b) => b.total - a.total);
+  return merged.slice(0, limit);
 }
 
 // ── Daily cron: rebuild top-3 role membership + trim old buckets ──
@@ -283,25 +332,31 @@ export async function gifterRolesDailyTick(env) {
   if (last === today) return { skipped: 'already-ran-today', day: today };
 
   const map = await env.LOADOUT_BOLTS.get(ROLE_MAP_KEY(guildId), { type: 'json' });
-  if (!map || !map.sub || !map.tiktok || !map.cheer) {
+  // Reconcile every category that HAS a provisioned role id — tolerant of
+  // partial maps (e.g. only some platforms' roles exist yet), rather than
+  // the old all-or-nothing guard that silently skipped forever if any one
+  // category was missing. Only bail if NOTHING is provisioned.
+  if (!map || !Object.keys(GIFTER_CATEGORIES).some(c => map[c])) {
     // Stamp anyway so we don't re-scan all day. Re-run after
-    // ensure populates the map.
+    // POST /admin/gifter-roles/ensure/<g> populates the map.
     await env.LOADOUT_BOLTS.put(LAST_CRON_KEY(guildId), today);
     return { skipped: 'no-role-map', day: today };
   }
 
+  // Build the link reverse index ONCE for all categories.
+  const linkIdx = await loadLinksReverseIndex(env, guildId);
   const summary = {};
   for (const cat of Object.keys(GIFTER_CATEGORIES)) {
-    summary[cat] = await reconcileCategory(env, guildId, cat, map[cat]);
+    summary[cat] = await reconcileCategory(env, guildId, cat, map[cat], linkIdx);
   }
   await trimOldBuckets(env, guildId);
   await env.LOADOUT_BOLTS.put(LAST_CRON_KEY(guildId), today);
   return { ok: true, day: today, summary };
 }
 
-async function reconcileCategory(env, guildId, category, roleId) {
+async function reconcileCategory(env, guildId, category, roleId, linkIdx = null) {
   if (!roleId) return { skipped: 'no-role-id-for-' + category };
-  const board = await rolling30dLeaderboard(env, category, guildId, 50);
+  const board = await rolling30dLeaderboard(env, category, guildId, 50, linkIdx);
   // Top 3 with a Discord link, unlinked contributors can lead the
   // leaderboard but can't hold the role (no member to grant to).
   const top3Ids = board.filter(r => r.discordUserId).slice(0, 3).map(r => r.discordUserId);
@@ -385,10 +440,12 @@ async function removeRoleFromUser(env, guildId, userId, roleId, reason) {
 // guild grooms itself.
 async function trimOldBuckets(env, guildId) {
   const keepDays = new Set(lastNDays(TRIM_OLDER_THAN_DAYS));
-  let cursor;
   let deleted = 0;
   for (const cat of Object.keys(GIFTER_CATEGORIES)) {
     const prefix = `gifter:${cat}:${guildId}:`;
+    // Cursor is per-prefix — reset for each category, else a cursor from
+    // the previous category's prefix is paired with this one's (invalid).
+    let cursor;
     for (let page = 0; page < 5; page++) {
       const r = await env.LOADOUT_BOLTS.list({ prefix, cursor, limit: 1000 });
       for (const k of r.keys) {
@@ -487,9 +544,10 @@ export async function handleTopGiftersCommand(env, data) {
   if (!guildId) {
     return { type: RESP_CHAT, data: { content: 'Run this in a server.', flags: FLAG_EPHEMERAL } };
   }
+  const linkIdx = await loadLinksReverseIndex(env, guildId);
   const fields = [];
   for (const [cat, spec] of Object.entries(GIFTER_CATEGORIES)) {
-    const board = await rolling30dLeaderboard(env, cat, guildId, 5);
+    const board = await rolling30dLeaderboard(env, cat, guildId, 5, linkIdx);
     if (board.length === 0) {
       fields.push({ name: spec.name, value: '_no contributions yet (last 30d)_', inline: false });
       continue;

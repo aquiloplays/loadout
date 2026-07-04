@@ -400,6 +400,23 @@ export async function handleCommunityEvent(req, env) {
     return json({ ok: true, action: 'no-binding' });
   }
   const r = await postEmbed(env, channel.channelId, eventEmbed(ev));
+
+  // Feed YouTube + Kick monetization into the unified Top Supporters
+  // leaderboard/roles. Twitch and TikTok have their own dedicated
+  // webhooks (/streamerbot/event, /tikfinity/event), so we only capture
+  // the platforms that ONLY arrive via this relay — avoids double-counting.
+  // Non-fatal + fire-and-forget: never let it block or fail the embed ack.
+  try {
+    const plat = ev.platform;
+    if ((plat === 'youtube' || plat === 'kick') && ev.user) {
+      const guildId = String(env.AQUILO_VAULT_GUILD_ID || '').trim();
+      if (guildId) {
+        const { recordGifterEvent } = await import('./gifter-roles.js');
+        await recordGifterEvent(env, guildId, ev.eventType, plat, ev.user, ev.amount, Date.now());
+      }
+    }
+  } catch { /* non-fatal: leaderboard capture must never break the relay */ }
+
   if (!r.ok) return json({ ok: false, error: r.error }, 502);
   return json({ ok: true, action: 'posted', messageId: r.messageId });
 }
