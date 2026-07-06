@@ -165,6 +165,14 @@ PRINTERBOT_DISCORD_CHANNEL_ID = "1508871768817795082"
 binding = "LOADOUT_BOLTS"
 id = "ffa4638187fd4c71b65f62e00b9437fa"
 
+# rotation-bot's KV (read-only use): the MultiGoal API reads the
+# streamer:<twitchId> record for its already-refreshed Kick access
+# token + slug, so Kick follower counts ride the jukebox's Kick
+# connection instead of needing a second OAuth surface.
+[[kv_namespaces]]
+binding = "ROTATION_KV"
+id = "b309eae315a8434bbc29605db3bf908a"
+
 # Aquilo-bot fold-in: STATE KV — schedule/queue/check-in/etc state.
 # KV namespaces are account-scoped resources; binding from a second
 # Worker just gives that Worker access to the same keyspace. Keys
