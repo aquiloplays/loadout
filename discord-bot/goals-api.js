@@ -217,22 +217,32 @@ async function kickCounts(env, twitchId, slugParam, dbg) {
       if (!slug && b && b.login) slug = String(b.login).toLowerCase();
     } catch { /* not connected */ }
   }
-  if (!token) return { connected: false, followers: null, slug: slug || null };
+  if (!token) return { connected: false, followers: null, subs: null, slug: slug || null };
   try {
     const q = slug ? '?slug=' + encodeURIComponent(slug) : '';
     const r = await fetch('https://api.kick.com/public/v1/channels' + q, {
       headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' },
     });
     if (dbg && dbg.kick) dbg.kick.status = r.status;
-    if (!r.ok) return { connected: true, followers: null, slug: slug || null };
+    if (!r.ok) return { connected: true, followers: null, subs: null, slug: slug || null };
     const j = await r.json();
     const c = (j && Array.isArray(j.data) && j.data[0]) || (j && j.data) || j || {};
     if (!slug && c.slug) slug = String(c.slug).toLowerCase();
+    // Kick's official API exposes SUB counts (active_subscribers_count,
+    // verified 2026-07-06) but no follower count — followers stay on the
+    // probe in case Kick ever adds them; the overlay uses its manual
+    // baseline meanwhile.
     const n = Number(c.followers_count ?? c.followersCount ?? (c.followers && c.followers.count) ?? c.follower_count);
+    const s = Number(c.active_subscribers_count);
     if (dbg && dbg.kick && !Number.isFinite(n)) dbg.kick.fields = Object.keys(c).join(',').slice(0, 200);
-    return { connected: true, followers: Number.isFinite(n) ? n : null, slug: slug || null };
+    return {
+      connected: true,
+      followers: Number.isFinite(n) ? n : null,
+      subs: Number.isFinite(s) ? s : null,
+      slug: slug || null,
+    };
   } catch {
-    return { connected: true, followers: null, slug: slug || null };
+    return { connected: true, followers: null, subs: null, slug: slug || null };
   }
 }
 
@@ -348,7 +358,7 @@ export async function handleGoals(req, env, path) {
     try {
       const last = await env.LOADOUT_BOLTS.get(LAST_KEY, { type: 'json' });
       if (last) {
-        for (const [p, fields] of [['twitch', ['followers', 'subs']], ['kick', ['followers']], ['youtube', ['subs']]]) {
+        for (const [p, fields] of [['twitch', ['followers', 'subs']], ['kick', ['followers', 'subs']], ['youtube', ['subs']]]) {
           for (const f of fields) {
             if (body[p][f] == null && last[p] && last[p][f] != null) {
               body[p][f] = last[p][f];
