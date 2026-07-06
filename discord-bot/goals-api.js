@@ -36,7 +36,7 @@ import { loginToId, vaultHelix } from './warden-twitch.js';
 
 const CORS = {
   'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'GET, OPTIONS',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
   'access-control-allow-headers': 'content-type',
 };
 
@@ -313,6 +313,33 @@ export async function handleGoals(req, env, path) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
   const url = new URL(req.url);
+
+  // TikTok has no API, so its live count is a stored number: the builder
+  // pushes updates here and the overlay picks them up on its next poll —
+  // no OBS URL change needed. Cosmetic, channel-keyed, sanity-clamped.
+  if (path === '/api/goals/tiktok') {
+    if (req.method === 'POST') {
+      let body; try { body = await req.json(); } catch { return json({ ok: false, error: 'bad-json' }, 400); }
+      const ch = String(body.ch || '').trim().toLowerCase().replace(/^@/, '');
+      if (!/^[a-z0-9_]{1,25}$/.test(ch)) return json({ ok: false, error: 'bad-channel' }, 400);
+      const n = Number(body.followers);
+      if (!Number.isFinite(n) || n < 0 || n > 100_000_000) return json({ ok: false, error: 'bad-count' }, 400);
+      const rec = { followers: Math.round(n), updatedAt: Date.now() };
+      try { await env.LOADOUT_BOLTS.put('goals:tt:' + ch, JSON.stringify(rec)); } catch { return json({ ok: false, error: 'kv' }, 500); }
+      // Bust the no-override state cache so a polling overlay sees it fast.
+      try { await env.LOADOUT_BOLTS.delete(cacheKey(ch, '', '')); } catch { /* best effort */ }
+      return json({ ok: true, tiktok: rec });
+    }
+    if (req.method === 'GET') {
+      const ch = String(url.searchParams.get('ch') || '').trim().toLowerCase().replace(/^@/, '');
+      if (!/^[a-z0-9_]{1,25}$/.test(ch)) return json({ ok: false, error: 'bad-channel' }, 400);
+      let rec = null;
+      try { rec = await env.LOADOUT_BOLTS.get('goals:tt:' + ch, { type: 'json' }); } catch { /* none */ }
+      return json({ ok: true, tiktok: rec });
+    }
+    return json({ ok: false, error: 'method' }, 405);
+  }
+
   if (req.method === 'GET' && path === '/api/goals/state') {
     const ch = String(url.searchParams.get('ch') || '').trim().toLowerCase().replace(/^@/, '');
     if (!/^[a-z0-9_]{1,25}$/.test(ch)) return json({ ok: false, error: 'bad-channel' }, 400);
