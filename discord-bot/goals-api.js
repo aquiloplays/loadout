@@ -363,6 +363,34 @@ export async function handleGoals(req, env, path) {
 
   const url = new URL(req.url);
 
+  // Manual counts for metrics with no API (TikTok followers, Kick
+  // followers): the builder pushes the number here and the overlay picks
+  // it up on its next poll — no OBS URL change needed. Stored per channel
+  // as a { "<platform>.<metric>": n } map; state fills nulls from it.
+  if (path === '/api/goals/manual' && req.method === 'POST') {
+    let body; try { body = await req.json(); } catch { return json({ ok: false, error: 'bad-json' }, 400); }
+    const ch = String(body.ch || '').trim().toLowerCase().replace(/^@/, '');
+    if (!/^[a-z0-9_]{1,25}$/.test(ch)) return json({ ok: false, error: 'bad-channel' }, 400);
+    const platform = String(body.platform || '').toLowerCase();
+    const metric = String(body.metric || 'followers').toLowerCase();
+    if (['tiktok', 'kick', 'youtube', 'twitch'].indexOf(platform) === -1) return json({ ok: false, error: 'bad-platform' }, 400);
+    if (['followers', 'subs'].indexOf(metric) === -1) return json({ ok: false, error: 'bad-metric' }, 400);
+    const n = Number(body.value != null ? body.value : body.followers);
+    if (!Number.isFinite(n) || n < 0 || n > 100_000_000) return json({ ok: false, error: 'bad-count' }, 400);
+    let map = null;
+    try { map = await env.LOADOUT_BOLTS.get('goals:manual:' + ch, { type: 'json' }); } catch { /* fresh */ }
+    map = (map && typeof map === 'object') ? map : {};
+    map[platform + '.' + metric] = Math.round(n);
+    map.updatedAt = Date.now();
+    try { await env.LOADOUT_BOLTS.put('goals:manual:' + ch, JSON.stringify(map)); } catch { return json({ ok: false, error: 'kv' }, 500); }
+    // Legacy TikTok slot doubles as the overlay's delta-reset signal.
+    if (platform === 'tiktok' && metric === 'followers') {
+      try { await env.LOADOUT_BOLTS.put('goals:tt:' + ch, JSON.stringify({ followers: Math.round(n), updatedAt: Date.now() })); } catch { /* best effort */ }
+    }
+    try { await env.LOADOUT_BOLTS.delete(cacheKey(ch, '', '')); } catch { /* best effort */ }
+    return json({ ok: true, manual: map });
+  }
+
   // TikTok has no API, so its live count is a stored number: the builder
   // pushes updates here and the overlay picks them up on its next poll —
   // no OBS URL change needed. Cosmetic, channel-keyed, sanity-clamped.
@@ -425,6 +453,27 @@ export async function handleGoals(req, env, path) {
     try { tiktok = await env.LOADOUT_BOLTS.get('goals:tt:' + ch, { type: 'json' }); } catch { /* none */ }
 
     const body = { ok: true, ch, ts: Date.now(), twitch, kick, youtube, tiktok, ...(dbg ? { debug: dbg } : {}) };
+
+    // Builder-pushed manual counts fill whatever the platforms can't
+    // provide (Kick has no follower API; TikTok has no API at all).
+    try {
+      const manual = await env.LOADOUT_BOLTS.get('goals:manual:' + ch, { type: 'json' });
+      if (manual) {
+        for (const [p, fields] of [['twitch', ['followers', 'subs']], ['kick', ['followers', 'subs']], ['youtube', ['subs']]]) {
+          for (const f of fields) {
+            const v = Number(manual[p + '.' + f]);
+            if (body[p][f] == null && Number.isFinite(v)) {
+              body[p][f] = v;
+              body[p].manual = true;
+              body[p].connected = true;
+            }
+          }
+        }
+        if (!body.tiktok && Number.isFinite(Number(manual['tiktok.followers']))) {
+          body.tiktok = { followers: Number(manual['tiktok.followers']), updatedAt: manual.updatedAt || null };
+        }
+      }
+    } catch { /* no manual map */ }
 
     // Platform fetches flake (token rotation races, Kick/Helix hiccups).
     // Rather than blanking the overlay, backfill nulls from the last good
