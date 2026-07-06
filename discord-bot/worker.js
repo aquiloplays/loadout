@@ -2470,12 +2470,13 @@ async function handleTwitchCategory(req, env) {
   }
 }
 
-// GET /api/twitch/emotes — the canonical channel's uploaded emotes via
-// Helix chat/emotes (app token). Public data; CORS-open, edge-cached 5min.
-// Response: { ok, broadcasterId, emotes: [{ id, name, animated, tier,
-// type, url }] } where url is the 56px dark-theme CDN image (animated
-// format when the emote has one). The panel's idle deck renders these so
-// the card always mirrors what's actually live on Twitch.
+// GET /api/twitch/emotes[?login=<user>] — a channel's uploaded emotes via
+// Helix chat/emotes (app token). No ?login= → the canonical channel.
+// Public data; CORS-open, edge-cached 5min. Response: { ok, broadcasterId,
+// emotes: [{ id, name, animated, tier, type, url }] } where url is the
+// 56px dark-theme CDN image (animated format when the emote has one).
+// Consumers: the Twitch panel's idle-deck emote card + PunchCard's
+// channel-emote punch stamps (any streamer, hence ?login=).
 async function handleTwitchEmotes(req, env) {
   const cors = {
     'access-control-allow-origin': '*',
@@ -2485,14 +2486,25 @@ async function handleTwitchEmotes(req, env) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
   const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=300', ...cors };
   try {
-    let broadcasterId = env.CLAY_TWITCH_CHANNEL_ID;
-    if (!broadcasterId) {
-      const mod = await import('./twitch-login-resolver.js');
-      const r = await mod.resolveCanonicalLogin(env);
-      broadcasterId = r && r.broadcasterId;
+    const { helixGet } = await import('./ext-loadout.js');
+    const login = (new URL(req.url).searchParams.get('login') || '')
+      .trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+    let broadcasterId = null;
+    if (login) {
+      const ur = await helixGet(env, 'users?login=' + encodeURIComponent(login));
+      if (!ur || !ur.ok) throw new Error('helix-users-' + (ur ? ur.status : 'no-token'));
+      const uj = await ur.json();
+      broadcasterId = uj && uj.data && uj.data[0] && uj.data[0].id;
+      if (!broadcasterId) throw new Error('unknown-login');
+    } else {
+      broadcasterId = env.CLAY_TWITCH_CHANNEL_ID;
+      if (!broadcasterId) {
+        const mod = await import('./twitch-login-resolver.js');
+        const r = await mod.resolveCanonicalLogin(env);
+        broadcasterId = r && r.broadcasterId;
+      }
     }
     if (!broadcasterId) throw new Error('no-broadcaster-id');
-    const { helixGet } = await import('./ext-loadout.js');
     const res = await helixGet(env, 'chat/emotes?broadcaster_id=' + encodeURIComponent(broadcasterId));
     if (!res || !res.ok) throw new Error('helix-emotes-' + (res ? res.status : 'no-token'));
     const j = await res.json();
