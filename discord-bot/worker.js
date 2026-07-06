@@ -742,6 +742,13 @@ export default {
       const { handlePunchcard } = await import('./punchcard.js');
       return handlePunchcard(req, env, path);
     }
+    // MultiGoal: cross-platform follower/sub counts for the rotating goals
+    // overlay (widget.aquilo.gg/overlays/multigoal). Public read, keyed by
+    // Twitch login; Twitch via the Aquilo ID vault, Kick/YouTube best-effort.
+    if (path.startsWith('/api/goals/')) {
+      const { handleGoals } = await import('./goals-api.js');
+      return handleGoals(req, env, path);
+    }
     // Aquilo account + cross-product settings (sign in with Twitch or
     // Patreon; per-account settings sync). Free for anyone signed in.
     // Self-contained, uses LOADOUT_BOLTS with its own acct:* keys.
