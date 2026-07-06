@@ -282,7 +282,44 @@ async function ytVaultToken(env, twitchId) {
   } catch { return null; }
 }
 
-async function ytCounts(env, twitchId, channelIdParam) {
+// Parse YouTube's compact subscriber strings: "1.23K subscribers",
+// "987 subscribers", "4.5M subscribers".
+function parseCompactCount(s) {
+  const m = /([\d.,]+)\s*([KMB])?/i.exec(String(s || '').replace(/ /g, ' '));
+  if (!m) return null;
+  let n = parseFloat(m[1].replace(/,/g, ''));
+  if (!Number.isFinite(n)) return null;
+  const mult = { K: 1e3, M: 1e6, B: 1e9 }[(m[2] || '').toUpperCase()];
+  if (mult) n *= mult;
+  return Math.round(n);
+}
+
+// Public no-credential fallback: the channel page embeds the subscriber
+// count in its initial data. Works with @handles and UC… ids. Compact
+// counts ("1.2K") lose precision vs the API — acceptable for a goal bar,
+// and the OAuth path takes over once YouTube connect activates.
+async function ytScrapeSubs(ident) {
+  const id = String(ident || '').trim().replace(/^@/, '');
+  if (!/^[A-Za-z0-9._-]{2,64}$/.test(id)) return null;
+  const url = 'https://www.youtube.com/' + (/^UC[A-Za-z0-9_-]{20,}$/.test(id) ? 'channel/' + id : '@' + id) + '/about';
+  try {
+    const r = await fetch(url, {
+      headers: {
+        'accept-language': 'en',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+        'cookie': 'CONSENT=YES+1',
+      },
+    });
+    if (!r.ok) return null;
+    const html = await r.text();
+    const m = /"subscriberCountText"\s*:\s*(?:\{[^}]*?"simpleText"\s*:\s*"([^"]+)"|"([^"]+)")/.exec(html)
+      || /([\d.,]+[KMB]?)\s*subscribers/i.exec(html);
+    const raw = m && (m[1] || m[2] || m[0]);
+    return raw ? parseCompactCount(raw) : null;
+  } catch { return null; }
+}
+
+async function ytCounts(env, twitchId, channelIdParam, dbg) {
   const base = 'https://www.googleapis.com/youtube/v3/channels?part=statistics';
   const subsFrom = (j) => {
     const it = j && Array.isArray(j.items) && j.items[0];
@@ -290,22 +327,34 @@ async function ytCounts(env, twitchId, channelIdParam) {
     return Number.isFinite(n) ? n : null;
   };
   // Connected path: the streamer's own OAuth token, no channel id needed.
+  // A 0/absent reading falls through when an explicit handle is configured
+  // — mine=true can resolve a personal account instead of the brand
+  // channel, and the streamer's own stated handle is authoritative.
+  const cid = String(channelIdParam || '').trim();
   const tok = twitchId ? await ytVaultToken(env, twitchId) : null;
+  let oauthSubs = null;
   if (tok) {
     try {
       const r = await fetch(base + '&mine=true', { headers: { authorization: 'Bearer ' + tok.token } });
-      if (r.ok) return { connected: true, subs: subsFrom(await r.json()) };
+      if (r.ok) oauthSubs = subsFrom(await r.json());
     } catch { /* fall through */ }
+    if (oauthSubs) return { connected: true, subs: oauthSubs };
+    if (!cid) return { connected: true, subs: oauthSubs };
   }
-  // Public path: explicit channel id + a plain API key.
-  const cid = String(channelIdParam || '').trim();
+  // Public API path: explicit channel id + a plain API key.
   if (env.YOUTUBE_API_KEY && /^[A-Za-z0-9_-]{10,64}$/.test(cid)) {
     try {
       const r = await fetch(base + '&id=' + encodeURIComponent(cid) + '&key=' + encodeURIComponent(env.YOUTUBE_API_KEY));
       if (r.ok) return { connected: true, subs: subsFrom(await r.json()) };
     } catch { /* fall through */ }
   }
-  return { connected: !!tok, subs: null };
+  // Public scrape path: @handle or UC id, no credentials at all.
+  if (cid) {
+    const n = await ytScrapeSubs(cid);
+    if (dbg) dbg.ytScrape = { ident: cid, subs: n };
+    if (n != null) return { connected: true, subs: n };
+  }
+  return { connected: !!tok, subs: oauthSubs };
 }
 
 // ── Router ──────────────────────────────────────────────────────────
@@ -370,7 +419,7 @@ export async function handleGoals(req, env, path) {
     const [twitch, kick, youtube] = await Promise.all([
       twitchId ? twitchCounts(env, twitchId, ch, dbg) : { connected: false, followers: null, subs: null },
       kickCounts(env, twitchId, kickSlug, dbg),
-      ytCounts(env, twitchId, ytChan),
+      ytCounts(env, twitchId, ytChan, dbg),
     ]);
     let tiktok = null;
     try { tiktok = await env.LOADOUT_BOLTS.get('goals:tt:' + ch, { type: 'json' }); } catch { /* none */ }
