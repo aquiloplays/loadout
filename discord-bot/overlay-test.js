@@ -53,6 +53,11 @@ async function send(req, env) {
   // Optional payload an overlay may act on (e.g. Gift Guide "preview this
   // profile" — the editor sends the selected profile/category name).
   if (typeof body.game === 'string' && body.game) evt.game = body.game.slice(0, 60);
+  // Gift Guide manual override: hold = pin this profile until resume (the
+  // overlay persists it client-side so it survives reloads); resume = release
+  // the pin and go back to auto-switch.
+  if (body.hold === true) evt.hold = true;
+  if (body.resume === true) evt.resume = true;
   await env.LOADOUT_BOLTS.put(`otest:${ch}`, JSON.stringify(evt), { expirationTtl: EVENT_TTL_S });
   return json({ ok: true, n });
 }
