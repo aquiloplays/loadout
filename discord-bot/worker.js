@@ -719,11 +719,24 @@ export default {
     if (path === '/api/twitch/category') {
       return handleTwitchCategory(req, env);
     }
+    // Public: GET /api/twitch/emotes → the canonical channel's uploaded
+    // emotes via Helix chat/emotes (app token). Powers the Twitch panel's
+    // idle-deck emote card + the aquilo.gg/panel web embed. CORS-open,
+    // 5-min cached.
+    if (path === '/api/twitch/emotes') {
+      return handleTwitchEmotes(req, env);
+    }
     // StreamFusion chat dock backend: premium gate, Haiku translate proxy,
     // mod/clip stubs. See sfdock.js.
     if (path.startsWith('/api/sfdock/')) {
       const { handleSfDock } = await import('./sfdock.js');
       return handleSfDock(req, env, path);
+    }
+    // Aquilo Dock (OBS panel, multi-tenant): pairing mint + keyed state
+    // for the widget.aquilo.gg/dock control panel. See aquilo-dock.js.
+    if (path.startsWith('/api/aqdock/')) {
+      const { handleAquiloDock } = await import('./aquilo-dock.js');
+      return handleAquiloDock(req, env, path);
     }
     // Aquilo Dock backend (the unified per-user control panel). Public
     // registry read, owner-only state read + toggle + layout writes.
@@ -2454,6 +2467,54 @@ async function handleTwitchCategory(req, env) {
     return new Response(JSON.stringify({ ok: true, login, game: (ch && ch.game_name) || '' }), { status: 200, headers });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e && e.message || e).slice(0, 50), game: '' }), { status: 200, headers });
+  }
+}
+
+// GET /api/twitch/emotes — the canonical channel's uploaded emotes via
+// Helix chat/emotes (app token). Public data; CORS-open, edge-cached 5min.
+// Response: { ok, broadcasterId, emotes: [{ id, name, animated, tier,
+// type, url }] } where url is the 56px dark-theme CDN image (animated
+// format when the emote has one). The panel's idle deck renders these so
+// the card always mirrors what's actually live on Twitch.
+async function handleTwitchEmotes(req, env) {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, OPTIONS',
+    'access-control-allow-headers': '*',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=300', ...cors };
+  try {
+    let broadcasterId = env.CLAY_TWITCH_CHANNEL_ID;
+    if (!broadcasterId) {
+      const mod = await import('./twitch-login-resolver.js');
+      const r = await mod.resolveCanonicalLogin(env);
+      broadcasterId = r && r.broadcasterId;
+    }
+    if (!broadcasterId) throw new Error('no-broadcaster-id');
+    const { helixGet } = await import('./ext-loadout.js');
+    const res = await helixGet(env, 'chat/emotes?broadcaster_id=' + encodeURIComponent(broadcasterId));
+    if (!res || !res.ok) throw new Error('helix-emotes-' + (res ? res.status : 'no-token'));
+    const j = await res.json();
+    const template = j.template || 'https://static-cdn.jtvnw.net/emoticons/v2/{{id}}/{{format}}/{{theme_mode}}/{{scale}}';
+    const emotes = (j.data || []).map((e) => {
+      const animated = Array.isArray(e.format) && e.format.includes('animated');
+      const url = template
+        .replace('{{id}}', e.id)
+        .replace('{{format}}', animated ? 'animated' : 'static')
+        .replace('{{theme_mode}}', 'dark')
+        .replace('{{scale}}', '2.0');
+      return { id: e.id, name: e.name, animated, tier: e.tier || '', type: e.emote_type || '', url };
+    });
+    // Subs tier 1 first, then bits, then follower; alphabetical within.
+    const rank = (t) => (t === 'subscriptions' ? 0 : t === 'bitstier' ? 1 : 2);
+    emotes.sort((a, b) => rank(a.type) - rank(b.type) || a.name.localeCompare(b.name));
+    return new Response(JSON.stringify({ ok: true, broadcasterId, emotes }), { status: 200, headers });
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ ok: false, error: String(e && e.message || e).slice(0, 60), emotes: [] }),
+      { status: 200, headers },
+    );
   }
 }
 
