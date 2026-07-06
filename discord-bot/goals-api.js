@@ -389,16 +389,30 @@ export async function handleGoals(req, env, path) {
       return json({ ok: true, cfg: rec ? rec.cfg : null, rev: rec ? rec.rev : 0 });
     }
     if (req.method === 'PUT') {
-      const { accountSessionFrom } = await import('./account.js');
-      const sess = await accountSessionFrom(req, env);
-      if (!sess || sess.provider !== 'twitch' || !sess.login) return json({ ok: false, error: 'signin-twitch' }, 401);
       let body; try { body = await req.json(); } catch { return json({ ok: false, error: 'bad-json' }, 400); }
+      // Auth: Aquilo account session (builder) OR a paired dock key (the
+      // OBS dock) — both bind the write to the caller's OWN channel.
+      let ch = null;
+      let by = null;
+      const dockKey = String(body.dockKey || '');
+      if (/^[a-z0-9]{8,40}$/.test(dockKey)) {
+        try {
+          const rec = await env.LOADOUT_BOLTS.get('aqdock:key:' + dockKey, { type: 'json' });
+          if (rec && rec.login) { ch = String(rec.login).toLowerCase(); by = 'dock:' + (rec.uid || ''); }
+        } catch { /* fall through */ }
+      }
+      if (!ch) {
+        const { accountSessionFrom } = await import('./account.js');
+        const sess = await accountSessionFrom(req, env);
+        if (!sess || sess.provider !== 'twitch' || !sess.login) return json({ ok: false, error: 'signin-twitch' }, 401);
+        ch = String(sess.login).toLowerCase();
+        by = sess.uid;
+      }
       const cfg = body && body.cfg;
       if (!cfg || typeof cfg !== 'object' || JSON.stringify(cfg).length > 32768) return json({ ok: false, error: 'bad-cfg' }, 400);
-      const ch = String(sess.login).toLowerCase();
       let prev = null;
       try { prev = await env.LOADOUT_BOLTS.get('goals:cfg:' + ch, { type: 'json' }); } catch { /* fresh */ }
-      const rec = { cfg, rev: ((prev && prev.rev) || 0) + 1, updatedAt: Date.now(), by: sess.uid };
+      const rec = { cfg, rev: ((prev && prev.rev) || 0) + 1, updatedAt: Date.now(), by };
       try { await env.LOADOUT_BOLTS.put('goals:cfg:' + ch, JSON.stringify(rec)); } catch { return json({ ok: false, error: 'kv' }, 500); }
       try { await env.LOADOUT_BOLTS.delete(cacheKey(ch, '', '')); } catch { /* best effort */ }
       return json({ ok: true, ch, rev: rec.rev });

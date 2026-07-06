@@ -97,6 +97,15 @@ export async function handleAquiloDock(req, env, path) {
       if (cfg && cfg.rev) out.multigoalRev = cfg.rev;
     } catch { /* no */ }
     try { out.punchcardClaimed = !!(await env.LOADOUT_BOLTS.get('pc:chan:' + login)); } catch { /* no */ }
+    // Live-now strip: app-token Helix stream lookup (null when offline).
+    out.live = null;
+    if (twitchId) {
+      try {
+        const { getStreamInfo } = await import('./twitch-helix.js');
+        const st = await getStreamInfo(env, twitchId);
+        if (st) out.live = { title: st.title || '', game: st.game_name || '', viewers: Number(st.viewer_count) || 0, startedAt: st.started_at || null };
+      } catch { /* offline-or-unavailable */ }
+    }
     return json(out);
   }
 
