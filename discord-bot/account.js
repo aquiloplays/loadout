@@ -101,6 +101,10 @@ function safeReturn(raw, env) {
 }
 
 // ── session helpers ────────────────────────────────────────────────────
+// Exported for sibling modules (goals-api) that gate channel-keyed writes
+// on the signed-in Twitch identity.
+export async function accountSessionFrom(req, env) { return sessionFrom(req, env); }
+
 async function sessionFrom(req, env) {
   const h = req.headers.get('authorization') || '';
   const m = /^Bearer\s+([a-f0-9]{24,64})$/i.exec(h.trim());

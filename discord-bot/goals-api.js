@@ -374,6 +374,38 @@ export async function handleGoals(req, env, path) {
 
   const url = new URL(req.url);
 
+  // Cloud-followed overlay config. The builder (signed in with the Aquilo
+  // account) PUTs the full config for ITS OWN Twitch channel; the overlay
+  // in OBS boots from GET and reloads when rev changes — no URL re-copy
+  // ever again. Write requires a Twitch-provider session whose login
+  // matches ch; read is public (it's the same data the URL would carry).
+  if (path === '/api/goals/config') {
+    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: { ...CORS, 'access-control-allow-methods': 'GET, PUT, OPTIONS', 'access-control-allow-headers': 'content-type, authorization' } });
+    if (req.method === 'GET') {
+      const ch = String(url.searchParams.get('ch') || '').trim().toLowerCase().replace(/^@/, '');
+      if (!/^[a-z0-9_]{1,25}$/.test(ch)) return json({ ok: false, error: 'bad-channel' }, 400);
+      let rec = null;
+      try { rec = await env.LOADOUT_BOLTS.get('goals:cfg:' + ch, { type: 'json' }); } catch { /* none */ }
+      return json({ ok: true, cfg: rec ? rec.cfg : null, rev: rec ? rec.rev : 0 });
+    }
+    if (req.method === 'PUT') {
+      const { accountSessionFrom } = await import('./account.js');
+      const sess = await accountSessionFrom(req, env);
+      if (!sess || sess.provider !== 'twitch' || !sess.login) return json({ ok: false, error: 'signin-twitch' }, 401);
+      let body; try { body = await req.json(); } catch { return json({ ok: false, error: 'bad-json' }, 400); }
+      const cfg = body && body.cfg;
+      if (!cfg || typeof cfg !== 'object' || JSON.stringify(cfg).length > 32768) return json({ ok: false, error: 'bad-cfg' }, 400);
+      const ch = String(sess.login).toLowerCase();
+      let prev = null;
+      try { prev = await env.LOADOUT_BOLTS.get('goals:cfg:' + ch, { type: 'json' }); } catch { /* fresh */ }
+      const rec = { cfg, rev: ((prev && prev.rev) || 0) + 1, updatedAt: Date.now(), by: sess.uid };
+      try { await env.LOADOUT_BOLTS.put('goals:cfg:' + ch, JSON.stringify(rec)); } catch { return json({ ok: false, error: 'kv' }, 500); }
+      try { await env.LOADOUT_BOLTS.delete(cacheKey(ch, '', '')); } catch { /* best effort */ }
+      return json({ ok: true, ch, rev: rec.rev });
+    }
+    return json({ ok: false, error: 'method' }, 405);
+  }
+
   // Manual counts for metrics with no API (TikTok followers, Kick
   // followers): the builder pushes the number here and the overlay picks
   // it up on its next poll — no OBS URL change needed. Stored per channel
@@ -462,8 +494,15 @@ export async function handleGoals(req, env, path) {
     ]);
     let tiktok = null;
     try { tiktok = await env.LOADOUT_BOLTS.get('goals:tt:' + ch, { type: 'json' }); } catch { /* none */ }
+    // Cloud-config revision rides along so a synced overlay knows when to
+    // reload without a second request.
+    let cfgRev = 0;
+    try {
+      const rec = await env.LOADOUT_BOLTS.get('goals:cfg:' + ch, { type: 'json' });
+      if (rec && rec.rev) cfgRev = rec.rev;
+    } catch { /* none */ }
 
-    const body = { ok: true, ch, ts: Date.now(), twitch, kick, youtube, tiktok, ...(dbg ? { debug: dbg } : {}) };
+    const body = { ok: true, ch, ts: Date.now(), cfgRev, twitch, kick, youtube, tiktok, ...(dbg ? { debug: dbg } : {}) };
 
     // Builder-pushed manual counts fill whatever the platforms can't
     // provide (Kick has no follower API; TikTok has no API at all).
