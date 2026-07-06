@@ -60,23 +60,40 @@ const cacheKey = (ch, kick, yt) => `goals:cache:${ch}:${kick || '-'}:${yt || '-'
 //      canonical channel works before /connect exists
 //   3. the PunchCard channel token (channel:read:subscriptions only, so
 //      it can fill in subs for any punchcard-claimed channel)
-const HELIX_COUNT = {
-  followers: (id) => `/channels/followers?broadcaster_id=${id}&first=1`,
-  subs: (id) => `/subscriptions?broadcaster_id=${id}&first=1`,
-};
-
-async function helixTotal(env, token, pathQ, dbg, clientId) {
-  if (!token) return null;
-  try {
-    const r = await fetch('https://api.twitch.tv/helix' + pathQ, {
-      headers: { 'Authorization': 'Bearer ' + token, 'Client-Id': clientId || env.TWITCH_CLIENT_ID },
-    });
-    if (dbg) dbg[pathQ.slice(1, pathQ.indexOf('?'))] = r.status;
-    if (!r.ok) return null;
-    const j = await r.json();
-    const n = Number(j && j.total);
-    return Number.isFinite(n) ? n : null;
-  } catch { return null; }
+// Fill the still-null Twitch metrics using one bearer token. Metrics:
+//   followers — /channels/followers total
+//   subs + points — /subscriptions total + points (points IS the
+//                   tier-weighted Plus-goal number Twitch shows)
+//   bits — /bits/leaderboard all-time scores summed (top 100; exact for
+//          any channel with ≤100 lifetime cheerers, floor otherwise)
+async function twitchFill(env, token, clientId, twitchId, out, dbg) {
+  if (!token) return;
+  const get = async (pathQ) => {
+    try {
+      const r = await fetch('https://api.twitch.tv/helix' + pathQ, {
+        headers: { 'Authorization': 'Bearer ' + token, 'Client-Id': clientId || env.TWITCH_CLIENT_ID },
+      });
+      if (dbg) dbg[pathQ.slice(1, pathQ.indexOf('?'))] = r.status;
+      if (!r.ok) return null;
+      return await r.json();
+    } catch { return null; }
+  };
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+  if (out.followers == null) {
+    const j = await get(`/channels/followers?broadcaster_id=${twitchId}&first=1`);
+    if (j) out.followers = num(j.total);
+  }
+  if (out.subs == null || out.points == null) {
+    const j = await get(`/subscriptions?broadcaster_id=${twitchId}&first=1`);
+    if (j) {
+      if (out.subs == null) out.subs = num(j.total);
+      if (out.points == null) out.points = num(j.points);
+    }
+  }
+  if (out.bits == null) {
+    const j = await get(`/bits/leaderboard?count=100&period=all`);
+    if (j && Array.isArray(j.data)) out.bits = j.data.reduce((a, e) => a + (Number(e.score) || 0), 0);
+  }
 }
 
 // The auth broker refreshes vault tokens with ITS OWN (known-good) Twitch
@@ -130,61 +147,45 @@ async function punchcardToken(env, ch, dbg) {
 }
 
 async function twitchCounts(env, twitchId, ch, dbg) {
-  const num = (r) => (r && r.ok && r.data && Number.isFinite(Number(r.data.total))) ? Number(r.data.total) : null;
+  const out = { connected: false, followers: null, subs: null, points: null, bits: null };
+  const full = () => out.followers != null && out.subs != null && out.points != null && out.bits != null;
   // 1. Broker-refreshed vault token (survives local secret drift).
-  const out = { connected: false, followers: null, subs: null };
   const bt = await brokerVaultToken(env, twitchId, dbg);
   if (bt) {
-    const [f, s] = await Promise.all([
-      helixTotal(env, bt.token, HELIX_COUNT.followers(twitchId), dbg && (dbg.brokerHelix = {}), bt.clientId),
-      helixTotal(env, bt.token, HELIX_COUNT.subs(twitchId), dbg && dbg.brokerHelix, bt.clientId),
-    ]);
     out.connected = true;
-    if (f != null) out.followers = f;
-    if (s != null) out.subs = s;
-    if (out.followers != null && out.subs != null) return out;
+    await twitchFill(env, bt.token, bt.clientId, twitchId, out, dbg && (dbg.brokerHelix = {}));
+    if (full()) return out;
   }
-  // 1b. Locally-refreshed vault token (works once the local secret is fixed;
-  //     cheap no-op when the vault record doesn't exist).
-  const [vf, vs] = await Promise.all([
-    out.followers == null ? vaultHelix(env, twitchId, '/channels/followers', { params: { broadcaster_id: twitchId, first: 1 } }) : null,
-    out.subs == null ? vaultHelix(env, twitchId, '/subscriptions', { params: { broadcaster_id: twitchId, first: 1 } }) : null,
-  ]);
-  if (dbg) dbg.vault = { followers: vf && vf.status, subs: vs && vs.status, err: vf && vf.data && vf.data.error };
-  out.connected = out.connected || !!((vf && vf.ok) || (vs && vs.ok));
-  if (num(vf) != null) out.followers = num(vf);
-  if (num(vs) != null) out.subs = num(vs);
-  if (out.followers != null && out.subs != null) return out;
-  // 2. Canonical-channel user token (Clay pre-/connect).
+  // 2. Locally-refreshed vault token.
+  const vt = await vaultHelix(env, twitchId, '/users', { params: { id: twitchId } });
+  if (vt && vt.ok) {
+    out.connected = true;
+    // vaultHelix hides its token, so route the remaining metrics through it.
+    const num = (r, k) => (r && r.ok && r.data && Number.isFinite(Number(r.data[k]))) ? Number(r.data[k]) : null;
+    if (out.followers == null) {
+      const r = await vaultHelix(env, twitchId, '/channels/followers', { params: { broadcaster_id: twitchId, first: 1 } });
+      out.followers = num(r, 'total');
+    }
+    if (out.subs == null || out.points == null) {
+      const r = await vaultHelix(env, twitchId, '/subscriptions', { params: { broadcaster_id: twitchId, first: 1 } });
+      if (out.subs == null) out.subs = num(r, 'total');
+      if (out.points == null) out.points = num(r, 'points');
+    }
+    if (out.bits == null) {
+      const r = await vaultHelix(env, twitchId, '/bits/leaderboard', { params: { count: 100, period: 'all' } });
+      if (r && r.ok && r.data && Array.isArray(r.data.data)) out.bits = r.data.data.reduce((a, e) => a + (Number(e.score) || 0), 0);
+    }
+    if (full()) return out;
+  }
+  // 3. Canonical-channel user token, then the PunchCard channel token.
   if (String(env.CLAY_TWITCH_CHANNEL_ID || '') === String(twitchId)) {
     try {
       const { getUserAccessToken } = await import('./twitch-helix.js');
-      const tok = await getUserAccessToken(env);
-      if (dbg) dbg.userToken = tok ? 'ok' : 'none';
-      if (tok) {
-        const [f, s] = await Promise.all([
-          out.followers == null ? helixTotal(env, tok, HELIX_COUNT.followers(twitchId), dbg && (dbg.user = {})) : null,
-          out.subs == null ? helixTotal(env, tok, HELIX_COUNT.subs(twitchId), dbg && dbg.user) : null,
-        ]);
-        if (f != null) out.followers = f;
-        if (s != null) out.subs = s;
-      }
-    } catch (e) { if (dbg) dbg.userToken = 'threw: ' + String(e && e.message || e).slice(0, 80); }
-  } else if (dbg) {
-    dbg.userToken = 'skipped (CLAY_TWITCH_CHANNEL_ID=' + String(env.CLAY_TWITCH_CHANNEL_ID || 'unset') + ' vs ' + twitchId + ')';
+      await twitchFill(env, await getUserAccessToken(env), null, twitchId, out, dbg && (dbg.user = {}));
+    } catch { /* keep nulls */ }
   }
-  // 3. PunchCard channel token (subs scope only, but try both).
-  if (out.followers == null || out.subs == null) {
-    const tok = await punchcardToken(env, ch, dbg);
-    if (dbg) dbg.pcToken = tok ? 'ok' : 'none';
-    if (tok) {
-      const [f, s] = await Promise.all([
-        out.followers == null ? helixTotal(env, tok, HELIX_COUNT.followers(twitchId), dbg && (dbg.pc = {})) : null,
-        out.subs == null ? helixTotal(env, tok, HELIX_COUNT.subs(twitchId), dbg && dbg.pc) : null,
-      ]);
-      if (f != null) out.followers = f;
-      if (s != null) out.subs = s;
-    }
+  if (!full()) {
+    await twitchFill(env, await punchcardToken(env, ch, dbg), null, twitchId, out, dbg && (dbg.pc = {}));
   }
   out.connected = out.connected || out.followers != null || out.subs != null;
   return out;
@@ -200,6 +201,15 @@ async function kickCounts(env, twitchId, slugParam, dbg) {
   let slug = String(slugParam || '').trim().toLowerCase().replace(/^@/, '');
   let token = null;
   if (dbg) dbg.kick = { hasKv: !!env.ROTATION_KV, twitchId: twitchId || null };
+  // Lifetime Kicks (gift currency) — accumulated by the jukebox worker
+  // from kicks.gifted webhooks.
+  let kicks = null;
+  try {
+    if (twitchId && env.ROTATION_KV) {
+      const kv = await env.ROTATION_KV.get('kicks:total:' + twitchId);
+      if (kv != null) kicks = Number(kv) || 0;
+    }
+  } catch { /* none */ }
   try {
     const rec = (twitchId && env.ROTATION_KV) ? await env.ROTATION_KV.get('streamer:' + twitchId, { type: 'json' }) : null;
     if (rec) {
@@ -217,14 +227,14 @@ async function kickCounts(env, twitchId, slugParam, dbg) {
       if (!slug && b && b.login) slug = String(b.login).toLowerCase();
     } catch { /* not connected */ }
   }
-  if (!token) return { connected: false, followers: null, subs: null, slug: slug || null };
+  if (!token) return { connected: kicks != null, followers: null, subs: null, kicks, slug: slug || null };
   try {
     const q = slug ? '?slug=' + encodeURIComponent(slug) : '';
     const r = await fetch('https://api.kick.com/public/v1/channels' + q, {
       headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' },
     });
     if (dbg && dbg.kick) dbg.kick.status = r.status;
-    if (!r.ok) return { connected: true, followers: null, subs: null, slug: slug || null };
+    if (!r.ok) return { connected: true, followers: null, subs: null, kicks, slug: slug || null };
     const j = await r.json();
     const c = (j && Array.isArray(j.data) && j.data[0]) || (j && j.data) || j || {};
     if (!slug && c.slug) slug = String(c.slug).toLowerCase();
@@ -239,10 +249,11 @@ async function kickCounts(env, twitchId, slugParam, dbg) {
       connected: true,
       followers: Number.isFinite(n) ? n : null,
       subs: Number.isFinite(s) ? s : null,
+      kicks,
       slug: slug || null,
     };
   } catch {
-    return { connected: true, followers: null, subs: null, slug: slug || null };
+    return { connected: true, followers: null, subs: null, kicks, slug: slug || null };
   }
 }
 
@@ -374,7 +385,7 @@ export async function handleGoals(req, env, path) {
     const platform = String(body.platform || '').toLowerCase();
     const metric = String(body.metric || 'followers').toLowerCase();
     if (['tiktok', 'kick', 'youtube', 'twitch'].indexOf(platform) === -1) return json({ ok: false, error: 'bad-platform' }, 400);
-    if (['followers', 'subs'].indexOf(metric) === -1) return json({ ok: false, error: 'bad-metric' }, 400);
+    if (['followers', 'subs', 'bits', 'points', 'kicks'].indexOf(metric) === -1) return json({ ok: false, error: 'bad-metric' }, 400);
     const n = Number(body.value != null ? body.value : body.followers);
     if (!Number.isFinite(n) || n < 0 || n > 100_000_000) return json({ ok: false, error: 'bad-count' }, 400);
     let map = null;
@@ -459,7 +470,7 @@ export async function handleGoals(req, env, path) {
     try {
       const manual = await env.LOADOUT_BOLTS.get('goals:manual:' + ch, { type: 'json' });
       if (manual) {
-        for (const [p, fields] of [['twitch', ['followers', 'subs']], ['kick', ['followers', 'subs']], ['youtube', ['subs']]]) {
+        for (const [p, fields] of [['twitch', ['followers', 'subs', 'points', 'bits']], ['kick', ['followers', 'subs', 'kicks']], ['youtube', ['subs']]]) {
           for (const f of fields) {
             const v = Number(manual[p + '.' + f]);
             if (body[p][f] == null && Number.isFinite(v)) {
@@ -483,7 +494,7 @@ export async function handleGoals(req, env, path) {
     try {
       const last = await env.LOADOUT_BOLTS.get(LAST_KEY, { type: 'json' });
       if (last) {
-        for (const [p, fields] of [['twitch', ['followers', 'subs']], ['kick', ['followers', 'subs']], ['youtube', ['subs']]]) {
+        for (const [p, fields] of [['twitch', ['followers', 'subs', 'points', 'bits']], ['kick', ['followers', 'subs', 'kicks']], ['youtube', ['subs']]]) {
           for (const f of fields) {
             if (body[p][f] == null && last[p] && last[p][f] != null) {
               body[p][f] = last[p][f];
