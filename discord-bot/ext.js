@@ -116,6 +116,14 @@ export async function handleExt(req, env, ctx) {
     if (route.indexOf('rotation/') === 0) {
       return await handleRotation(env, guildId, userId, route.slice(9), req);
     }
+    // Shared cross-platform chat: mint a READ-ONLY viewer ticket for the
+    // channel's WardenRoom (the same DO that merges Twitch/Kick/YouTube/
+    // TikTok chat for the mod console). Gated on the streamer having
+    // Aquilo's cross-platform chat ingestion on (warden:on) — off → the
+    // panel shows a "not enabled yet" state, no ticket minted.
+    if (req.method === 'GET' && route === 'chat/ticket') {
+      return await handleChatTicket(env, payload, twId);
+    }
     return json({ error: 'not-found' }, 404);
   } catch (e) {
     return json({ error: 'server', message: String((e && e.message) || e) }, 500);
@@ -171,6 +179,29 @@ export async function handleRelay(req, env) {
 // (Bolts economy sunset: extHero / extWallet / extDaily / extLeaderboard
 // were removed — they exercised the deleted hero-state.js / wallet.js /
 // games.js modules.)
+
+// GET /ext/chat/ticket — mint a read-only viewer ticket for the shared
+// cross-platform chat feed (the channel's WardenRoom DO). The panel opens
+// a WebSocket to /web/warden/room/ws with this ticket and receives only
+// {t:'chat'} frames — never mod actions/audit. Returns { enabled:false }
+// (no ticket) when the channel hasn't turned on Aquilo's chat ingestion,
+// so the panel can show a graceful "not available yet" state.
+async function handleChatTicket(env, payload, twId) {
+  const streamerId = String(payload.channel_id || '');
+  if (!streamerId) return json({ ok: false, error: 'no-channel' }, 400);
+  let on = null;
+  try { on = await env.LOADOUT_BOLTS.get('warden:on:' + streamerId); } catch { /* treat as off */ }
+  if (!on) return json({ ok: true, enabled: false });
+  const { mintRoomTicket } = await import('./warden-db.js');
+  const ticket = await mintRoomTicket(env, streamerId, twId || 'viewer', '', 'viewer');
+  if (!ticket) return json({ ok: true, enabled: false, reason: 'no-secret' });
+  return json({
+    ok: true,
+    enabled: true,
+    ticket,
+    wsUrl: 'wss://loadout-discord.aquiloplays.workers.dev/web/warden/room/ws',
+  });
+}
 
 // GET /ext/recap, rolling-window recap stats for the "Your last
 // session" panel card. isLiveNow gates the card (hidden while live).

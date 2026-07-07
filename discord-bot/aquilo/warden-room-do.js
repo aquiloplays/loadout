@@ -78,10 +78,13 @@ export class WardenRoom {
       } catch { /* attachment best-effort */ }
       this.sessions.add(server);
 
-      // Send a snapshot of the recent ring so the newly-connected mod
-      // sees context immediately.
+      // Send a snapshot of the recent ring so the newly-connected client
+      // sees context immediately. Viewer (read-only chat) sockets get a
+      // chat-only slice — never mod actions, audit, or sys frames.
+      const isViewer = String(claim.role || '') === 'viewer';
+      const snapFrames = (isViewer ? this.ring.filter(isChatFrame) : this.ring).slice(-RING_MAX);
       try {
-        server.send(JSON.stringify({ t: 'snapshot', frames: this.ring.slice(-RING_MAX) }));
+        server.send(JSON.stringify({ t: 'snapshot', frames: snapFrames }));
       } catch { /* socket already gone */ }
 
       return new Response(null, { status: 101, webSocket: client });
@@ -157,6 +160,11 @@ export class WardenRoom {
       try { ws.send(JSON.stringify({ t: 'sys', message: 'unauthorized' })); } catch { /* gone */ }
       return;
     }
+    // Viewer sockets are read-only — never perform mod actions.
+    if (actor.role === 'viewer') {
+      try { ws.send(JSON.stringify({ t: 'sys', message: 'read-only' })); } catch { /* gone */ }
+      return;
+    }
 
     try {
       // Re-validate the actor still moderates this streamer.
@@ -199,17 +207,32 @@ export class WardenRoom {
   // Fan a frame out to every connected socket and append to the ring.
   broadcast(data) {
     // Keep a parsed copy in the ring; store the raw string for resend.
+    let parsed = null;
     try {
-      const parsed = JSON.parse(data);
+      parsed = JSON.parse(data);
       this.ring.push(parsed);
       if (this.ring.length > RING_MAX) this.ring.splice(0, this.ring.length - RING_MAX);
     } catch { /* non-JSON frame — still fan out, just don't ring it */ }
 
+    // Chat frames go to everyone; everything else (mod actions, audit,
+    // sys, agent) is withheld from read-only viewer sockets.
+    const chatOnly = parsed ? isChatFrame(parsed) : false;
     for (const ws of [...this.sessions]) {
+      if (!chatOnly) {
+        let who = null;
+        try { who = ws.deserializeAttachment(); } catch { who = null; }
+        if (who && who.role === 'viewer') continue;
+      }
       try { ws.send(data); }
       catch { this.sessions.delete(ws); }
     }
   }
+}
+
+// A frame safe to show read-only viewers: the merged chat display only.
+// Everything else (action/audit/sys/agent/obs-result) stays mod-side.
+function isChatFrame(frame) {
+  return !!frame && frame.t === 'chat';
 }
 
 // Producer helper — mirrors broadcastOverlayUpdate. Fire-and-forget;

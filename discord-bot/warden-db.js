@@ -189,7 +189,7 @@ export async function mintRoomTicket(env, streamerId, actorId, actorLogin, role)
     streamerId: String(streamerId || ''),
     actorId: String(actorId || ''),
     actorLogin: String(actorLogin || ''),
-    role: role === 'broadcaster' ? 'broadcaster' : role === 'agent' ? 'agent' : 'mod',
+    role: role === 'broadcaster' ? 'broadcaster' : role === 'agent' ? 'agent' : role === 'viewer' ? 'viewer' : 'mod',
     exp: now() + TICKET_TTL_MS,
   }));
   const tag = await hmacHex(env.AQUILO_SITE_WEB_SECRET, payload);
@@ -224,7 +224,9 @@ export async function verifyRoomTicket(env, ticket) {
     streamerId: String(obj.streamerId),
     actorId: String(obj.actorId || ''),
     actorLogin: String(obj.actorLogin || ''),
-    role: obj.role === 'broadcaster' ? 'broadcaster' : 'mod',
+    // 'viewer' = read-only chat display (the Twitch panel's shared-chat
+    // tab). Anything unknown collapses to 'mod' as before.
+    role: obj.role === 'broadcaster' ? 'broadcaster' : obj.role === 'viewer' ? 'viewer' : 'mod',
     exp: obj.exp,
   };
 }
