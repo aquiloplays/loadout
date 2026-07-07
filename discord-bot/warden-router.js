@@ -506,6 +506,36 @@ export async function handleWardenRoute(req, env, path, ctx) {
         });
       }
 
+      // ── Mod backchannel ─────────────────────────────────────────────
+      // A private mod-only coordination chat ("watching user X", "handled")
+      // kept in KV (last 100 lines), so the team can talk without pinging
+      // the streamer or leaking into public chat. Read + post are both
+      // mod/broadcaster; posts are rate-limited. Not the WardenRoom DO — a
+      // simple KV log the panel polls (a backchannel doesn't need <1s).
+      case 'modchat/list': {
+        const raw = await env.LOADOUT_BOLTS.get('warden:modchat:' + streamerId, 'json').catch(() => null);
+        return json({ ok: true, messages: Array.isArray(raw) ? raw.slice(-80) : [] });
+      }
+      case 'modchat/post': {
+        const text = String(body.message || '').trim().slice(0, 500);
+        if (!text) return json({ ok: false, error: 'empty' }, 400);
+        const { checkObsRate } = await import('./warden-actions.js');
+        const rl = await checkObsRate(env, actorId);
+        if (!rl.ok) return json({ ok: false, error: 'rate-limited' }, 429);
+        const key = 'warden:modchat:' + streamerId;
+        const cur = (await env.LOADOUT_BOLTS.get(key, 'json').catch(() => null)) || [];
+        const list = Array.isArray(cur) ? cur : [];
+        list.push({
+          id: Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36),
+          by: actorLogin || actorId, text, at: Date.now(),
+        });
+        if (list.length > 100) list.splice(0, list.length - 100);
+        // Backchannel lines expire after 24h idle so a channel's KV doesn't
+        // grow forever; every post refreshes the window.
+        await env.LOADOUT_BOLTS.put(key, JSON.stringify(list), { expirationTtl: 86400 });
+        return json({ ok: true, messages: list.slice(-80) });
+      }
+
       // ── room ticket (BE-1) ──────────────────────────────────────────
       case 'room/ticket': {
         const ticket = await mintRoomTicket(env, streamerId, actorId, actorLogin, body._role || 'mod');
