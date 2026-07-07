@@ -40,8 +40,258 @@ function randKey() {
   return Array.from(b).map((x) => (x % 36).toString(36)).join('') + 'dk';
 }
 
+// ── Stream info: one title + category, applied across platforms ──────
+// Tokens come from the auth broker's vault endpoints (it holds every
+// platform's client secret and refreshes in place): Twitch via
+// /twitch/vault/token, Kick + YouTube via /<platform>/vault/token.
+// Never cached here; the broker caches refreshes itself.
+const BROKER = 'https://auth.aquilo.gg';
+
+async function vaultTwitchToken(env, twitchId) {
+  if (!env.VAULT_SERVICE_SECRET) return null;
+  try {
+    const r = await fetch(BROKER + '/twitch/vault/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ service: env.VAULT_SERVICE_SECRET, twitchId: String(twitchId), role: 'broadcaster' }),
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return (j && j.access_token) ? { token: j.access_token, clientId: j.client_id } : null;
+  } catch { return null; }
+}
+
+async function vaultPlatformToken(env, platform, twitchId) {
+  if (!env.VAULT_SERVICE_SECRET) return null;
+  try {
+    const r = await fetch(BROKER + '/' + platform + '/vault/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ service: env.VAULT_SERVICE_SECRET, twitchId: String(twitchId), role: 'broadcaster' }),
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return (j && j.access_token) ? j.access_token : null;
+  } catch { return null; }
+}
+
+// Resolve a dock key to { login, twitchId } or null.
+async function dockOwner(env, k) {
+  if (!/^[a-z0-9]{8,40}$/.test(String(k || ''))) return null;
+  let rec = null;
+  try { rec = await env.LOADOUT_BOLTS.get(KEY.byKey(k), { type: 'json' }); } catch { /* miss */ }
+  if (!rec || !rec.login) return null;
+  const who = await loginToId(env, rec.login);
+  return { login: rec.login, twitchId: (who && who.id) || null };
+}
+
+// Current per-platform stream info, best-effort each.
+async function readStreamInfo(env, twitchId) {
+  const out = {
+    twitch: { connected: false, title: null, game: null, gameId: null },
+    kick: { connected: false, title: null, category: null, categoryId: null },
+    youtube: { connected: false, title: null, broadcastId: null, lifeCycle: null },
+  };
+  const [tw, kickTok, ytTok] = await Promise.all([
+    (async () => {
+      try {
+        const { getChannelGame } = await import('./twitch-helix.js');
+        return await getChannelGame(env, twitchId);
+      } catch { return null; }
+    })(),
+    vaultPlatformToken(env, 'kick', twitchId),
+    vaultPlatformToken(env, 'youtube', twitchId),
+  ]);
+  if (tw) {
+    out.twitch = { connected: true, title: tw.title || '', game: tw.gameName || '', gameId: tw.gameId || null };
+  }
+  if (kickTok) {
+    try {
+      const r = await fetch('https://api.kick.com/public/v1/channels', {
+        headers: { Authorization: 'Bearer ' + kickTok, Accept: 'application/json' },
+      });
+      if (r.ok) {
+        const j = await r.json();
+        const c = j && Array.isArray(j.data) && j.data[0];
+        if (c) {
+          out.kick = {
+            connected: true,
+            title: c.stream_title || '',
+            category: (c.category && c.category.name) || null,
+            categoryId: (c.category && c.category.id) || null,
+          };
+        } else out.kick.connected = true;
+      }
+    } catch { /* kick unreachable */ }
+  }
+  if (ytTok) {
+    out.youtube.connected = true;
+    try {
+      const r = await fetch('https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet,status&mine=true&maxResults=10', {
+        headers: { Authorization: 'Bearer ' + ytTok },
+      });
+      if (r.ok) {
+        const j = await r.json();
+        const items = (j && j.items) || [];
+        // Prefer the live broadcast, else the next upcoming/ready one.
+        const rank = (s) => (s === 'live' ? 0 : s === 'liveStarting' ? 1 : s === 'ready' ? 2 : s === 'created' ? 3 : 9);
+        items.sort((a, b) => rank(a.status && a.status.lifeCycleStatus) - rank(b.status && b.status.lifeCycleStatus));
+        const b = items[0];
+        if (b && rank(b.status && b.status.lifeCycleStatus) < 9) {
+          out.youtube.title = (b.snippet && b.snippet.title) || '';
+          out.youtube.broadcastId = b.id;
+          out.youtube.lifeCycle = b.status && b.status.lifeCycleStatus;
+        }
+      }
+    } catch { /* yt unreachable */ }
+  }
+  return out;
+}
+
+async function applyTwitch(env, twitchId, title, gameId) {
+  const auth = await vaultTwitchToken(env, twitchId);
+  if (!auth) return { ok: false, error: 'not-connected' };
+  const body = {};
+  if (title != null) body.title = String(title).slice(0, 140);
+  if (gameId) body.game_id = String(gameId);
+  if (!Object.keys(body).length) return { ok: true, skipped: true };
+  try {
+    const r = await fetch('https://api.twitch.tv/helix/channels?broadcaster_id=' + encodeURIComponent(twitchId), {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + auth.token, 'Client-Id': auth.clientId, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (r.status === 204) return { ok: true };
+    const j = await r.json().catch(() => null);
+    return { ok: false, error: (j && j.message) || ('twitch-' + r.status) };
+  } catch { return { ok: false, error: 'twitch-unreachable' }; }
+}
+
+async function applyKick(env, twitchId, title, categoryId) {
+  const tok = await vaultPlatformToken(env, 'kick', twitchId);
+  if (!tok) return { ok: false, error: 'not-connected' };
+  const body = {};
+  if (title != null) body.stream_title = String(title).slice(0, 140);
+  if (categoryId) body.category_id = Number(categoryId);
+  if (!Object.keys(body).length) return { ok: true, skipped: true };
+  try {
+    const r = await fetch('https://api.kick.com/public/v1/channels', {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (r.ok || r.status === 204) return { ok: true };
+    const j = await r.json().catch(() => null);
+    return { ok: false, error: (j && (j.message || j.error)) || ('kick-' + r.status) };
+  } catch { return { ok: false, error: 'kick-unreachable' }; }
+}
+
+async function applyYouTube(env, twitchId, title) {
+  if (title == null) return { ok: true, skipped: true };
+  const tok = await vaultPlatformToken(env, 'youtube', twitchId);
+  if (!tok) return { ok: false, error: 'not-connected' };
+  try {
+    // Find the live (or next upcoming) broadcast, then update its snippet.
+    const lr = await fetch('https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet,status&mine=true&maxResults=10', {
+      headers: { Authorization: 'Bearer ' + tok },
+    });
+    if (!lr.ok) {
+      const ej = await lr.json().catch(() => null);
+      const reason = ej && ej.error && ((ej.error.errors && ej.error.errors[0] && ej.error.errors[0].reason) || ej.error.message);
+      return { ok: false, error: reason ? String(reason).slice(0, 80) : 'youtube-' + lr.status };
+    }
+    const lj = await lr.json();
+    const items = (lj && lj.items) || [];
+    const rank = (s) => (s === 'live' ? 0 : s === 'liveStarting' ? 1 : s === 'ready' ? 2 : s === 'created' ? 3 : 9);
+    items.sort((a, b) => rank(a.status && a.status.lifeCycleStatus) - rank(b.status && b.status.lifeCycleStatus));
+    const b = items[0];
+    if (!b || rank(b.status && b.status.lifeCycleStatus) === 9) return { ok: false, error: 'no-broadcast' };
+    // YouTube requires the snippet's scheduledStartTime to survive the
+    // update; send the existing snippet back with only the title changed.
+    const snippet = b.snippet || {};
+    snippet.title = String(title).slice(0, 100);
+    const ur = await fetch('https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet', {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: b.id, snippet }),
+    });
+    if (ur.ok) return { ok: true };
+    const uj = await ur.json().catch(() => null);
+    const msg = uj && uj.error && uj.error.message;
+    return { ok: false, error: msg ? String(msg).slice(0, 80) : 'youtube-' + ur.status };
+  } catch { return { ok: false, error: 'youtube-unreachable' }; }
+}
+
 export async function handleAquiloDock(req, env, path) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+
+  // Current title/category on every connected platform.
+  if (path === '/api/aqdock/streaminfo' && req.method === 'GET') {
+    const url = new URL(req.url);
+    const owner = await dockOwner(env, url.searchParams.get('key'));
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    if (!owner.twitchId) return json({ ok: false, error: 'no-twitch-id' }, 500);
+    const info = await readStreamInfo(env, owner.twitchId);
+    return json({ ok: true, login: owner.login, ...info });
+  }
+
+  // Category type-ahead: Twitch (Helix search) + Kick, merged client-side.
+  if (path === '/api/aqdock/categories' && req.method === 'GET') {
+    const url = new URL(req.url);
+    const owner = await dockOwner(env, url.searchParams.get('key'));
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    const q = String(url.searchParams.get('q') || '').trim().slice(0, 60);
+    if (q.length < 2) return json({ ok: true, twitch: [], kick: [] });
+    const [tw, kick] = await Promise.all([
+      (async () => {
+        try {
+          const { helixFetch } = await import('./twitch-helix.js');
+          const j = await helixFetch(env, '/search/categories', { query: q, first: 8 });
+          return ((j && j.data) || []).map((c) => ({
+            id: c.id, name: c.name,
+            art: c.box_art_url ? c.box_art_url.replace('52x72', '40x56') : null,
+          }));
+        } catch { return []; }
+      })(),
+      (async () => {
+        try {
+          const tok = owner.twitchId ? await vaultPlatformToken(env, 'kick', owner.twitchId) : null;
+          if (!tok) return [];
+          const r = await fetch('https://api.kick.com/public/v1/categories?q=' + encodeURIComponent(q), {
+            headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' },
+          });
+          if (!r.ok) return [];
+          const j = await r.json();
+          return ((j && j.data) || []).slice(0, 8).map((c) => ({ id: c.id, name: c.name, art: c.thumbnail || null }));
+        } catch { return []; }
+      })(),
+    ]);
+    return json({ ok: true, twitch: tw, kick });
+  }
+
+  // Apply title + category to the selected platforms in one shot.
+  if (path === '/api/aqdock/streaminfo' && req.method === 'POST') {
+    let body = null;
+    try { body = await req.json(); } catch { /* bad json */ }
+    if (!body) return json({ ok: false, error: 'bad-json' }, 400);
+    const owner = await dockOwner(env, body.key);
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    if (!owner.twitchId) return json({ ok: false, error: 'no-twitch-id' }, 500);
+    const title = body.title != null ? String(body.title).trim().slice(0, 200) : null;
+    if (title != null && !title.length) return json({ ok: false, error: 'empty-title' }, 400);
+    const t = body.targets || {};
+    const jobs = {};
+    if (t.twitch) jobs.twitch = applyTwitch(env, owner.twitchId, title, body.twitchGameId);
+    if (t.kick) jobs.kick = applyKick(env, owner.twitchId, title, body.kickCategoryId);
+    if (t.youtube) jobs.youtube = applyYouTube(env, owner.twitchId, title);
+    const names = Object.keys(jobs);
+    if (!names.length) return json({ ok: false, error: 'no-targets' }, 400);
+    const settled = await Promise.all(names.map((n) => jobs[n]));
+    const results = {};
+    names.forEach((n, i) => { results[n] = settled[i]; });
+    const allOk = names.every((n) => results[n].ok);
+    return json({ ok: allOk, results });
+  }
 
   if (path === '/api/aqdock/mint' && req.method === 'POST') {
     const { accountSessionFrom } = await import('./account.js');
