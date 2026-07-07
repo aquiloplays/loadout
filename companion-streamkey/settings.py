@@ -26,6 +26,17 @@ DEFAULTS = {
     "discordWebhookUrl": "",
     "tiktokLiveUrl": "",
     "discordPings": True,
+    # YouTube integration -- user-provided Google Cloud OAuth Client ID
+    # (NOT a secret; the OAuth Desktop-app flow uses PKCE). Empty disables
+    # the entire YouTube path.
+    "googleClientId": "",
+    # Per-stream YouTube metadata persisted so next Go Live pre-fills the
+    # dock's fields with what worked last time.
+    "ytLastTitle": "",
+    "ytLastDescription": "",
+    "ytLastCategoryId": "",
+    "ytLastPrivacy": "public",
+    "ytLastMadeForKids": False,
 }
 
 

@@ -42,6 +42,7 @@ import settings as user_settings
 import token_health
 import token_retriever as tok
 import webhook
+import youtube_controller
 from logsetup import log, tail
 from streamlabs_api import StreamlabsTikTok, StreamlabsError
 from _version import __version__
@@ -110,6 +111,11 @@ class Controller:
         # Live time, not during).
         self._token_health = token_health.Watcher(notify=lambda t, b: self._notify(t, b))
         self._token_health.start()
+        # YouTube companion: parallel platform via YouTube Data API v3. Lives
+        # alongside (not inside) the TikTok Controller so the slobs plumbing
+        # stays focused. Each Go Live creates a fresh broadcast + stream,
+        # returns RTMP creds for the dock to auto-copy (same UX as TikTok).
+        self.youtube = youtube_controller.YouTubeController(clock=self._clock)
 
     # -- auth (never blocks a request) ------------------------------------
     def _client(self):
@@ -514,6 +520,65 @@ def create_app(controller, clock):
     def token_probe_handler():
         if request.method == "OPTIONS": return opt()
         return jsonify(token_health.probe(clock))
+
+    @app.route("/youtube/status", methods=["GET", "OPTIONS"])
+    def youtube_status_handler():
+        if request.method == "OPTIONS": return opt()
+        return jsonify(controller.youtube.status())
+
+    @app.route("/youtube/auth", methods=["POST", "OPTIONS"])
+    def youtube_auth_handler():
+        if request.method == "OPTIONS": return opt()
+        return jsonify(controller.youtube.start_auth())
+
+    @app.route("/youtube/signout", methods=["POST", "OPTIONS"])
+    def youtube_signout_handler():
+        if request.method == "OPTIONS": return opt()
+        import youtube_oauth as _yo
+        _yo.clear_token()
+        return jsonify({"ok": True})
+
+    @app.route("/youtube/categories", methods=["GET", "OPTIONS"])
+    def youtube_categories_handler():
+        if request.method == "OPTIONS": return opt()
+        return jsonify(controller.youtube.categories(region=request.args.get("region", "US")))
+
+    @app.route("/youtube/go", methods=["POST", "OPTIONS"])
+    def youtube_go_handler():
+        if request.method == "OPTIONS": return opt()
+        b = request.get_json(silent=True) or {}
+        # Persist per-stream metadata so next launch pre-fills the fields.
+        try:
+            user_settings.update({
+                "ytLastTitle": b.get("title", ""),
+                "ytLastDescription": b.get("description", ""),
+                "ytLastCategoryId": b.get("categoryId") or "",
+                "ytLastPrivacy": b.get("privacy", "public"),
+                "ytLastMadeForKids": bool(b.get("madeForKids")),
+            })
+        except Exception:
+            pass
+        try:
+            r = controller.youtube.start(
+                title=b.get("title", ""),
+                description=b.get("description", ""),
+                privacy=b.get("privacy", "public"),
+                category_id=b.get("categoryId") or None,
+                made_for_kids=bool(b.get("madeForKids")),
+            )
+            return jsonify(r)
+        except Exception as e:  # noqa: BLE001
+            log(f"youtube/go: unexpected error: {str(e)[:160]}", "error")
+            return jsonify({"ok": False, "reason": str(e)[:200]}), 502
+
+    @app.route("/youtube/end", methods=["POST", "OPTIONS"])
+    def youtube_end_handler():
+        if request.method == "OPTIONS": return opt()
+        try:
+            return jsonify(controller.youtube.end())
+        except Exception as e:  # noqa: BLE001
+            log(f"youtube/end: unexpected error: {str(e)[:160]}", "error")
+            return jsonify({"ok": False, "reason": str(e)[:200]}), 502
 
     @app.route("/tiktok/access-status", methods=["GET", "OPTIONS"])
     def access_status():
