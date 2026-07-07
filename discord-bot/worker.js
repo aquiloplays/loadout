@@ -726,6 +726,12 @@ export default {
     if (path === '/api/twitch/emotes') {
       return handleTwitchEmotes(req, env);
     }
+    // Public: GET /api/twitch/clips → the canonical channel's recent
+    // clips via Helix (app token). Powers the Twitch panel's Links tab.
+    // CORS-open, 10-min cached.
+    if (path === '/api/twitch/clips') {
+      return handleTwitchClips(req, env);
+    }
     // StreamFusion chat dock backend: premium gate, Haiku translate proxy,
     // mod/clip stubs. See sfdock.js.
     if (path.startsWith('/api/sfdock/')) {
@@ -2474,6 +2480,56 @@ async function handleTwitchCategory(req, env) {
     return new Response(JSON.stringify({ ok: true, login, game: (ch && ch.game_name) || '' }), { status: 200, headers });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e && e.message || e).slice(0, 50), game: '' }), { status: 200, headers });
+  }
+}
+
+// GET /api/twitch/clips — the canonical channel's most-viewed recent
+// clips via Helix (app token). Public data; CORS-open, edge-cached
+// 10min. Response: { ok, clips: [{ id, title, url, thumb, views,
+// duration, createdAt }] }. Powers the Twitch panel's Links tab.
+async function handleTwitchClips(req, env) {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, OPTIONS',
+    'access-control-allow-headers': '*',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=600', ...cors };
+  try {
+    let broadcasterId = env.CLAY_TWITCH_CHANNEL_ID;
+    if (!broadcasterId) {
+      const mod = await import('./twitch-login-resolver.js');
+      const r = await mod.resolveCanonicalLogin(env);
+      broadcasterId = r && r.broadcasterId;
+    }
+    if (!broadcasterId) throw new Error('no-broadcaster-id');
+    const { helixGet } = await import('./ext-loadout.js');
+    // Last 30 days first (Helix orders by view count within the window);
+    // quiet months fall back to the all-time top so the card never blanks.
+    const started = new Date(Date.now() - 30 * 86400_000).toISOString();
+    let res = await helixGet(env, 'clips?broadcaster_id=' + encodeURIComponent(broadcasterId) +
+      '&first=10&started_at=' + encodeURIComponent(started));
+    if (!res || !res.ok) throw new Error('helix-clips-' + (res ? res.status : 'no-token'));
+    let j = await res.json();
+    if (!j.data || !j.data.length) {
+      res = await helixGet(env, 'clips?broadcaster_id=' + encodeURIComponent(broadcasterId) + '&first=10');
+      if (res && res.ok) j = await res.json();
+    }
+    const clips = (j.data || []).map((c) => ({
+      id: c.id,
+      title: c.title,
+      url: c.url,
+      thumb: c.thumbnail_url,
+      views: c.view_count,
+      duration: c.duration,
+      createdAt: c.created_at,
+    }));
+    return new Response(JSON.stringify({ ok: true, clips }), { status: 200, headers });
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ ok: false, error: String(e && e.message || e).slice(0, 60), clips: [] }),
+      { status: 200, headers },
+    );
   }
 }
 
