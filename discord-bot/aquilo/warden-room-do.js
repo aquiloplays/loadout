@@ -123,6 +123,24 @@ export class WardenRoom {
       await this.handleAction(ws, cmd);
       return;
     }
+
+    // OBS command result from the StreamFusion agent — re-broadcast so
+    // the mods' consoles see the outcome toast. Only agent-role sockets
+    // may emit these (identity from the server-stamped attachment).
+    if (cmd.t === 'obs-result') {
+      let who = null;
+      try { who = ws.deserializeAttachment(); } catch { who = null; }
+      if (!who || who.role !== 'agent') return;
+      this.broadcast(JSON.stringify({
+        t: 'obs-result',
+        cmdId: String(cmd.cmdId || ''),
+        ok: cmd.ok === true,
+        action: String(cmd.action || ''),
+        error: cmd.error ? String(cmd.error) : undefined,
+        ts: Date.now(),
+      }));
+      return;
+    }
     // Unknown command — ignore silently.
   }
 

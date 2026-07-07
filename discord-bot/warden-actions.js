@@ -67,6 +67,24 @@ async function checkAndTouchRate(env, actorId) {
 // through setModes/getModes, not performAction).
 const ACTION_KINDS = new Set(['timeout', 'ban', 'unban', 'delete', 'clear']);
 
+// OBS command rate limit — separate KV key from mod actions, generous
+// enough for scene flips but stops a runaway loop. Degrades open on KV
+// error like the action limiter.
+export async function checkObsRate(env, actorId) {
+  if (!env.LOADOUT_BOLTS || !actorId) return { ok: true };
+  const now = Date.now();
+  const key = 'warden:obsrate:' + actorId;
+  let raw;
+  try { raw = (await env.LOADOUT_BOLTS.get(key, { type: 'json' })) || {}; }
+  catch { return { ok: true }; }
+  const recent = (raw.recent || []).filter((ts) => now - ts < 10_000);
+  if (recent.length >= 8) return { ok: false, reason: 'burst' };
+  recent.push(now);
+  try { await env.LOADOUT_BOLTS.put(key, JSON.stringify({ recent }), { expirationTtl: 60 }); }
+  catch { /* non-fatal */ }
+  return { ok: true };
+}
+
 // Dispatch one Twitch action. Returns the warden-twitch result shape.
 async function runTwitch(env, { streamerId, actorId, kind, targetId, targetLogin, seconds, reason, messageId }) {
   switch (kind) {

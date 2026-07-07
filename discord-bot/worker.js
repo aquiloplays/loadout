@@ -787,6 +787,14 @@ export default {
       const { handleWardenIngest } = await import('./warden-ingest.js');
       return handleWardenIngest(req, env);
     }
+    if (path === '/api/warden-agent-ticket') {
+      const { handleWardenAgentTicket } = await import('./warden-ingest.js');
+      return handleWardenAgentTicket(req, env);
+    }
+    if (path === '/api/warden-obscaps') {
+      const { handleWardenObsCaps } = await import('./warden-ingest.js');
+      return handleWardenObsCaps(req, env);
+    }
     // MultiGoal: cross-platform follower/sub counts for the rotating goals
     // overlay (widget.aquilo.gg/overlays/multigoal). Public read, keyed by
     // Twitch login; Twitch via the Aquilo ID vault, Kick/YouTube best-effort.

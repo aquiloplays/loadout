@@ -189,7 +189,7 @@ export async function mintRoomTicket(env, streamerId, actorId, actorLogin, role)
     streamerId: String(streamerId || ''),
     actorId: String(actorId || ''),
     actorLogin: String(actorLogin || ''),
-    role: role === 'broadcaster' ? 'broadcaster' : 'mod',
+    role: role === 'broadcaster' ? 'broadcaster' : role === 'agent' ? 'agent' : 'mod',
     exp: now() + TICKET_TTL_MS,
   }));
   const tag = await hmacHex(env.AQUILO_SITE_WEB_SECRET, payload);

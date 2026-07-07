@@ -39,7 +39,7 @@ function wsUrlFor(env, ticket) {
 
 // Routes that only the BROADCASTER of streamerId may call.
 const BROADCASTER_ONLY = new Set([
-  'mods/add', 'mods/remove', 'terms/add', 'terms/remove',
+  'mods/add', 'mods/remove', 'mods/sync', 'terms/add', 'terms/remove',
 ]);
 
 // Routes that require NO streamerId authorization (identity-only).
@@ -78,8 +78,16 @@ export async function handleWardenRoute(req, env, path, ctx) {
   try {
     // whoami needs no streamer authorization.
     if (sub === 'whoami') {
-      const { whoami } = await import('./warden-mods.js');
+      const { whoami, syncTwitchMods } = await import('./warden-mods.js');
       const res = await whoami(env, actorId, actorLogin);
+      // Auto-detect: when the actor broadcasts (connected own channel),
+      // refresh their Twitch mod list in the background so mods gain
+      // Warden access without a manual add. Throttled inside (KV, 10
+      // min) and off the response path — whoami latency is untouched.
+      if (res.streamers.some((c) => c.streamerId === actorId && c.role === 'broadcaster')) {
+        const p = syncTwitchMods(env, actorId).catch(() => {});
+        try { ctx && ctx.waitUntil && ctx.waitUntil(p); } catch { /* best-effort */ }
+      }
       return json({ ok: true, ...res });
     }
 
@@ -98,8 +106,21 @@ export async function handleWardenRoute(req, env, path, ctx) {
     switch (sub) {
       // ── mod team (BE-1) ─────────────────────────────────────────────
       case 'mods/list': {
-        const { listMods } = await import('./warden-mods.js');
+        const { listMods, syncTwitchMods } = await import('./warden-mods.js');
+        // Broadcaster opening the Team tab: pull the Twitch mod list
+        // first (KV-throttled) so the roster reflects reality without a
+        // manual sync. Mods listing the team skip this — their token
+        // can't enumerate the broadcaster's mods anyway.
+        if (body._role === 'broadcaster') {
+          await syncTwitchMods(env, streamerId).catch(() => {});
+        }
         return json(await listMods(env, streamerId));
+      }
+      case 'mods/sync': {
+        const { listMods, syncTwitchMods } = await import('./warden-mods.js');
+        const sync = await syncTwitchMods(env, streamerId, { force: true });
+        const list = await listMods(env, streamerId);
+        return json({ ...list, sync });
       }
       case 'mods/add': {
         const { addMod } = await import('./warden-mods.js');
@@ -123,6 +144,48 @@ export async function handleWardenRoute(req, env, path, ctx) {
         const { reviewDoodle } = await import('./printflair.js');
         const res = await reviewDoodle(env, body.login, body.approve === true);
         return json(res, res.ok ? 200 : 400);
+      }
+
+      // ── OBS control (mod-triggered, broadcaster-allowlisted) ───────
+      // The streamer configures a capability allowlist in StreamFusion
+      // (mirrored to KV warden:obscaps:<streamerId>). Mods can only fire
+      // actions on that list; StreamFusion's room agent executes them
+      // against local OBS. Feature is dark until caps exist.
+      case 'obs/caps-get': {
+        const raw = await env.LOADOUT_BOLTS.get('warden:obscaps:' + streamerId, 'json').catch(() => null);
+        return json({ ok: true, caps: raw || null });
+      }
+      case 'obs/command': {
+        const caps = await env.LOADOUT_BOLTS.get('warden:obscaps:' + streamerId, 'json').catch(() => null);
+        if (!caps || !caps.enabled) return json({ ok: false, error: 'obs-not-enabled' }, 403);
+        const action = String(body.action || '');
+        const arg = String(body.arg || '');
+        const allow =
+          (action === 'brbPanic' && caps.brbPanic) ||
+          (action === 'sceneSwitch' && Array.isArray(caps.scenes) && caps.scenes.indexOf(arg) !== -1) ||
+          (action === 'sourceToggle' && Array.isArray(caps.sources) && caps.sources.indexOf(arg) !== -1) ||
+          (action === 'muteMic' && Array.isArray(caps.mics) && caps.mics.indexOf(arg) !== -1);
+        if (!allow) return json({ ok: false, error: 'action-not-allowed' }, 403);
+        const { checkObsRate } = await import('./warden-actions.js');
+        const rl = await checkObsRate(env, actorId);
+        if (!rl.ok) return json({ ok: false, error: 'rate-limited' }, 429);
+        const cmdId = 'obs-' + Date.now().toString(36) + Math.floor(Math.random() * 1e5).toString(36);
+        try {
+          const { broadcastToWardenRoom } = await import('./aquilo/warden-room-do.js');
+          await broadcastToWardenRoom(env, streamerId, JSON.stringify({
+            t: 'obs-cmd', cmdId, action, arg,
+            by: actorLogin || actorId, ts: Date.now(),
+          }));
+        } catch { return json({ ok: false, error: 'room-unreachable' }, 502); }
+        try {
+          const { addAudit } = await import('./warden-audit.js');
+          await addAudit(env, {
+            streamerId, actorId, actorLogin,
+            action: 'obs-' + action, platform: 'obs',
+            targetLogin: arg || null, detail: { cmdId },
+          });
+        } catch { /* non-fatal */ }
+        return json({ ok: true, cmdId });
       }
 
       // ── room ticket (BE-1) ──────────────────────────────────────────
