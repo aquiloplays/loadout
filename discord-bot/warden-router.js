@@ -37,6 +37,34 @@ function wsUrlFor(env, ticket) {
   return `${origin}/web/warden/room/ws?ticket=${encodeURIComponent(ticket)}`;
 }
 
+// Jukebox Spotify-queue proxy. The song-request queue lives on the jukebox
+// worker keyed by the streamer's dockKey; we resolve that key server-side
+// from ROTATION_KV so a mod never handles it, then GET the snapshot or POST
+// a control action to the jukebox's /api/dock/queue bridge.
+const JUKEBOX_BASE = 'https://jukebox.aquilo.gg';
+async function jukeboxQueue(env, streamerId, action /* null = read */) {
+  let rec = null;
+  try {
+    rec = env.ROTATION_KV ? await env.ROTATION_KV.get('streamer:' + streamerId, { type: 'json' }) : null;
+  } catch { /* treat as not-set-up */ }
+  if (!rec || !rec.dockKey) {
+    // Jukebox never connected for this streamer — a soft "not set up" state
+    // the panel renders as an empty prompt rather than an error.
+    return { ok: true, connected: false, setup: false, nowPlaying: null, queue: [] };
+  }
+  const url = JUKEBOX_BASE + '/api/dock/queue?key=' + encodeURIComponent(rec.dockKey);
+  try {
+    const resp = action
+      ? await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(action) })
+      : await fetch(url, { method: 'GET' });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) return { ok: false, error: data.error || ('jukebox-' + resp.status) };
+    return { setup: true, ...data };
+  } catch (e) {
+    return { ok: false, error: 'jukebox-unreachable', message: String(e?.message || e).slice(0, 80) };
+  }
+}
+
 // Routes that only the BROADCASTER of streamerId may call.
 const BROADCASTER_ONLY = new Set([
   'mods/add', 'mods/remove', 'mods/sync', 'terms/add', 'terms/remove',
@@ -186,6 +214,44 @@ export async function handleWardenRoute(req, env, path, ctx) {
           });
         } catch { /* non-fatal */ }
         return json({ ok: true, cmdId });
+      }
+
+      // ── Spotify song-request queue (Jukebox) ───────────────────────
+      // The mod team's view of the streamer's Spotify queue + controls.
+      // Read is open to the whole team; actions (skip/pause/play/like/ban)
+      // are moderator work by nature, so they stay mod/broadcaster too
+      // (not broadcaster-only). Ban/skip get an audit row.
+      case 'queue/list': {
+        return json(await jukeboxQueue(env, streamerId, null));
+      }
+      case 'queue/act': {
+        const kind = String(body.kind || '');
+        if (['skip', 'pause', 'play', 'like', 'ban'].indexOf(kind) === -1) {
+          return json({ ok: false, error: 'bad-kind' }, 400);
+        }
+        const { checkObsRate } = await import('./warden-actions.js');
+        const rl = await checkObsRate(env, actorId);   // shared mod-action rate limiter
+        if (!rl.ok) return json({ ok: false, error: 'rate-limited' }, 429);
+        const action = { kind };
+        if (kind === 'ban') {
+          if (body.trackId) action.id = String(body.trackId).slice(0, 40);
+          if (body.title) action.title = String(body.title).slice(0, 120);
+        }
+        const res = await jukeboxQueue(env, streamerId, action);
+        // Audit the destructive/visible controls (skip + ban), mirroring
+        // obs/command's pattern; play/pause/like are low-stakes toggles.
+        if (res.ok !== false && (kind === 'skip' || kind === 'ban')) {
+          try {
+            const { addAudit } = await import('./warden-audit.js');
+            await addAudit(env, {
+              streamerId, actorId, actorLogin,
+              action: 'queue-' + kind, platform: 'spotify',
+              targetLogin: null,
+              detail: kind === 'ban' ? { title: res.title || body.title || null } : null,
+            });
+          } catch { /* non-fatal */ }
+        }
+        return json(res);
       }
 
       // ── room ticket (BE-1) ──────────────────────────────────────────
