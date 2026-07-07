@@ -739,6 +739,12 @@ export default {
     if (path === '/api/platform/avatar') {
       return handlePlatformAvatar(req, env);
     }
+    // Public: GET /api/aquilo/viewer-products?ch=<login> → which
+    // viewer-facing Aquilo surfaces exist for a channel. Powers the
+    // aquilo.gg/viewers hub lookup. CORS-open, 60s cached.
+    if (path === '/api/aquilo/viewer-products') {
+      return handleViewerProducts(req, env);
+    }
     // StreamFusion chat dock backend: premium gate, Haiku translate proxy,
     // mod/clip stubs. See sfdock.js.
     if (path.startsWith('/api/sfdock/')) {
@@ -774,6 +780,12 @@ export default {
     if (path.startsWith('/api/printflair/')) {
       const { handlePrintflair } = await import('./printflair.js');
       return handlePrintflair(req, env, path);
+    }
+    // Warden local-bridge ingest: TikTok chat relayed from StreamFusion on
+    // the streamer's machine (TikFinity has no cloud API). View-only feed.
+    if (path === '/api/warden-ingest') {
+      const { handleWardenIngest } = await import('./warden-ingest.js');
+      return handleWardenIngest(req, env);
     }
     // MultiGoal: cross-platform follower/sub counts for the rotating goals
     // overlay (widget.aquilo.gg/overlays/multigoal). Public read, keyed by
@@ -2488,6 +2500,44 @@ async function handleTwitchCategory(req, env) {
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e && e.message || e).slice(0, 50), game: '' }), { status: 200, headers });
   }
+}
+
+// GET /api/aquilo/viewer-products?ch=<login> — which viewer-facing
+// Aquilo surfaces a channel offers: PunchCard (multi-tenant, has a
+// per-channel record) and the canonical-channel extras (stream panel,
+// Print Flair, Receipt Wall, community — single-tenant today). Powers
+// the aquilo.gg/viewers hub. Public, CORS-open, 60s cached.
+async function handleViewerProducts(req, env) {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, OPTIONS',
+    'access-control-allow-headers': '*',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=60', ...cors };
+  const ch = String(new URL(req.url).searchParams.get('ch') || '').trim().toLowerCase().replace(/^@/, '');
+  if (!/^[a-z0-9_]{2,25}$/.test(ch)) {
+    return new Response(JSON.stringify({ ok: false, error: 'bad-channel' }), { status: 400, headers });
+  }
+  let punchcard = false;
+  let display = ch;
+  let avatarLogin = null;
+  try {
+    const pc = await env.LOADOUT_BOLTS.get('pc:chan:' + ch, { type: 'json' });
+    if (pc) { punchcard = true; if (pc.display) display = pc.display; }
+  } catch { /* no punchcard */ }
+  try {
+    const { loginToId } = await import('./warden-twitch.js');
+    const who = await loginToId(env, ch);
+    if (who && who.id) { avatarLogin = ch; if (who.display) display = who.display; }
+  } catch { /* unresolvable login is fine */ }
+  let canonical = false;
+  try {
+    const mod = await import('./twitch-login-resolver.js');
+    const r = await mod.resolveCanonicalLogin(env);
+    canonical = !!(r && r.login && r.login.toLowerCase() === ch);
+  } catch { /* default false */ }
+  return new Response(JSON.stringify({ ok: true, ch, display, twitchUser: !!avatarLogin, punchcard, canonical }), { status: 200, headers });
 }
 
 // GET /api/platform/avatar?platform=kick|youtube&id=<vaultId>[&role=bot]
