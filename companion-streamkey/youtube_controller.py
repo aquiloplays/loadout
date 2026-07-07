@@ -29,7 +29,12 @@ class YouTubeController:
     # -- auth ----------------------------------------------------------------
 
     def _client_id(self):
-        return (user_settings.load().get("googleClientId") or "").strip()
+        """Resolve the Google OAuth Client ID: user override (if the
+        settings.json has a non-empty googleClientId) beats the baked-in
+        default. In practice everyone ends up on the embedded one because
+        we no longer surface a Client ID input in the dock."""
+        override = (user_settings.load().get("googleClientId") or "").strip()
+        return override or youtube_oauth.EMBEDDED_CLIENT_ID
 
     def signed_in(self):
         return bool(youtube_oauth.load_token())
@@ -37,7 +42,7 @@ class YouTubeController:
     def start_auth(self, on_open=None):
         client_id = self._client_id()
         if not client_id:
-            return {"ok": False, "reason": "Set your Google Cloud OAuth Client ID in YouTube settings first."}
+            return {"ok": False, "reason": "No Google OAuth Client ID available (embedded default missing)."}
         def runner():
             try:
                 youtube_oauth.login(client_id, on_open=on_open)
@@ -53,6 +58,10 @@ class YouTubeController:
             "live": self.live,
             "broadcastId": self.broadcast_id,
             "streamId": self.stream_id,
+            # If webbrowser.open failed on Sign in (rare -- headless env,
+            # kiosk mode, etc.), the dock can surface a "click this link"
+            # fallback pointing at the last generated OAuth URL.
+            "lastAuthUrl": youtube_oauth.LAST_AUTH_URL or None,
         }
 
     # -- categories ----------------------------------------------------------

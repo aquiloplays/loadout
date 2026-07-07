@@ -45,6 +45,20 @@ from logsetup import log
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 
+# The Aquilo Streamkey Google Cloud OAuth Client ID (Desktop app type).
+# NOT a secret -- PKCE flow makes the client_id public by design. Baked in
+# so end users never have to set up their own Google Cloud project. If the
+# user's settings.googleClientId is non-empty, that overrides this default
+# (useful for testing against a private project).
+#
+# GOTCHA: this Client ID's OAuth consent screen must be in Publishing
+# status "In production" for anyone besides explicit Test users to sign
+# in. Google marks the app "unverified" until Clay puts it through their
+# verification review; users see a warning screen and click Advanced ->
+# Continue on first sign-in. That's the tradeoff for skipping the multi-
+# week review.
+EMBEDDED_CLIENT_ID = "745979364682-cqb00vbbll2hr9cqcer5hvdqaq2ipgn4.apps.googleusercontent.com"
+
 # Minimal scope set: youtube manages broadcasts + streams; youtube.force-ssl
 # is what liveBroadcasts.insert actually needs (Google quirk).
 SCOPES = [
