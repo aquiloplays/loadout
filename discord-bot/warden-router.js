@@ -110,6 +110,21 @@ export async function handleWardenRoute(req, env, path, ctx) {
         return json(await removeMod(env, streamerId, String(body.modId || '')));
       }
 
+      // ── printer doodle moderation (printflair) ─────────────────────
+      // The receipt printer's viewer-doodle queue, moderatable by the
+      // whole mod team. Doodles are account-global (keyed by viewer
+      // login); reaching them still requires being authorized for THIS
+      // streamer, which gates access to the mod team.
+      case 'doodles/list': {
+        const { listDoodleQueue } = await import('./printflair.js');
+        return json({ ok: true, items: await listDoodleQueue(env) });
+      }
+      case 'doodles/review': {
+        const { reviewDoodle } = await import('./printflair.js');
+        const res = await reviewDoodle(env, body.login, body.approve === true);
+        return json(res, res.ok ? 200 : 400);
+      }
+
       // ── room ticket (BE-1) ──────────────────────────────────────────
       case 'room/ticket': {
         const ticket = await mintRoomTicket(env, streamerId, actorId, actorLogin, body._role || 'mod');
