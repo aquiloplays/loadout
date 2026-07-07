@@ -214,6 +214,130 @@ async function run() {
     assert(r && r.ownToken === true && r.moderatorId === 'M');
   });
 
+  // ── syncTwitchMods (auto-detect from the Twitch mod list) ───────────
+  // Mock D1 that understands exactly the statements syncTwitchMods and
+  // listMods issue against warden_mods, backed by a Map keyed mod_id.
+  function mockDB(rows) {
+    // rows: Map<mod_id, {mod_id, mod_login, added_by, added_at, status}>
+    function runStmt(sql, args) {
+      if (/^INSERT INTO warden_mods/.test(sql)) {
+        const [, mod_id, mod_login, added_by, added_at] = args;
+        const prev = rows.get(mod_id);
+        if (prev) { prev.mod_login = mod_login; prev.status = 'active'; }
+        else rows.set(mod_id, { mod_id, mod_login, added_by, added_at, status: 'active' });
+        return {};
+      }
+      if (/^DELETE FROM warden_mods/.test(sql)) { rows.delete(args[1]); return {}; }
+      if (/SET status = 'removed'/.test(sql)) {
+        const r = rows.get(args[1]); if (r) r.status = 'removed'; return {};
+      }
+      throw new Error('unexpected stmt: ' + sql.slice(0, 60));
+    }
+    return {
+      async exec() { /* ensureSchema no-op */ },
+      prepare(sql) {
+        return {
+          bind(...args) {
+            return {
+              async all() {
+                if (/^SELECT mod_id, added_by, status/.test(sql)) {
+                  return { results: [...rows.values()] };
+                }
+                if (/^SELECT mod_id, mod_login, added_by, added_at/.test(sql)) {
+                  return { results: [...rows.values()].filter((r) => r.status == null || r.status === 'active') };
+                }
+                throw new Error('unexpected all(): ' + sql.slice(0, 60));
+              },
+              async first() { return null; },
+              async run() { return runStmt(sql, args); },
+              _exec() { return runStmt(sql, args); },
+            };
+          },
+        };
+      },
+      async batch(stmts) { for (const st of stmts) await st._exec(); },
+    };
+  }
+  // Stub Helix: any /moderation/moderators GET returns `mods` (one page).
+  function stubHelix(mods, status = 200) {
+    const orig = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      if (String(url).includes('/moderation/moderators')) {
+        if (status !== 200) return new Response(JSON.stringify({ error: 'x' }), { status });
+        return new Response(JSON.stringify({ data: mods, pagination: {} }), { status: 200 });
+      }
+      throw new Error('unexpected fetch ' + url);
+    };
+    return () => { globalThis.fetch = orig; };
+  }
+  const { syncTwitchMods } = await import('../warden-mods.js');
+
+  await t('sync adds Twitch mods as twitch-sync rows', async () => {
+    const rows = new Map();
+    const m = new Map(); m.set('vault:tw:S', vaultRec('S', 'streamer', MANAGE));
+    const restore = stubHelix([
+      { user_id: 'M1', user_login: 'ModOne' },
+      { user_id: 'M2', user_login: 'modtwo' },
+      { user_id: 'S',  user_login: 'streamer' },   // self, skipped
+    ]);
+    try {
+      const r = await syncTwitchMods(envWith(m, { DB: mockDB(rows) }), 'S', { force: true });
+      assert(r.ok && r.added === 2 && r.total === 2, JSON.stringify(r));
+      assert.equal(rows.get('M1').added_by, 'twitch-sync');
+      assert.equal(rows.get('M1').mod_login, 'modone');   // lowercased
+    } finally { restore(); }
+  });
+
+  await t('sync prunes auto rows that lost the sword, keeps manual rows', async () => {
+    const rows = new Map();
+    rows.set('OLD', { mod_id: 'OLD', mod_login: 'old', added_by: 'twitch-sync', added_at: 1, status: 'active' });
+    rows.set('MAN', { mod_id: 'MAN', mod_login: 'man', added_by: 'S', added_at: 1, status: 'active' });
+    const m = new Map(); m.set('vault:tw:S', vaultRec('S', 'streamer', MANAGE));
+    const restore = stubHelix([{ user_id: 'M1', user_login: 'new' }]);
+    try {
+      const r = await syncTwitchMods(envWith(m, { DB: mockDB(rows) }), 'S', { force: true });
+      assert(r.ok && r.added === 1 && r.removed === 1, JSON.stringify(r));
+      assert(!rows.has('OLD'), 'auto row should be pruned');
+      assert(rows.has('MAN'), 'manual row must survive');
+    } finally { restore(); }
+  });
+
+  await t('sync never resurrects a manually-removed (tombstoned) mod', async () => {
+    const rows = new Map();
+    rows.set('M1', { mod_id: 'M1', mod_login: 'm1', added_by: 'twitch-sync', added_at: 1, status: 'removed' });
+    const m = new Map(); m.set('vault:tw:S', vaultRec('S', 'streamer', MANAGE));
+    const restore = stubHelix([{ user_id: 'M1', user_login: 'm1' }]);
+    try {
+      const r = await syncTwitchMods(envWith(m, { DB: mockDB(rows) }), 'S', { force: true });
+      assert(r.ok && r.added === 0, JSON.stringify(r));
+      assert.equal(rows.get('M1').status, 'removed');
+    } finally { restore(); }
+  });
+
+  await t('sync surfaces scope-missing (403) as needsReconnect', async () => {
+    const m = new Map(); m.set('vault:tw:S', vaultRec('S', 'streamer', 'channel:moderate'));
+    const restore = stubHelix([], 403);
+    try {
+      const r = await syncTwitchMods(envWith(m, { DB: mockDB(new Map()) }), 'S', { force: true });
+      assert(!r.ok && r.error === 'scope-missing' && r.needsReconnect === true, JSON.stringify(r));
+    } finally { restore(); }
+  });
+
+  await t('background sync respects the KV throttle; force bypasses', async () => {
+    const rows = new Map();
+    const m = new Map();
+    m.set('vault:tw:S', vaultRec('S', 'streamer', MANAGE));
+    m.set('warden:modsync:S', '1');   // throttle gate present
+    const restore = stubHelix([{ user_id: 'M1', user_login: 'm1' }]);
+    try {
+      const bg = await syncTwitchMods(envWith(m, { DB: mockDB(rows) }), 'S');
+      assert(bg.ok && bg.skipped === true, JSON.stringify(bg));
+      assert(!rows.has('M1'), 'throttled sync must not write');
+      const forced = await syncTwitchMods(envWith(m, { DB: mockDB(rows) }), 'S', { force: true });
+      assert(forced.ok && forced.added === 1, JSON.stringify(forced));
+    } finally { restore(); }
+  });
+
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail) process.exit(1);
 }

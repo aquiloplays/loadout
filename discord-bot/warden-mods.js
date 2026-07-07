@@ -184,6 +184,10 @@ export async function addMod(env, streamerId, login, addedBy) {
 }
 
 // removeMod(env, streamerId, modId) -> { ok }
+// Tombstone (status='removed'), not DELETE: syncTwitchMods treats a
+// tombstone as "the broadcaster explicitly kicked this person out of
+// Warden" and won't resurrect them while they still hold the Twitch
+// sword. A manual re-add via addMod flips them back to active.
 export async function removeMod(env, streamerId, modId) {
   const s = String(streamerId || '');
   const m = String(modId || '');
@@ -192,12 +196,111 @@ export async function removeMod(env, streamerId, modId) {
   if (!env.DB) return { ok: false, error: 'no-db' };
   try {
     await env.DB
-      .prepare(`DELETE FROM warden_mods WHERE streamer_id = ? AND mod_id = ?`)
+      .prepare(`UPDATE warden_mods SET status = 'removed' WHERE streamer_id = ? AND mod_id = ?`)
       .bind(s, m)
       .run();
     return { ok: true };
   } catch (e) {
     console.warn('[warden] removeMod', e?.message || e);
+    return { ok: false, error: 'db-error' };
+  }
+}
+
+// ── syncTwitchMods (auto-detect) ──────────────────────────────────────
+// Mirror the channel's REAL Twitch mod list (Helix Get Moderators, the
+// broadcaster's vault token, requires the `moderation:read` scope) into
+// warden_mods, so anyone the streamer mods on Twitch gets Warden access
+// the moment they sign in to aquilo.gg — no manual add. Matching is
+// exact: aquilo user ids ARE Twitch ids, and Helix returns user_id.
+//
+// Rules:
+//   • Rows created here carry added_by='twitch-sync'. Twitch stays the
+//     source of truth for them: lose the sword on Twitch → dropped here
+//     on the next sync.
+//   • Manually-added rows are never pruned; manual removals (status
+//     'removed') are never resurrected by a sync.
+//   • Background callers pass no `force` and are throttled via KV so
+//     console opens don't hammer Helix; the Team tab's explicit "Sync
+//     now" bypasses the throttle.
+//   • Token lacks moderation:read (streamer connected before the scope
+//     was added) → { ok:false, error:'scope-missing', needsReconnect }.
+export async function syncTwitchMods(env, streamerId, { force = false } = {}) {
+  const s = String(streamerId || '');
+  if (!s) return { ok: false, error: 'bad-streamer' };
+  await ensureSchema(env);
+  if (!env.DB) return { ok: false, error: 'no-db' };
+
+  const gate = `warden:modsync:${s}`;
+  if (!force) {
+    try {
+      if (env.LOADOUT_BOLTS && (await env.LOADOUT_BOLTS.get(gate))) {
+        return { ok: true, skipped: true };
+      }
+    } catch { /* KV read best-effort */ }
+  }
+  try {
+    if (env.LOADOUT_BOLTS) await env.LOADOUT_BOLTS.put(gate, '1', { expirationTtl: 600 });
+  } catch { /* KV write best-effort */ }
+
+  const { vaultHelix } = await import('./warden-twitch.js');
+  const found = [];
+  let cursor = null;
+  for (let page = 0; page < 20; page++) { // 20 × 100 = 2000 mods, plenty
+    const r = await vaultHelix(env, s, '/moderation/moderators', {
+      params: { broadcaster_id: s, first: 100, ...(cursor ? { after: cursor } : {}) },
+    });
+    if (!r.ok) {
+      if (r.status === 401 || r.status === 403) {
+        return { ok: false, error: 'scope-missing', needsReconnect: true };
+      }
+      return { ok: false, error: (r.data && r.data.error) || `helix-${r.status}` };
+    }
+    for (const m of (r.data && r.data.data) || []) {
+      const id = String(m.user_id || '');
+      if (id && id !== s) {
+        found.push({ id, login: String(m.user_login || '').toLowerCase() });
+      }
+    }
+    cursor = (r.data && r.data.pagination && r.data.pagination.cursor) || null;
+    if (!cursor) break;
+  }
+
+  try {
+    const cur = await env.DB
+      .prepare(`SELECT mod_id, added_by, status FROM warden_mods WHERE streamer_id = ?`)
+      .bind(s)
+      .all();
+    const rows = (cur && cur.results) || [];
+    const byId = new Map(rows.map((r) => [String(r.mod_id), r]));
+    const foundIds = new Set(found.map((m) => m.id));
+
+    const stmts = [];
+    let added = 0;
+    for (const m of found) {
+      const existing = byId.get(m.id);
+      // Respect an explicit manual removal — the broadcaster kicked this
+      // person out of Warden while keeping their Twitch sword.
+      if (existing && existing.status === 'removed') continue;
+      if (!existing) added++;
+      stmts.push(
+        env.DB
+          .prepare(`INSERT INTO warden_mods (streamer_id, mod_id, mod_login, added_by, added_at, status) VALUES (?, ?, ?, ?, ?, 'active') ON CONFLICT(streamer_id, mod_id) DO UPDATE SET mod_login = excluded.mod_login, status = 'active'`)
+          .bind(s, m.id, m.login, 'twitch-sync', now()),
+      );
+    }
+    let removed = 0;
+    for (const [id, row] of byId) {
+      if (String(row.added_by || '') === 'twitch-sync' && !foundIds.has(id)) {
+        removed++;
+        stmts.push(
+          env.DB.prepare(`DELETE FROM warden_mods WHERE streamer_id = ? AND mod_id = ?`).bind(s, id),
+        );
+      }
+    }
+    if (stmts.length) await env.DB.batch(stmts);
+    return { ok: true, added, removed, total: found.length };
+  } catch (e) {
+    console.warn('[warden] syncTwitchMods', e?.message || e);
     return { ok: false, error: 'db-error' };
   }
 }
