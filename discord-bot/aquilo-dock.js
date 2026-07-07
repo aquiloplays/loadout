@@ -222,8 +222,151 @@ async function applyYouTube(env, twitchId, title) {
   } catch { return { ok: false, error: 'youtube-unreachable' }; }
 }
 
+// Send a chat line to the streamer's own Twitch chat as themselves
+// (vault broadcaster token carries user:write:chat).
+async function twitchChatSay(env, twitchId, text) {
+  const auth = await vaultTwitchToken(env, twitchId);
+  if (!auth) return { ok: false, error: 'not-connected' };
+  try {
+    const r = await fetch('https://api.twitch.tv/helix/chat/messages', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + auth.token, 'Client-Id': auth.clientId, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ broadcaster_id: String(twitchId), sender_id: String(twitchId), message: String(text).slice(0, 480) }),
+    });
+    if (r.ok) return { ok: true };
+    const j = await r.json().catch(() => null);
+    return { ok: false, error: (j && j.message) || ('twitch-' + r.status) };
+  } catch { return { ok: false, error: 'twitch-unreachable' }; }
+}
+
+// Send a chat line to the streamer's own Kick chat as themselves.
+async function kickChatSay(env, twitchId, text) {
+  const tok = await vaultPlatformToken(env, 'kick', twitchId);
+  if (!tok) return { ok: false, error: 'not-connected' };
+  try {
+    const cr = await fetch('https://api.kick.com/public/v1/channels', {
+      headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' },
+    });
+    if (!cr.ok) return { ok: false, error: 'kick-' + cr.status };
+    const cj = await cr.json();
+    const c = cj && Array.isArray(cj.data) && cj.data[0];
+    if (!c || !c.broadcaster_user_id) return { ok: false, error: 'kick-no-channel' };
+    const r = await fetch('https://api.kick.com/public/v1/chat', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ broadcaster_user_id: c.broadcaster_user_id, content: String(text).slice(0, 480), type: 'user' }),
+    });
+    if (r.ok) return { ok: true };
+    const j = await r.json().catch(() => null);
+    return { ok: false, error: (j && (j.message || j.error)) || ('kick-' + r.status) };
+  } catch { return { ok: false, error: 'kick-unreachable' }; }
+}
+
 export async function handleAquiloDock(req, env, path) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+
+  // Go-live blast: one click posts the announce line to the streamer's
+  // Twitch chat + Kick chat (as themselves, vault tokens) and to their
+  // Discord webhook (reuses PunchCard's per-channel webhook config so
+  // there's ONE webhook setting, not two). 20s per-key cooldown.
+  if (path === '/api/aqdock/golive' && req.method === 'POST') {
+    let body = null;
+    try { body = await req.json(); } catch { /* bad json */ }
+    if (!body) return json({ ok: false, error: 'bad-json' }, 400);
+    const owner = await dockOwner(env, body.key);
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    if (!owner.twitchId) return json({ ok: false, error: 'no-twitch-id' }, 500);
+    const cdKey = 'aqdock:golive-cd:' + body.key;
+    try {
+      if (await env.LOADOUT_BOLTS.get(cdKey)) return json({ ok: false, error: 'cooldown' }, 429);
+      await env.LOADOUT_BOLTS.put(cdKey, '1', { expirationTtl: 60 });
+    } catch { /* best effort */ }
+    const message = String(body.message || '').trim().slice(0, 400);
+    if (!message) return json({ ok: false, error: 'empty-message' }, 400);
+    const t = body.targets || { twitch: true, kick: true, discord: true };
+    const jobs = {};
+    if (t.twitch) jobs.twitch = twitchChatSay(env, owner.twitchId, message);
+    if (t.kick) jobs.kick = kickChatSay(env, owner.twitchId, message);
+    if (t.discord) jobs.discord = (async () => {
+      try {
+        const chan = await env.LOADOUT_BOLTS.get('pc:chan:' + owner.login, { type: 'json' });
+        const hook = chan && chan.cfg && chan.cfg.discordWebhook;
+        if (!hook || !/^https:\/\/discord\.com\/api\/webhooks\//.test(hook)) return { ok: false, error: 'no-webhook' };
+        const r = await fetch(hook, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: message.slice(0, 1900), allowed_mentions: { parse: [] } }),
+        });
+        return r.ok ? { ok: true } : { ok: false, error: 'discord-' + r.status };
+      } catch { return { ok: false, error: 'discord-unreachable' }; }
+    })();
+    const names = Object.keys(jobs);
+    if (!names.length) return json({ ok: false, error: 'no-targets' }, 400);
+    const settled = await Promise.all(names.map((n) => jobs[n]));
+    const results = {};
+    names.forEach((n, i) => { results[n] = settled[i]; });
+    return json({ ok: names.some((n) => results[n].ok), results });
+  }
+
+  // Per-platform live viewer counts for the dock's LIVE strip. Cheap to
+  // poll (~60s from the dock); each platform is best-effort.
+  if (path === '/api/aqdock/viewers' && req.method === 'GET') {
+    const url = new URL(req.url);
+    const owner = await dockOwner(env, url.searchParams.get('key'));
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    if (!owner.twitchId) return json({ ok: false, error: 'no-twitch-id' }, 500);
+    const out = {
+      twitch: { live: false, viewers: null },
+      kick: { live: false, viewers: null },
+      youtube: { live: false, viewers: null },
+    };
+    await Promise.all([
+      (async () => {
+        try {
+          const { getStreamInfo } = await import('./twitch-helix.js');
+          const st = await getStreamInfo(env, owner.twitchId);
+          if (st) out.twitch = { live: true, viewers: Number(st.viewer_count) || 0, title: st.title || '', game: st.game_name || '' };
+        } catch { /* offline */ }
+      })(),
+      (async () => {
+        try {
+          const tok = await vaultPlatformToken(env, 'kick', owner.twitchId);
+          if (!tok) return;
+          // channels (token-scoped = OWN channel) carries the live stream
+          // object; the bare livestreams endpoint lists GLOBAL streams.
+          const r = await fetch('https://api.kick.com/public/v1/channels', {
+            headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' },
+          });
+          if (!r.ok) return;
+          const j = await r.json();
+          const c = j && Array.isArray(j.data) && j.data[0];
+          const s = c && c.stream;
+          if (s && s.is_live) out.kick = { live: true, viewers: Number(s.viewer_count) || 0 };
+        } catch { /* offline */ }
+      })(),
+      (async () => {
+        try {
+          const tok = await vaultPlatformToken(env, 'youtube', owner.twitchId);
+          if (!tok) return;
+          const lr = await fetch('https://www.googleapis.com/youtube/v3/liveBroadcasts?part=status&broadcastStatus=active&maxResults=1', {
+            headers: { Authorization: 'Bearer ' + tok },
+          });
+          if (!lr.ok) return;
+          const lj = await lr.json();
+          const b = lj && lj.items && lj.items[0];
+          if (!b) return;
+          const vr = await fetch('https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=' + encodeURIComponent(b.id), {
+            headers: { Authorization: 'Bearer ' + tok },
+          });
+          if (!vr.ok) { out.youtube = { live: true, viewers: null }; return; }
+          const vj = await vr.json();
+          const d = vj && vj.items && vj.items[0] && vj.items[0].liveStreamingDetails;
+          out.youtube = { live: true, viewers: d ? Number(d.concurrentViewers) || 0 : null };
+        } catch { /* offline */ }
+      })(),
+    ]);
+    return json({ ok: true, ...out });
+  }
 
   // Current title/category on every connected platform.
   if (path === '/api/aqdock/streaminfo' && req.method === 'GET') {
