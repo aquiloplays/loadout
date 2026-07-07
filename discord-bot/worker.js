@@ -1387,8 +1387,13 @@ export default {
   },
 
   // Cron dispatcher. Wired via [triggers] crons in wrangler.toml.
-  //   17 * * * *      stocks price refresh (stocks.js)
-  //   23 * * * *      sports games + bet settlement + bolts-feed digest
+  //   * * * * *       every-minute live-status refresh + Twitch go-live
+  //                   poll + pre-stream ping; the old hourly :17 work
+  //                   (cn-roster Steam refresh + Twitch live/clip bundle)
+  //                   runs only when the minute === 17
+  //   23 * * * *      hourly aquilo fold-in: gifter roles, custom-poll +
+  //                   reward-expiry + support-ticket sweeps, vote-hub +
+  //                   weekly-schedule refresh
   //   0 1,2 * * *     queue auto-open at 9 PM ET (1 UTC = 21 EST,
   //                   2 UTC = 21 EDT, one fires per day depending on
   //                   DST. autoOpenIfDue() filters on local hour == 21

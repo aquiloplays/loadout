@@ -30,9 +30,11 @@
 import { verifyHmac } from './auth.js';
 
 export const GIFTER_CATEGORIES = Object.freeze({
-  sub:    { name: 'Top Sub Gifter',    color: 0x9146FF, eventType: 'sub-gift' },
-  tiktok: { name: 'Top TikTok Gifter', color: 0xFF0050, eventType: 'tip' },
-  cheer:  { name: 'Top Cheerer',       color: 0x5A3AFF, eventType: 'cheer' },
+  sub:     { name: 'Top Sub Gifter',        color: 0x9146FF, eventType: 'sub-gift' },
+  tiktok:  { name: 'Top TikTok Gifter',     color: 0xFF0050, eventType: 'tip' },
+  cheer:   { name: 'Top Cheerer',           color: 0x5A3AFF, eventType: 'cheer' },
+  kick:    { name: 'Top Kick Gifter',       color: 0x53FC18, eventType: 'sub-gift/kicks' },
+  youtube: { name: 'Top YouTube Supporter', color: 0xFF0000, eventType: 'membership/super-chat' },
 });
 
 const ROLE_MAP_KEY    = (g) => `gifter-roles:${g}`;
@@ -68,9 +70,25 @@ export function lastNDays(n, anchor = new Date()) {
 function categoryFor(eventType, platform) {
   const t = String(eventType || '').toLowerCase();
   const p = String(platform || '').toLowerCase();
+  // Twitch + TikTok — unchanged.
   if (t === 'sub-gift' && p === 'twitch') return 'sub';
   if (t === 'tip'      && p === 'tiktok') return 'tiktok';
   if (t === 'cheer'    && p === 'twitch') return 'cheer';
+  // Kick — gifted subscriptions + "Kicks" (Kick's tipping currency)
+  // gifting. Streamer.bot's Kick integration is the expected source;
+  // its action names vary, so accept the common aliases.
+  if (p === 'kick' && (
+    t === 'sub-gift'  || t === 'gifted-sub' || t === 'gifted-subs' ||
+    t === 'subgift'   || t === 'gift'       ||
+    t === 'kicks'     || t === 'kicks-gift' || t === 'kick-gift'
+  )) return 'kick';
+  // YouTube — memberships (new + gifted), Super Chats, Super Stickers.
+  if (p === 'youtube' && (
+    t === 'membership'      || t === 'member'            || t === 'sponsor' ||
+    t === 'membership-gift' || t === 'membership-gifted' || t === 'gift-membership' ||
+    t === 'super-chat'      || t === 'superchat'         ||
+    t === 'super-sticker'   || t === 'supersticker'
+  )) return 'youtube';
   return null;
 }
 
@@ -81,6 +99,23 @@ function identityKeyOf(platform, login) {
   const l = String(login || '').toLowerCase();
   if (!p || !l) return null;
   return `${p}:${l}`;
+}
+
+// Pull the contributor's platform handle out of an ingress event.
+// Twitch/TikTok behaviour is unchanged; Kick + YouTube read their own
+// handle fields (with a generic `username`/`login` fallback) so events
+// posted to /streamerbot/event for those platforms are attributed to a
+// contributor instead of being dropped as no-contributor-login.
+function contributorLoginOf(event) {
+  const p = String(event?.platform || '').toLowerCase();
+  if (p === 'twitch')  return event.twitchLogin;
+  if (p === 'tiktok')  return event.tiktokUsername;
+  if (p === 'kick')    return event.kickUsername || event.kickLogin ||
+                              event.username || event.login;
+  if (p === 'youtube') return event.youtubeHandle || event.youtubeChannel ||
+                              event.youtubeName || event.youtubeChannelId ||
+                              event.username || event.login;
+  return event.login || event.username || null;
 }
 
 async function loadLinksReverseIndex(env, guildId) {
@@ -112,13 +147,6 @@ async function loadLinksReverseIndex(env, guildId) {
 // reverse-index map as an arg so we don't re-walk wallet:* per event.
 function resolveDiscordId(event, linkIdx) {
   if (event.platform === 'twitch') {
-    if (event.twitchUserId) {
-      for (const [k, v] of linkIdx) {
-        // Twitch ids aren't tracked in the link records (only the
-        // login is), so this branch is unused today; here for when
-        // we add id-based links.
-      }
-    }
     if (event.twitchLogin) {
       return linkIdx.get(`twitch:${String(event.twitchLogin).toLowerCase()}`) || null;
     }
@@ -139,12 +167,16 @@ function resolveDiscordId(event, linkIdx) {
 //     x-aquilo-sb-sig  hex(SHA-256(STREAMERBOT_WEBHOOK_SECRET, ts + "\n" + body))
 //   Body (JSON):
 //     {
-//       type: "sub-gift" | "tip" | "cheer",
-//       platform: "twitch" | "tiktok",
+//       type: "sub-gift" | "tip" | "cheer"          // twitch / tiktok
+//           | "kicks" | "gifted-sub"                // kick
+//           | "membership" | "super-chat" | "super-sticker", // youtube
+//       platform: "twitch" | "tiktok" | "kick" | "youtube",
 //       twitchUserId?: string,     // optional, future-proofing
 //       twitchLogin?: string,      // required for twitch events
 //       tiktokUsername?: string,   // required for tiktok events
-//       amount: number,            // count of subs gifted, tip $, or cheer bits
+//       kickUsername?: string,     // required for kick events
+//       youtubeChannel?: string,   // required for youtube events (handle/name)
+//       amount: number,            // subs gifted, tip $, cheer bits, kicks, or SC value
 //       ts?: number                // ms-epoch; defaults to receipt time
 //     }
 //
@@ -169,7 +201,7 @@ export async function handleStreamerbotEvent(req, env) {
   }
   const guildId = String(env.AQUILO_VAULT_GUILD_ID || '').trim();
   if (!guildId) return jsonResp({ ok: false, error: 'no-guild-id' }, 503);
-  const login = event.platform === 'twitch' ? event.twitchLogin : event.tiktokUsername;
+  const login = contributorLoginOf(event);
 
   const r = await recordGifterEvent(env, guildId, event.type, event.platform, login, event.amount, event.ts);
   if (!r.ok) {
@@ -385,10 +417,13 @@ async function removeRoleFromUser(env, guildId, userId, roleId, reason) {
 // guild grooms itself.
 async function trimOldBuckets(env, guildId) {
   const keepDays = new Set(lastNDays(TRIM_OLDER_THAN_DAYS));
-  let cursor;
   let deleted = 0;
   for (const cat of Object.keys(GIFTER_CATEGORIES)) {
     const prefix = `gifter:${cat}:${guildId}:`;
+    // Reset per category: CF KV list cursors are bound to the prefix
+    // they were issued for, so a leftover cursor from the previous
+    // category must not leak into this one's list() calls.
+    let cursor;
     for (let page = 0; page < 5; page++) {
       const r = await env.LOADOUT_BOLTS.list({ prefix, cursor, limit: 1000 });
       for (const k of r.keys) {

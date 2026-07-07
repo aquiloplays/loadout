@@ -89,10 +89,12 @@ function makeReq(body, opts = {}) {
 
 console.log('- categories sanity');
 {
-  eq(Object.keys(GIFTER_CATEGORIES), ['sub', 'tiktok', 'cheer'], 'three categories');
-  eq(GIFTER_CATEGORIES.sub.name,    'Top Sub Gifter',    'sub name');
-  eq(GIFTER_CATEGORIES.tiktok.name, 'Top TikTok Gifter', 'tiktok name');
-  eq(GIFTER_CATEGORIES.cheer.name,  'Top Cheerer',       'cheer name');
+  eq(Object.keys(GIFTER_CATEGORIES), ['sub', 'tiktok', 'cheer', 'kick', 'youtube'], 'five categories');
+  eq(GIFTER_CATEGORIES.sub.name,     'Top Sub Gifter',        'sub name');
+  eq(GIFTER_CATEGORIES.tiktok.name,  'Top TikTok Gifter',     'tiktok name');
+  eq(GIFTER_CATEGORIES.cheer.name,   'Top Cheerer',           'cheer name');
+  eq(GIFTER_CATEGORIES.kick.name,    'Top Kick Gifter',       'kick name');
+  eq(GIFTER_CATEGORIES.youtube.name, 'Top YouTube Supporter', 'youtube name');
 }
 
 console.log('- event-type → category mapping');
@@ -102,6 +104,16 @@ console.log('- event-type → category mapping');
   eq(_categoryForTest('cheer',    'twitch'), 'cheer',  'cheer twitch');
   eq(_categoryForTest('sub-gift', 'tiktok'), null,     'cross-platform refused');
   eq(_categoryForTest('whatever', 'tiktok'), null,     'unknown type');
+  // Kick — gifted subs + Kicks tipping currency.
+  eq(_categoryForTest('gifted-sub', 'kick'), 'kick',   'kick gifted-sub');
+  eq(_categoryForTest('kicks',      'kick'), 'kick',   'kick kicks-gifting');
+  eq(_categoryForTest('sub-gift',   'kick'), 'kick',   'kick sub-gift alias');
+  eq(_categoryForTest('cheer',      'kick'), null,     'kick unknown type refused');
+  // YouTube — memberships + super chats + super stickers.
+  eq(_categoryForTest('membership',    'youtube'), 'youtube', 'youtube membership');
+  eq(_categoryForTest('super-chat',    'youtube'), 'youtube', 'youtube super-chat');
+  eq(_categoryForTest('super-sticker', 'youtube'), 'youtube', 'youtube super-sticker');
+  eq(_categoryForTest('tip',           'youtube'), null,      'youtube unknown type refused');
 }
 
 console.log('- webhook: bad signature + replay');
@@ -255,7 +267,7 @@ console.log('- gifterRolesDailyTick: top-3 add + revoke fall-outs + idempotent')
   eq(r2.skipped, 'already-ran-today', 'second run same day skipped');
 }
 
-console.log('- ensureGifterRoles: creates the three roles');
+console.log('- ensureGifterRoles: creates the five roles');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   fetchHandler = async (url, init) => {
@@ -272,9 +284,9 @@ console.log('- ensureGifterRoles: creates the three roles');
   const r = await ensureGifterRoles(env, GUILD);
   fetchHandler = null;
   assert(r.ok, 'ok:true');
-  eq(r.created.map(c => c.key).sort(), ['cheer', 'sub', 'tiktok'].sort(), 'three created');
+  eq(r.created.map(c => c.key).sort(), ['cheer', 'kick', 'sub', 'tiktok', 'youtube'].sort(), 'five created');
   const map = await env.LOADOUT_BOLTS.get(`gifter-roles:${GUILD}`, { type: 'json' });
-  eq(Object.keys(map).sort(), ['cheer', 'sub', 'tiktok'].sort(), 'map written');
+  eq(Object.keys(map).sort(), ['cheer', 'kick', 'sub', 'tiktok', 'youtube'].sort(), 'map written');
 }
 
 console.log('- identity / day helpers');

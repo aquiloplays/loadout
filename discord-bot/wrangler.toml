@@ -259,18 +259,17 @@ new_classes = ["WardenRoom"]
 
 # Worker crons. worker.js's `scheduled` handler dispatches by
 # event.cron so each cron can drive a different job.
-#   :17 hourly     stocks price refresh (stocks.js stocksCronTick)
-#   :23 hourly     sports games + bet settlement (bet.js betCronTick)
-#                  + bolts-feed digest (bolts-feed.js)
-#                  + Clash hourly sweeps (shields expiring, active-war
-#                    resolution) and once-per-day Clash trophy decay
-#                    gated by a clash:cron:last-decay KV marker
+#   * * * * *      every-minute job: live-status polling, go-live +
+#                  pre-stream announces; hourly work is gated to the
+#                  :17 minute inside this handler
+#   23 * * * *     aquilo fold-in (gifter roles, poll/reward/ticket
+#                  sweeps, vote-hub, schedule)
 #   0 1 * * *      queue auto-open at 21:00 EST  (1 UTC EST)
 #   0 2 * * *      queue auto-open at 21:00 EDT  (2 UTC EDT)
 # Aquilo-bot hourly tasks (CN poll lifecycle, daily prompts, T-or-T,
 # countdown, spotlight, recap, vote-reminders, weekly leaderboard,
 # trivia, achievements, birthday DMs, streak sweep) piggyback on the
-# :23 tick alongside Clash. The aquilo handler is idempotent by KV
+# :23 tick. The aquilo handler is idempotent by KV
 # marker, so the fact that :23 fires once per hour at the "wrong"
 # minute is fine — the per-task hour checks gate everything.
 #
