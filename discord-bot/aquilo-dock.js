@@ -32,7 +32,11 @@ function json(body, status = 200) {
 
 const KEY = {
   byKey: (k) => 'aqdock:key:' + k,
-  byLogin: (l) => 'aqdock:login:' + l,
+  // Twitch logins keep the original un-namespaced key (back-compat);
+  // Kick/YouTube-anchored docks namespace by provider so a Kick "foo"
+  // can't collide with a Twitch "foo".
+  byLogin: (l, provider) =>
+    'aqdock:login:' + (provider && provider !== 'twitch' ? provider + ':' : '') + l,
 };
 
 function randKey() {
@@ -61,13 +65,26 @@ async function vaultTwitchToken(env, twitchId) {
   } catch { return null; }
 }
 
-async function vaultPlatformToken(env, platform, twitchId) {
+// Fresh Kick/YouTube broadcaster token for a dock owner. Platform-
+// anchored owners (paired via Kick/YT sign-in) resolve by their own
+// platform id; Twitch-anchored owners resolve via the tw2<platform>
+// pointer the broker wrote at connect time.
+async function vaultPlatformToken(env, platform, owner) {
   if (!env.VAULT_SERVICE_SECRET) return null;
+  const body = { service: env.VAULT_SERVICE_SECRET, role: 'broadcaster' };
+  if (owner && typeof owner === 'object') {
+    if (owner.provider === platform && owner.platformId) body.id = String(owner.platformId);
+    else if (owner.twitchId) body.twitchId = String(owner.twitchId);
+    else return null;
+  } else {
+    // Legacy call shape: a bare twitchId.
+    body.twitchId = String(owner);
+  }
   try {
     const r = await fetch(BROKER + '/' + platform + '/vault/token', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ service: env.VAULT_SERVICE_SECRET, twitchId: String(twitchId), role: 'broadcaster' }),
+      body: JSON.stringify(body),
     });
     if (!r.ok) return null;
     const j = await r.json();
@@ -75,18 +92,26 @@ async function vaultPlatformToken(env, platform, twitchId) {
   } catch { return null; }
 }
 
-// Resolve a dock key to { login, twitchId } or null.
+// Resolve a dock key to { login, provider, platformId, twitchId } or
+// null. provider defaults to twitch (legacy recs); ONLY twitch logins
+// go through loginToId — resolving a Kick/YT login as a Twitch name
+// could silently pick up an unrelated Twitch user.
 async function dockOwner(env, k) {
   if (!/^[a-z0-9]{8,40}$/.test(String(k || ''))) return null;
   let rec = null;
   try { rec = await env.LOADOUT_BOLTS.get(KEY.byKey(k), { type: 'json' }); } catch { /* miss */ }
   if (!rec || !rec.login) return null;
-  const who = await loginToId(env, rec.login);
-  return { login: rec.login, twitchId: (who && who.id) || null };
+  const provider = rec.provider || 'twitch';
+  let twitchId = null;
+  if (provider === 'twitch') {
+    const who = await loginToId(env, rec.login);
+    twitchId = (who && who.id) || null;
+  }
+  return { login: rec.login, provider, platformId: rec.platformId || null, twitchId };
 }
 
 // Current per-platform stream info, best-effort each.
-async function readStreamInfo(env, twitchId) {
+async function readStreamInfo(env, owner) {
   const out = {
     twitch: { connected: false, title: null, game: null, gameId: null },
     kick: { connected: false, title: null, category: null, categoryId: null },
@@ -94,13 +119,14 @@ async function readStreamInfo(env, twitchId) {
   };
   const [tw, kickTok, ytTok] = await Promise.all([
     (async () => {
+      if (!owner.twitchId) return null;
       try {
         const { getChannelGame } = await import('./twitch-helix.js');
-        return await getChannelGame(env, twitchId);
+        return await getChannelGame(env, owner.twitchId);
       } catch { return null; }
     })(),
-    vaultPlatformToken(env, 'kick', twitchId),
-    vaultPlatformToken(env, 'youtube', twitchId),
+    vaultPlatformToken(env, 'kick', owner),
+    vaultPlatformToken(env, 'youtube', owner),
   ]);
   if (tw) {
     out.twitch = { connected: true, title: tw.title || '', game: tw.gameName || '', gameId: tw.gameId || null };
@@ -148,7 +174,9 @@ async function readStreamInfo(env, twitchId) {
   return out;
 }
 
-async function applyTwitch(env, twitchId, title, gameId) {
+async function applyTwitch(env, owner, title, gameId) {
+  const twitchId = owner.twitchId;
+  if (!twitchId) return { ok: false, error: 'not-connected' };
   const auth = await vaultTwitchToken(env, twitchId);
   if (!auth) return { ok: false, error: 'not-connected' };
   const body = {};
@@ -167,8 +195,8 @@ async function applyTwitch(env, twitchId, title, gameId) {
   } catch { return { ok: false, error: 'twitch-unreachable' }; }
 }
 
-async function applyKick(env, twitchId, title, categoryId) {
-  const tok = await vaultPlatformToken(env, 'kick', twitchId);
+async function applyKick(env, owner, title, categoryId) {
+  const tok = await vaultPlatformToken(env, 'kick', owner);
   if (!tok) return { ok: false, error: 'not-connected' };
   const body = {};
   if (title != null) body.stream_title = String(title).slice(0, 140);
@@ -186,9 +214,9 @@ async function applyKick(env, twitchId, title, categoryId) {
   } catch { return { ok: false, error: 'kick-unreachable' }; }
 }
 
-async function applyYouTube(env, twitchId, title) {
+async function applyYouTube(env, owner, title) {
   if (title == null) return { ok: true, skipped: true };
-  const tok = await vaultPlatformToken(env, 'youtube', twitchId);
+  const tok = await vaultPlatformToken(env, 'youtube', owner);
   if (!tok) return { ok: false, error: 'not-connected' };
   try {
     // Find the live (or next upcoming) broadcast, then update its snippet.
@@ -224,7 +252,9 @@ async function applyYouTube(env, twitchId, title) {
 
 // Send a chat line to the streamer's own Twitch chat as themselves
 // (vault broadcaster token carries user:write:chat).
-async function twitchChatSay(env, twitchId, text) {
+async function twitchChatSay(env, owner, text) {
+  const twitchId = owner.twitchId;
+  if (!twitchId) return { ok: false, error: 'not-connected' };
   const auth = await vaultTwitchToken(env, twitchId);
   if (!auth) return { ok: false, error: 'not-connected' };
   try {
@@ -240,8 +270,8 @@ async function twitchChatSay(env, twitchId, text) {
 }
 
 // Send a chat line to the streamer's own Kick chat as themselves.
-async function kickChatSay(env, twitchId, text) {
-  const tok = await vaultPlatformToken(env, 'kick', twitchId);
+async function kickChatSay(env, owner, text) {
+  const tok = await vaultPlatformToken(env, 'kick', owner);
   if (!tok) return { ok: false, error: 'not-connected' };
   try {
     const cr = await fetch('https://api.kick.com/public/v1/channels', {
@@ -265,6 +295,68 @@ async function kickChatSay(env, twitchId, text) {
 export async function handleAquiloDock(req, env, path) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
+  // Kick/YouTube pairing: the dock page opened the broker's PKCE
+  // desktop-login popup; it polls HERE (not the broker — no CORS there,
+  // and this way tokens never touch the page). On success we write the
+  // platform vault record (so /kick|youtube/vault/token can refresh it
+  // forever) and mint a platform-anchored dock key.
+  if (path === '/api/aqdock/pair-poll' && req.method === 'GET') {
+    const url = new URL(req.url);
+    const platform = String(url.searchParams.get('platform') || '');
+    const session = String(url.searchParams.get('session') || '');
+    const verifier = String(url.searchParams.get('verifier') || '');
+    if (platform !== 'kick' && platform !== 'youtube') return json({ ok: false, error: 'bad-platform' }, 400);
+    if (!/^[A-Za-z0-9_-]{16,80}$/.test(session) || !/^[A-Za-z0-9_-]{20,128}$/.test(verifier)) {
+      return json({ ok: false, error: 'bad-params' }, 400);
+    }
+    let tok = null;
+    try {
+      const r = await fetch(BROKER + '/desktop/token?session=' + encodeURIComponent(session) + '&verifier=' + encodeURIComponent(verifier));
+      tok = await r.json();
+    } catch { return json({ ok: false, error: 'broker-unreachable' }, 502); }
+    if (!tok) return json({ ok: false, error: 'broker-unreachable' }, 502);
+    if (tok.pending) return json({ ok: true, pending: true });
+    if (tok.error) return json({ ok: false, error: String(tok.error) });
+    if (!tok.ok || !tok.access_token) return json({ ok: false, error: 'no-token' });
+    const who = tok.identity;
+    if (!who || !who.id) return json({ ok: false, error: 'no-identity' });
+    const pid = String(who.id);
+    const login = String(who.login || pid).toLowerCase();
+
+    // Persist/refresh the vault record (merge — never clobber a bot leg).
+    const vkey = (platform === 'kick' ? 'vault:kick:' : 'vault:yt:') + pid;
+    let vault = null;
+    try { vault = await env.LOADOUT_BOLTS.get(vkey, { type: 'json' }); } catch { /* fresh */ }
+    vault = vault && typeof vault === 'object' ? vault : {};
+    vault.platform = platform;
+    vault.broadcaster = {
+      access_token: tok.access_token,
+      refresh_token: tok.refresh_token || (vault.broadcaster && vault.broadcaster.refresh_token) || '',
+      expires_at: tok.expires_at || (Date.now() + 3600_000),
+      scope: tok.scope || '',
+      login,
+      user_id: pid,
+      display_name: who.display_name || login,
+      updatedAt: Date.now(),
+    };
+    vault.connectedAt = vault.connectedAt || Date.now();
+    vault.updatedAt = Date.now();
+    await env.LOADOUT_BOLTS.put(vkey, JSON.stringify(vault));
+
+    // Mint (or reuse) the platform-anchored dock key.
+    let key = null;
+    try { key = await env.LOADOUT_BOLTS.get(KEY.byLogin(login, platform)); } catch { /* fresh */ }
+    if (!key) {
+      key = randKey();
+      await env.LOADOUT_BOLTS.put(KEY.byLogin(login, platform), key);
+      await env.LOADOUT_BOLTS.put(KEY.byKey(key), JSON.stringify({
+        login, provider: platform, platformId: pid,
+        display: who.display_name || login, createdAt: Date.now(),
+      }));
+    }
+    return json({ ok: true, key, login, provider: platform });
+  }
+
   // Go-live blast: one click posts the announce line to the streamer's
   // Twitch chat + Kick chat (as themselves, vault tokens) and to their
   // Discord webhook (reuses PunchCard's per-channel webhook config so
@@ -275,7 +367,6 @@ export async function handleAquiloDock(req, env, path) {
     if (!body) return json({ ok: false, error: 'bad-json' }, 400);
     const owner = await dockOwner(env, body.key);
     if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
-    if (!owner.twitchId) return json({ ok: false, error: 'no-twitch-id' }, 500);
     const cdKey = 'aqdock:golive-cd:' + body.key;
     try {
       if (await env.LOADOUT_BOLTS.get(cdKey)) return json({ ok: false, error: 'cooldown' }, 429);
@@ -285,8 +376,8 @@ export async function handleAquiloDock(req, env, path) {
     if (!message) return json({ ok: false, error: 'empty-message' }, 400);
     const t = body.targets || { twitch: true, kick: true, discord: true };
     const jobs = {};
-    if (t.twitch) jobs.twitch = twitchChatSay(env, owner.twitchId, message);
-    if (t.kick) jobs.kick = kickChatSay(env, owner.twitchId, message);
+    if (t.twitch) jobs.twitch = twitchChatSay(env, owner, message);
+    if (t.kick) jobs.kick = kickChatSay(env, owner, message);
     if (t.discord) jobs.discord = (async () => {
       try {
         const chan = await env.LOADOUT_BOLTS.get('pc:chan:' + owner.login, { type: 'json' });
@@ -314,7 +405,6 @@ export async function handleAquiloDock(req, env, path) {
     const url = new URL(req.url);
     const owner = await dockOwner(env, url.searchParams.get('key'));
     if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
-    if (!owner.twitchId) return json({ ok: false, error: 'no-twitch-id' }, 500);
     const out = {
       twitch: { live: false, viewers: null },
       kick: { live: false, viewers: null },
@@ -322,6 +412,7 @@ export async function handleAquiloDock(req, env, path) {
     };
     await Promise.all([
       (async () => {
+        if (!owner.twitchId) return;
         try {
           const { getStreamInfo } = await import('./twitch-helix.js');
           const st = await getStreamInfo(env, owner.twitchId);
@@ -330,7 +421,7 @@ export async function handleAquiloDock(req, env, path) {
       })(),
       (async () => {
         try {
-          const tok = await vaultPlatformToken(env, 'kick', owner.twitchId);
+          const tok = await vaultPlatformToken(env, 'kick', owner);
           if (!tok) return;
           // channels (token-scoped = OWN channel) carries the live stream
           // object; the bare livestreams endpoint lists GLOBAL streams.
@@ -346,7 +437,7 @@ export async function handleAquiloDock(req, env, path) {
       })(),
       (async () => {
         try {
-          const tok = await vaultPlatformToken(env, 'youtube', owner.twitchId);
+          const tok = await vaultPlatformToken(env, 'youtube', owner);
           if (!tok) return;
           const lr = await fetch('https://www.googleapis.com/youtube/v3/liveBroadcasts?part=status&broadcastStatus=active&maxResults=1', {
             headers: { Authorization: 'Bearer ' + tok },
@@ -373,8 +464,7 @@ export async function handleAquiloDock(req, env, path) {
     const url = new URL(req.url);
     const owner = await dockOwner(env, url.searchParams.get('key'));
     if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
-    if (!owner.twitchId) return json({ ok: false, error: 'no-twitch-id' }, 500);
-    const info = await readStreamInfo(env, owner.twitchId);
+    const info = await readStreamInfo(env, owner);
     return json({ ok: true, login: owner.login, ...info });
   }
 
@@ -398,7 +488,7 @@ export async function handleAquiloDock(req, env, path) {
       })(),
       (async () => {
         try {
-          const tok = owner.twitchId ? await vaultPlatformToken(env, 'kick', owner.twitchId) : null;
+          const tok = await vaultPlatformToken(env, 'kick', owner);
           if (!tok) return [];
           const r = await fetch('https://api.kick.com/public/v1/categories?q=' + encodeURIComponent(q), {
             headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' },
@@ -419,14 +509,13 @@ export async function handleAquiloDock(req, env, path) {
     if (!body) return json({ ok: false, error: 'bad-json' }, 400);
     const owner = await dockOwner(env, body.key);
     if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
-    if (!owner.twitchId) return json({ ok: false, error: 'no-twitch-id' }, 500);
     const title = body.title != null ? String(body.title).trim().slice(0, 200) : null;
     if (title != null && !title.length) return json({ ok: false, error: 'empty-title' }, 400);
     const t = body.targets || {};
     const jobs = {};
-    if (t.twitch) jobs.twitch = applyTwitch(env, owner.twitchId, title, body.twitchGameId);
-    if (t.kick) jobs.kick = applyKick(env, owner.twitchId, title, body.kickCategoryId);
-    if (t.youtube) jobs.youtube = applyYouTube(env, owner.twitchId, title);
+    if (t.twitch) jobs.twitch = applyTwitch(env, owner, title, body.twitchGameId);
+    if (t.kick) jobs.kick = applyKick(env, owner, title, body.kickCategoryId);
+    if (t.youtube) jobs.youtube = applyYouTube(env, owner, title);
     const names = Object.keys(jobs);
     if (!names.length) return json({ ok: false, error: 'no-targets' }, 400);
     const settled = await Promise.all(names.map((n) => jobs[n]));
@@ -459,20 +548,34 @@ export async function handleAquiloDock(req, env, path) {
     try { rec = await env.LOADOUT_BOLTS.get(KEY.byKey(k), { type: 'json' }); } catch { /* miss */ }
     if (!rec || !rec.login) return json({ ok: false, error: 'unknown-key' }, 404);
     const login = rec.login;
+    const provider = rec.provider || 'twitch';
 
-    const who = await loginToId(env, login);
+    // Only Twitch-anchored docks resolve a Twitch id — a Kick/YT login
+    // must never be looked up as if it were a Twitch name.
+    const who = provider === 'twitch' ? await loginToId(env, login) : null;
     const twitchId = who && who.id;
 
     // Connection pills + product presence, all best-effort.
     const out = {
       ok: true,
       login,
-      display: (who && who.display) || login,
+      provider,
+      display: (who && who.display) || rec.display || login,
       connections: { twitch: false, kick: false, youtube: false, spotify: false },
       rotationDockKey: null,
       multigoalRev: 0,
       punchcardClaimed: false,
     };
+    // Platform-anchored docks: their own platform is connected by
+    // construction (the vault record was written at pairing).
+    if (provider !== 'twitch' && rec.platformId) {
+      const vkey = (provider === 'kick' ? 'vault:kick:' : 'vault:yt:') + rec.platformId;
+      try {
+        const conn = !!(await env.LOADOUT_BOLTS.get(vkey));
+        if (provider === 'kick') out.connections.kick = conn;
+        else out.connections.youtube = conn;
+      } catch { /* no */ }
+    }
     if (twitchId) {
       try { out.connections.twitch = !!(await env.LOADOUT_BOLTS.get('vault:tw:' + twitchId)); } catch { /* no */ }
       try { out.connections.youtube = !!(await env.LOADOUT_BOLTS.get('link:tw2youtube:' + twitchId)); } catch { /* no */ }
