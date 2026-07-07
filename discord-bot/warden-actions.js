@@ -85,6 +85,22 @@ async function runTwitch(env, { streamerId, actorId, kind, targetId, targetLogin
   }
 }
 
+// Dispatch one Kick action (Phase 2: live). Kick's public API covers
+// ban/timeout/unban; delete/clear have no endpoint yet.
+async function runKick(env, { streamerId, kind, targetId, targetLogin, seconds, reason }) {
+  const { kickBan, kickUnban } = await import('./warden-kick.js');
+  switch (kind) {
+    case 'timeout':
+      return kickBan(env, streamerId, { targetId, targetLogin, seconds, reason });
+    case 'ban':
+      return kickBan(env, streamerId, { targetId, targetLogin, reason });
+    case 'unban':
+      return kickUnban(env, streamerId, { targetId, targetLogin });
+    default:
+      return { ok: false, error: 'platform-unavailable', platform: 'kick', kind };
+  }
+}
+
 // Non-Twitch platforms: scaffolded but inert in v1.
 function unavailablePlatform(platform) {
   if (platform === 'tiktok') return { ok: false, error: 'no-mod-api', platform };
@@ -109,6 +125,8 @@ export async function performAction(env, {
   let result;
   if (plat === 'twitch') {
     result = await runTwitch(env, { streamerId, actorId, kind, targetId, targetLogin, seconds, reason, messageId });
+  } else if (plat === 'kick') {
+    result = await runKick(env, { streamerId, kind, targetId, targetLogin, seconds, reason });
   } else {
     result = unavailablePlatform(plat);
   }
@@ -135,7 +153,13 @@ export async function performAction(env, {
     ];
     for (const o of others) {
       if (o.platform === plat) continue;
-      const r = unavailablePlatform(o.platform);
+      let r;
+      if (o.platform === 'kick' && o.login) {
+        // Kick is live: replay the user-scoped kind on the linked login.
+        r = await runKick(env, { streamerId, kind, targetLogin: o.login, seconds, reason });
+      } else {
+        r = unavailablePlatform(o.platform);
+      }
       syncResults.push({ platform: o.platform, login: o.login || null, ...r });
     }
   }
