@@ -755,6 +755,13 @@ export default {
       const { handlePunchcard } = await import('./punchcard.js');
       return handlePunchcard(req, env, path);
     }
+    // Print flair: viewer icon + tagline for StreamFusion's receipt printer.
+    // Public read (SF fetches per-viewer at print time), site-HMAC write from
+    // aquilo.gg/printflair. Self-contained, printflair:twl:* KV keys only.
+    if (path.startsWith('/api/printflair/')) {
+      const { handlePrintflair } = await import('./printflair.js');
+      return handlePrintflair(req, env, path);
+    }
     // MultiGoal: cross-platform follower/sub counts for the rotating goals
     // overlay (widget.aquilo.gg/overlays/multigoal). Public read, keyed by
     // Twitch login; Twitch via the Aquilo ID vault, Kick/YouTube best-effort.
