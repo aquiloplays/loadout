@@ -104,6 +104,35 @@ async function wardenCounters(env, streamerId, bump) {
   }
 }
 
+// Generic dock-action proxy (announce / giveaway / shoutout) — same
+// server-side-dockKey resolution as the counters/queue proxies. `action` is
+// the jukebox dock body ({kind, ...}); a mod never touches the key.
+async function dockAct(env, streamerId, action) {
+  let rec = null;
+  try {
+    rec = env.ROTATION_KV ? await env.ROTATION_KV.get('streamer:' + streamerId, { type: 'json' }) : null;
+  } catch { /* not set up */ }
+  if (!rec || !rec.dockKey) return { ok: false, connected: false, setup: false, error: 'not-setup' };
+  try {
+    const resp = await fetch(JUKEBOX_BASE + '/api/dock/action?key=' + encodeURIComponent(rec.dockKey), {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(action),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || data.ok === false) return { ok: false, error: data.error || data.reason || ('bot-' + resp.status) };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: 'bot-unreachable', message: String(e?.message || e).slice(0, 80) };
+  }
+}
+
+// Fire-and-forget audit row; audit is never allowed to fail an action.
+async function auditSafe(env, entry) {
+  try {
+    const { addAudit } = await import('./warden-audit.js');
+    await addAudit(env, entry);
+  } catch { /* non-fatal */ }
+}
+
 // Routes that only the BROADCASTER of streamerId may call.
 const BROADCASTER_ONLY = new Set([
   'mods/add', 'mods/remove', 'mods/sync', 'terms/add', 'terms/remove',
@@ -227,12 +256,14 @@ export async function handleWardenRoute(req, env, path, ctx) {
         if (!caps || !caps.enabled) return json({ ok: false, error: 'obs-not-enabled' }, 403);
         const action = String(body.action || '');
         const arg = String(body.arg || '');
-        const allow =
-          (action === 'brbPanic' && caps.brbPanic) ||
-          (action === 'sceneSwitch' && Array.isArray(caps.scenes) && caps.scenes.indexOf(arg) !== -1) ||
-          (action === 'sourceToggle' && Array.isArray(caps.sources) && caps.sources.indexOf(arg) !== -1) ||
-          (action === 'muteMic' && Array.isArray(caps.mics) && caps.mics.indexOf(arg) !== -1);
-        if (!allow) return json({ ok: false, error: 'action-not-allowed' }, 403);
+        // arg2 = the action's second parameter (filter name, dB level, media
+        // verb, or move-target). Kept as one field so every action shares a
+        // uniform { action, arg, arg2 } envelope through the room frame.
+        const arg2 = String(body.arg2 || '');
+        const { isObsCommandAllowed } = await import('./warden-obs.js');
+        if (!isObsCommandAllowed(caps, action, arg, arg2)) {
+          return json({ ok: false, error: 'action-not-allowed' }, 403);
+        }
         const { checkObsRate } = await import('./warden-actions.js');
         const rl = await checkObsRate(env, actorId);
         if (!rl.ok) return json({ ok: false, error: 'rate-limited' }, 429);
@@ -240,7 +271,7 @@ export async function handleWardenRoute(req, env, path, ctx) {
         try {
           const { broadcastToWardenRoom } = await import('./aquilo/warden-room-do.js');
           await broadcastToWardenRoom(env, streamerId, JSON.stringify({
-            t: 'obs-cmd', cmdId, action, arg,
+            t: 'obs-cmd', cmdId, action, arg, arg2,
             by: actorLogin || actorId, ts: Date.now(),
           }));
         } catch { return json({ ok: false, error: 'room-unreachable' }, 502); }
@@ -249,7 +280,7 @@ export async function handleWardenRoute(req, env, path, ctx) {
           await addAudit(env, {
             streamerId, actorId, actorLogin,
             action: 'obs-' + action, platform: 'obs',
-            targetLogin: arg || null, detail: { cmdId },
+            targetLogin: (arg2 ? arg + ' ' + arg2 : arg) || null, detail: { cmdId },
           });
         } catch { /* non-fatal */ }
         return json({ ok: true, cmdId });
@@ -324,6 +355,125 @@ export async function handleWardenRoute(req, env, path, ctx) {
           } catch { /* non-fatal */ }
         }
         return json(res, res.ok === false ? 400 : 200);
+      }
+
+      // ── Show control (Aquilo Bot, via the dock proxy) ──────────────
+      // Mods run the show without the streamer's dock key: post an
+      // announcement to every connected chat, fire a shoutout, or drive the
+      // Bolts giveaway. Rate-limited + audited like every other mod action.
+      case 'show/announce': {
+        const message = String(body.message || '').trim().slice(0, 400);
+        if (!message) return json({ ok: false, error: 'empty' }, 400);
+        const { checkObsRate } = await import('./warden-actions.js');
+        const rl = await checkObsRate(env, actorId);
+        if (!rl.ok) return json({ ok: false, error: 'rate-limited' }, 429);
+        const res = await dockAct(env, streamerId, { kind: 'say', text: message });
+        if (res.ok) await auditSafe(env, { streamerId, actorId, actorLogin, action: 'show-announce', platform: 'chat', detail: { message: message.slice(0, 120) } });
+        return json(res, res.ok ? 200 : 400);
+      }
+      case 'show/shoutout': {
+        const login = String(body.login || '').trim().toLowerCase().replace(/^@/, '');
+        if (!/^[a-z0-9_]{2,25}$/.test(login)) return json({ ok: false, error: 'bad-login' }, 400);
+        const { checkObsRate } = await import('./warden-actions.js');
+        const rl = await checkObsRate(env, actorId);
+        if (!rl.ok) return json({ ok: false, error: 'rate-limited' }, 429);
+        const res = await dockAct(env, streamerId, { kind: 'say', text: `📢 Go show @${login} some love — twitch.tv/${login}` });
+        if (res.ok) await auditSafe(env, { streamerId, actorId, actorLogin, action: 'show-shoutout', platform: 'chat', targetLogin: login });
+        return json(res, res.ok ? 200 : 400);
+      }
+      case 'show/giveaway': {
+        const op = ['start', 'draw', 'end'].indexOf(String(body.op || '')) !== -1 ? String(body.op) : null;
+        if (!op) return json({ ok: false, error: 'bad-op' }, 400);
+        const { checkObsRate } = await import('./warden-actions.js');
+        const rl = await checkObsRate(env, actorId);
+        if (!rl.ok) return json({ ok: false, error: 'rate-limited' }, 429);
+        const res = await dockAct(env, streamerId, { kind: 'giveaway', op });
+        if (res.ok) await auditSafe(env, { streamerId, actorId, actorLogin, action: 'show-giveaway-' + op, platform: 'chat' });
+        return json(res, res.ok ? 200 : 400);
+      }
+
+      // ── Safety: Shield Mode + active punishments ────────────────────
+      // Shield Mode = Twitch's one-switch raid lockdown (needs the
+      // broadcaster token to carry moderator:manage:shield_mode; degrades to
+      // "reconnect to arm" until it does). Punishments = the live ban/timeout
+      // list (moderation:read, already granted) with a one-click revoke.
+      case 'shield/get': {
+        const { vaultHelix } = await import('./warden-twitch.js');
+        const r = await vaultHelix(env, streamerId, '/moderation/shield_mode', { params: { broadcaster_id: streamerId, moderator_id: streamerId } });
+        if (r.status === 0) return json({ ok: true, available: false, needsSetup: true });
+        if (r.status === 401 || r.status === 403) return json({ ok: true, available: false, scopeMissing: true });
+        if (!r.ok) return json({ ok: false, error: 'helix-' + (r.status || 0) });
+        const d = (r.data && r.data.data && r.data.data[0]) || {};
+        return json({ ok: true, available: true, active: !!d.is_active, since: d.last_activated_at || null });
+      }
+      case 'shield/set': {
+        const active = body.active === true;
+        const { checkObsRate } = await import('./warden-actions.js');
+        const rl = await checkObsRate(env, actorId);
+        if (!rl.ok) return json({ ok: false, error: 'rate-limited' }, 429);
+        const { vaultHelix } = await import('./warden-twitch.js');
+        const r = await vaultHelix(env, streamerId, '/moderation/shield_mode', {
+          method: 'PUT', params: { broadcaster_id: streamerId, moderator_id: streamerId }, body: { is_active: active },
+        });
+        if (r.status === 0) return json({ ok: false, error: 'not-connected' }, 400);
+        if (r.status === 401 || r.status === 403) return json({ ok: false, error: 'scope-missing', needsReconnect: true }, 403);
+        if (!r.ok) return json({ ok: false, error: 'helix-' + (r.status || 0) }, 400);
+        const d = (r.data && r.data.data && r.data.data[0]) || {};
+        await auditSafe(env, { streamerId, actorId, actorLogin, action: active ? 'shield-on' : 'shield-off', platform: 'twitch' });
+        return json({ ok: true, active: !!d.is_active });
+      }
+      case 'punishments/list': {
+        const { vaultHelix } = await import('./warden-twitch.js');
+        const r = await vaultHelix(env, streamerId, '/moderation/banned_users', { params: { broadcaster_id: streamerId, first: 100 } });
+        if (r.status === 0) return json({ ok: true, needsSetup: true, punishments: [] });
+        if (r.status === 401 || r.status === 403) return json({ ok: true, scopeMissing: true, punishments: [] });
+        if (!r.ok) return json({ ok: false, error: 'helix-' + (r.status || 0), punishments: [] });
+        const rows = (r.data && r.data.data) || [];
+        const nowMs = Date.now();
+        const punishments = rows.map((u) => ({
+          userId: String(u.user_id || ''),
+          login: String(u.user_login || ''),
+          display: String(u.user_name || u.user_login || ''),
+          expiresAt: u.expires_at || null,          // '' / null = permanent ban
+          permanent: !u.expires_at,
+          reason: String(u.reason || ''),
+          byLogin: String(u.moderator_login || ''),
+        })).filter((p) => p.permanent || (p.expiresAt && Date.parse(p.expiresAt) > nowMs));
+        // Timeouts first (soonest-expiring), permabans after.
+        punishments.sort((a, b) =>
+          a.permanent !== b.permanent ? (a.permanent ? 1 : -1)
+            : Date.parse(a.expiresAt || 0) - Date.parse(b.expiresAt || 0));
+        return json({ ok: true, punishments });
+      }
+      case 'punishments/revoke': {
+        const { performAction } = await import('./warden-actions.js');
+        const res = await performAction(env, {
+          streamerId, actorId, actorLogin, platform: 'twitch', kind: 'unban',
+          targetLogin: body.targetLogin, targetId: body.targetId,
+        });
+        return json(res);
+      }
+
+      // ── Mod-activity analytics (aggregates the existing audit log) ──
+      case 'audit/stats': {
+        const { listAudit } = await import('./warden-audit.js');
+        const rows = (await listAudit(env, streamerId, { limit: 500 })) || [];
+        const sinceMs = Date.now() - 7 * 24 * 3600 * 1000;
+        const byMod = new Map();
+        let total = 0;
+        for (const r of rows) {
+          const ts = Number(r.ts || 0);
+          if (ts && ts < sinceMs) continue;
+          total++;
+          const who = String(r.actor_login || r.actor_id || 'unknown');
+          const m = byMod.get(who) || { login: who, total: 0, actions: {} };
+          m.total++;
+          const act = String(r.action || 'other');
+          m.actions[act] = (m.actions[act] || 0) + 1;
+          byMod.set(who, m);
+        }
+        const mods = [...byMod.values()].sort((a, b) => b.total - a.total).slice(0, 20);
+        return json({ ok: true, total, windowDays: 7, mods });
       }
 
       // ── room ticket (BE-1) ──────────────────────────────────────────
