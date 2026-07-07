@@ -732,6 +732,13 @@ export default {
     if (path === '/api/twitch/clips') {
       return handleTwitchClips(req, env);
     }
+    // Public: GET /api/platform/avatar?platform=kick|youtube&id=<vaultId>
+    // [&role=bot] → the connected account's profile picture, fetched
+    // under the vault token and KV-cached 24h. Powers the /streamers
+    // control-room cards (avatars are public data; the id isn't secret).
+    if (path === '/api/platform/avatar') {
+      return handlePlatformAvatar(req, env);
+    }
     // StreamFusion chat dock backend: premium gate, Haiku translate proxy,
     // mod/clip stubs. See sfdock.js.
     if (path.startsWith('/api/sfdock/')) {
@@ -2480,6 +2487,74 @@ async function handleTwitchCategory(req, env) {
     return new Response(JSON.stringify({ ok: true, login, game: (ch && ch.game_name) || '' }), { status: 200, headers });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e && e.message || e).slice(0, 50), game: '' }), { status: 200, headers });
+  }
+}
+
+// GET /api/platform/avatar?platform=kick|youtube&id=<vaultId>[&role=bot]
+// The connected Kick/YouTube account's profile picture. Token comes from
+// the auth broker's /<platform>/vault/token (it refreshes in place); the
+// image URL is cached in KV 24h so page loads don't burn platform calls.
+// Public + CORS-open: avatars are public data, ids are non-secret.
+async function handlePlatformAvatar(req, env) {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, OPTIONS',
+    'access-control-allow-headers': '*',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=3600', ...cors };
+  const url = new URL(req.url);
+  const platform = String(url.searchParams.get('platform') || '');
+  const id = String(url.searchParams.get('id') || '').slice(0, 80);
+  const role = url.searchParams.get('role') === 'bot' ? 'bot' : 'broadcaster';
+  if ((platform !== 'kick' && platform !== 'youtube') || !/^[A-Za-z0-9_-]{1,80}$/.test(id)) {
+    return new Response(JSON.stringify({ ok: false, error: 'bad-params' }), { status: 400, headers });
+  }
+  const cacheKey = `avatar:${platform}:${role}:${id}`;
+  try {
+    const hit = await env.LOADOUT_BOLTS.get(cacheKey);
+    if (hit) return new Response(JSON.stringify({ ok: true, url: hit, cached: true }), { status: 200, headers });
+  } catch { /* miss */ }
+  if (!env.VAULT_SERVICE_SECRET) {
+    return new Response(JSON.stringify({ ok: false, error: 'not-configured' }), { status: 200, headers });
+  }
+  try {
+    const tr = await fetch('https://auth.aquilo.gg/' + platform + '/vault/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ service: env.VAULT_SERVICE_SECRET, id, role }),
+    });
+    if (!tr.ok) return new Response(JSON.stringify({ ok: false, error: 'not-connected' }), { status: 200, headers });
+    const tj = await tr.json();
+    const token = tj && tj.access_token;
+    if (!token) return new Response(JSON.stringify({ ok: false, error: 'not-connected' }), { status: 200, headers });
+    let avatar = null;
+    if (platform === 'kick') {
+      const r = await fetch('https://api.kick.com/public/v1/users', {
+        headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
+      });
+      if (r.ok) {
+        const j = await r.json();
+        const u = j && Array.isArray(j.data) ? j.data[0] : null;
+        avatar = (u && (u.profile_picture || u.profile_pic)) || null;
+      }
+    } else {
+      const r = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      if (r.ok) {
+        const j = await r.json();
+        const t = j && j.items && j.items[0] && j.items[0].snippet && j.items[0].snippet.thumbnails;
+        avatar = (t && ((t.medium && t.medium.url) || (t.default && t.default.url))) || null;
+      }
+    }
+    if (!avatar || !/^https:\/\//.test(avatar)) {
+      return new Response(JSON.stringify({ ok: false, error: 'no-avatar' }), { status: 200, headers });
+    }
+    try { await env.LOADOUT_BOLTS.put(cacheKey, avatar, { expirationTtl: 86400 }); } catch { /* best effort */ }
+    return new Response(JSON.stringify({ ok: true, url: avatar }), { status: 200, headers });
+  } catch {
+    return new Response(JSON.stringify({ ok: false, error: 'unreachable' }), { status: 200, headers });
   }
 }
 
