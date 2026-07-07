@@ -65,6 +65,45 @@ async function jukeboxQueue(env, streamerId, action /* null = read */) {
   }
 }
 
+// Counters (rotation-bot) proxy — same server-side-dockKey pattern as the
+// Spotify queue: mods bump the streamer's stream counters without ever
+// handling the capability key. `bump` = {c, op} applies a +/- delta and
+// returns the fresh value; null reads the list (id/label/value only — the
+// dockKey-bearing URL bases the dock bridge returns are stripped out).
+async function wardenCounters(env, streamerId, bump) {
+  let rec = null;
+  try {
+    rec = env.ROTATION_KV ? await env.ROTATION_KV.get('streamer:' + streamerId, { type: 'json' }) : null;
+  } catch { /* treat as not-set-up */ }
+  if (!rec || !rec.dockKey) {
+    // Aquilo Bot never connected for this streamer — a soft "not set up"
+    // state the panel renders as an empty prompt rather than an error.
+    return { ok: true, connected: false, setup: false, counters: [] };
+  }
+  const key = encodeURIComponent(rec.dockKey);
+  try {
+    if (bump) {
+      const url = JUKEBOX_BASE + '/api/counter/bump?key=' + key +
+        '&c=' + encodeURIComponent(bump.c) + '&op=' + encodeURIComponent(bump.op);
+      const resp = await fetch(url, { method: 'GET' });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || data.error) return { ok: false, error: data.error || ('counter-' + resp.status) };
+      return { ok: true, id: data.id, label: data.label, value: data.value, total: data.total ?? null, game: data.game ?? null };
+    }
+    const resp = await fetch(JUKEBOX_BASE + '/api/dock/bot?key=' + key, { method: 'GET' });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || data.ok === false) return { ok: false, error: data.error || ('counter-' + resp.status) };
+    const vals = data.counterValues || {};
+    const counters = (data.counters || []).map((c) => ({
+      id: c.id, name: c.name, label: c.label || c.name, perGame: !!c.perGame,
+      value: Number(vals[c.id] || 0),
+    }));
+    return { ok: true, connected: true, setup: true, game: data.game || null, counters };
+  } catch (e) {
+    return { ok: false, error: 'counter-unreachable', message: String(e?.message || e).slice(0, 80) };
+  }
+}
+
 // Routes that only the BROADCASTER of streamerId may call.
 const BROADCASTER_ONLY = new Set([
   'mods/add', 'mods/remove', 'mods/sync', 'terms/add', 'terms/remove',
@@ -252,6 +291,39 @@ export async function handleWardenRoute(req, env, path, ctx) {
           } catch { /* non-fatal */ }
         }
         return json(res);
+      }
+
+      // ── stream counters (Aquilo Bot) ───────────────────────────────
+      // The mod team can read and bump the streamer's stream counters
+      // (deaths, wins, …). Read is open to the whole team; bumps apply a
+      // +/- delta only — set/reset stay with the broadcaster (dock/dash).
+      // Same rate limiter + audit as the other mod actions.
+      case 'counters/list': {
+        return json(await wardenCounters(env, streamerId, null));
+      }
+      case 'counters/bump': {
+        const c = String(body.c || '');
+        const op = String(body.op || '+').trim();
+        if (!c) return json({ ok: false, error: 'bad-counter' }, 400);
+        // Mods apply +/- deltas only (e.g. "+", "-", "+5"); the destructive
+        // set/reset ops are broadcaster-only, done from the dock/dashboard.
+        if (!/^[+-]\d{0,7}$/.test(op)) return json({ ok: false, error: 'bad-op' }, 400);
+        const { checkObsRate } = await import('./warden-actions.js');
+        const rl = await checkObsRate(env, actorId);   // shared mod-action rate limiter
+        if (!rl.ok) return json({ ok: false, error: 'rate-limited' }, 429);
+        const res = await wardenCounters(env, streamerId, { c, op });
+        if (res.ok !== false) {
+          try {
+            const { addAudit } = await import('./warden-audit.js');
+            await addAudit(env, {
+              streamerId, actorId, actorLogin,
+              action: 'counter-bump', platform: 'counter',
+              targetLogin: null,
+              detail: { counter: res.label || c, op, value: res.value ?? null },
+            });
+          } catch { /* non-fatal */ }
+        }
+        return json(res, res.ok === false ? 400 : 200);
       }
 
       // ── room ticket (BE-1) ──────────────────────────────────────────
