@@ -160,9 +160,20 @@ export async function evaluate(env, streamerId, msg = {}) {
   const platform = String(msg.platform || 'twitch').toLowerCase();
   const action = hitTerm.action;
 
-  // 'flag' is passive: no enforcement, just surface it. Enforcement
-  // actions map onto performAction.
+  // 'flag' is a passive WATCH term: no enforcement, but log an alert so the
+  // mod team sees it in the audit / activity feed (and it counts in the
+  // mod-activity stats). Use for "ping us, don't punish" phrases — someone
+  // asking for a mod, a self-harm mention, a raid keyword.
   if (action === 'flag') {
+    try {
+      const { addAudit } = await import('./warden-audit.js');
+      await addAudit(env, {
+        streamerId, actorId: null, actorLogin: 'warden-watch',
+        action: 'term-alert', platform,
+        targetLogin: msg.login || null,
+        detail: { term: hitTerm.term, text: text.slice(0, 140) },
+      });
+    } catch { /* alerting must never throw into the ingest path */ }
     return { hit: true, action, term: hitTerm.term };
   }
 

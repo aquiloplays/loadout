@@ -476,6 +476,36 @@ export async function handleWardenRoute(req, env, path, ctx) {
         return json({ ok: true, total, windowDays: 7, mods });
       }
 
+      // ── Unified viewer profile ──────────────────────────────────────
+      // One card per viewer: the shared note, watchlist status, and recent
+      // mod actions taken against them — so a mod sees the whole history
+      // before acting. Aggregates existing notes/watchlist/audit; no new
+      // scope. (subject_key convention is "<platform>:<login>".)
+      case 'profile/get': {
+        const login = String(body.login || '').trim().toLowerCase().replace(/^@/, '');
+        if (!/^[a-z0-9_]{1,25}$/.test(login)) return json({ ok: false, error: 'bad-login' }, 400);
+        const subjectKey = 'twitch:' + login;
+        const [{ getNote, listWatch }, { listAudit }] = await Promise.all([
+          import('./warden-notes.js'), import('./warden-audit.js'),
+        ]);
+        const [note, watch, auditRows] = await Promise.all([
+          getNote(env, streamerId, subjectKey).catch(() => null),
+          listWatch(env, streamerId).catch(() => []),
+          listAudit(env, streamerId, { limit: 300 }).catch(() => []),
+        ]);
+        const w = (watch || []).find((x) => String(x.subject_key || '') === subjectKey) || null;
+        const actions = (auditRows || [])
+          .filter((r) => String(r.target_login || '').toLowerCase() === login)
+          .slice(0, 25)
+          .map((r) => ({ action: String(r.action || ''), actor: String(r.actor_login || ''), platform: String(r.platform || ''), at: Number(r.ts || 0) }));
+        return json({
+          ok: true, login,
+          note: note ? { text: String(note.note || ''), by: String(note.author_login || ''), at: Number(note.updated_at || 0) } : null,
+          onWatch: w ? { reason: String(w.reason || ''), at: Number(w.ts || 0) } : null,
+          actions,
+        });
+      }
+
       // ── room ticket (BE-1) ──────────────────────────────────────────
       case 'room/ticket': {
         const ticket = await mintRoomTicket(env, streamerId, actorId, actorLogin, body._role || 'mod');
