@@ -411,6 +411,22 @@ export async function handleAquiloDock(req, env, path) {
       });
     }
 
+    // Create a clip of the last ~90s (Twitch picks the window). Returns
+    // the public URL; the edit URL expires in 24h so it rides along too.
+    if (op === 'clip' && req.method === 'POST') {
+      const r = await opsHelix(owner, 'POST', 'clips?broadcaster_id=' + owner.twitchId);
+      if (r.status === 202) {
+        const c = r.body && r.body.data && r.body.data[0];
+        return json({
+          ok: true,
+          id: c ? c.id : null,
+          url: c ? 'https://clips.twitch.tv/' + c.id : null,
+          editUrl: c ? c.edit_url : null,
+        });
+      }
+      return json({ ok: false, error: opsErr(r) });
+    }
+
     if (op === 'marker' && req.method === 'POST') {
       const desc = String(body.description || '').slice(0, 140);
       const r = await opsHelix(owner, 'POST', 'streams/markers', { user_id: String(owner.twitchId), ...(desc ? { description: desc } : {}) });
