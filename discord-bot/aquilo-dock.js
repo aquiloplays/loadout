@@ -357,6 +357,86 @@ export async function handleAquiloDock(req, env, path) {
     return json({ ok: true, key, login, provider: platform });
   }
 
+  // Raid Finder: category search → smallest live channels first, then
+  // start/cancel the raid with the vault token (channel:manage:raids is
+  // in the standard broadcaster grant). Twitch-anchored docks only.
+  if (path === '/api/aqdock/raid/find' && req.method === 'GET') {
+    const url = new URL(req.url);
+    const owner = await dockOwner(env, url.searchParams.get('key'));
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    if (!owner.twitchId) return json({ ok: false, error: 'twitch-only' }, 400);
+    const q = String(url.searchParams.get('q') || '').trim().slice(0, 80);
+    if (q.length < 2) return json({ ok: false, error: 'short-query' }, 400);
+    let cap = parseInt(url.searchParams.get('cap') || '0', 10);
+    if (!Number.isFinite(cap) || cap < 0) cap = 0;
+    try {
+      const { helixFetch } = await import('./twitch-helix.js');
+      const gj = await helixFetch(env, '/search/categories', { query: q, first: 1 });
+      const game = gj && gj.data && gj.data[0];
+      if (!game) return json({ ok: true, game: null, list: [] });
+      const sj = await helixFetch(env, '/streams', { game_id: game.id, first: 100 });
+      const streams = (sj && sj.data) || [];
+      const list = streams
+        .filter((s) => String(s.user_id) !== String(owner.twitchId))
+        .filter((s) => !cap || (Number(s.viewer_count) || 0) <= cap)
+        .sort((a, b) => (Number(a.viewer_count) || 0) - (Number(b.viewer_count) || 0))
+        .slice(0, 15)
+        .map((s) => ({
+          id: s.user_id,
+          login: s.user_login,
+          display: s.user_name,
+          title: s.title || '',
+          viewers: Number(s.viewer_count) || 0,
+          startedAt: s.started_at || null,
+          thumb: (s.thumbnail_url || '').replace('{width}', '160').replace('{height}', '90'),
+        }));
+      return json({ ok: true, game: { id: game.id, name: game.name }, list });
+    } catch { return json({ ok: false, error: 'search-failed' }, 502); }
+  }
+
+  if (path === '/api/aqdock/raid/start' && req.method === 'POST') {
+    let body = null;
+    try { body = await req.json(); } catch { /* bad json */ }
+    if (!body) return json({ ok: false, error: 'bad-json' }, 400);
+    const owner = await dockOwner(env, body.key);
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    if (!owner.twitchId) return json({ ok: false, error: 'twitch-only' }, 400);
+    const toId = String(body.toId || '').trim();
+    if (!/^\d{1,20}$/.test(toId)) return json({ ok: false, error: 'bad-target' }, 400);
+    const auth = await vaultTwitchToken(env, owner.twitchId);
+    if (!auth) return json({ ok: false, error: 'not-connected' });
+    try {
+      const r = await fetch('https://api.twitch.tv/helix/raids?from_broadcaster_id=' +
+        encodeURIComponent(owner.twitchId) + '&to_broadcaster_id=' + encodeURIComponent(toId), {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + auth.token, 'Client-Id': auth.clientId },
+      });
+      if (r.ok) return json({ ok: true });
+      const j = await r.json().catch(() => null);
+      return json({ ok: false, error: (j && j.message) || ('twitch-' + r.status) });
+    } catch { return json({ ok: false, error: 'twitch-unreachable' }); }
+  }
+
+  if (path === '/api/aqdock/raid/cancel' && req.method === 'POST') {
+    let body = null;
+    try { body = await req.json(); } catch { /* bad json */ }
+    if (!body) return json({ ok: false, error: 'bad-json' }, 400);
+    const owner = await dockOwner(env, body.key);
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    if (!owner.twitchId) return json({ ok: false, error: 'twitch-only' }, 400);
+    const auth = await vaultTwitchToken(env, owner.twitchId);
+    if (!auth) return json({ ok: false, error: 'not-connected' });
+    try {
+      const r = await fetch('https://api.twitch.tv/helix/raids?broadcaster_id=' + encodeURIComponent(owner.twitchId), {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + auth.token, 'Client-Id': auth.clientId },
+      });
+      if (r.status === 204) return json({ ok: true });
+      const j = await r.json().catch(() => null);
+      return json({ ok: false, error: (j && j.message) || ('twitch-' + r.status) });
+    } catch { return json({ ok: false, error: 'twitch-unreachable' }); }
+  }
+
   // Go-live blast: one click posts the announce line to the streamer's
   // Twitch chat + Kick chat (as themselves, vault tokens) and to their
   // Discord webhook (reuses PunchCard's per-channel webhook config so
