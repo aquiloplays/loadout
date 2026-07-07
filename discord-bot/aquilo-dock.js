@@ -357,6 +357,165 @@ export async function handleAquiloDock(req, env, path) {
     return json({ ok: true, key, login, provider: platform });
   }
 
+  // ── Channel ops (absorbed from StreamFusion's Stream Control pane;
+  // SF is chat-focused, the dock owns channel management): ads, polls,
+  // predictions, VOD markers, redemption queue. All Twitch-anchored,
+  // all under the vault broadcaster token (scopes already granted).
+  const opsHelix = async (owner, method, pathq, body) => {
+    const auth = await vaultTwitchToken(env, owner.twitchId);
+    if (!auth) return { status: 0, body: null };
+    try {
+      const r = await fetch('https://api.twitch.tv/helix/' + pathq, {
+        method,
+        headers: {
+          Authorization: 'Bearer ' + auth.token,
+          'Client-Id': auth.clientId,
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+      const j = r.status === 204 ? null : await r.json().catch(() => null);
+      return { status: r.status, body: j };
+    } catch { return { status: 0, body: null }; }
+  };
+  const opsErr = (r, fallback) =>
+    (r.body && r.body.message) || (r.status ? 'twitch-' + r.status : fallback || 'unreachable');
+
+  if (path.startsWith('/api/aqdock/ops/')) {
+    const url = new URL(req.url);
+    let body = null;
+    if (req.method === 'POST') {
+      try { body = await req.json(); } catch { /* bad json */ }
+      if (!body) return json({ ok: false, error: 'bad-json' }, 400);
+    }
+    const owner = await dockOwner(env, req.method === 'GET' ? url.searchParams.get('key') : body.key);
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    if (!owner.twitchId) return json({ ok: false, error: 'twitch-only' }, 400);
+    const op = path.slice('/api/aqdock/ops/'.length);
+
+    // Snapshot for the cards: ad schedule + active poll + active prediction.
+    if (op === 'state' && req.method === 'GET') {
+      const [ads, polls, preds] = await Promise.all([
+        opsHelix(owner, 'GET', 'channels/ads?broadcaster_id=' + owner.twitchId),
+        opsHelix(owner, 'GET', 'polls?broadcaster_id=' + owner.twitchId + '&first=1'),
+        opsHelix(owner, 'GET', 'predictions?broadcaster_id=' + owner.twitchId + '&first=1'),
+      ]);
+      const ad = ads.body && ads.body.data && ads.body.data[0];
+      const poll = polls.body && polls.body.data && polls.body.data[0];
+      const pred = preds.body && preds.body.data && preds.body.data[0];
+      return json({
+        ok: true,
+        ads: ad ? { nextAdAt: ad.next_ad_at || null, snoozeCount: Number(ad.snooze_count) || 0, prerollFreeTime: Number(ad.preroll_free_time) || 0 } : null,
+        poll: poll && poll.status === 'ACTIVE' ? { id: poll.id, title: poll.title, choices: (poll.choices || []).map((c) => ({ id: c.id, title: c.title, votes: Number(c.votes) || 0 })), endsAt: poll.ended_at || null } : null,
+        prediction: pred && (pred.status === 'ACTIVE' || pred.status === 'LOCKED') ? { id: pred.id, title: pred.title, status: pred.status, outcomes: (pred.outcomes || []).map((o) => ({ id: o.id, title: o.title, points: Number(o.channel_points) || 0 })) } : null,
+      });
+    }
+
+    if (op === 'marker' && req.method === 'POST') {
+      const desc = String(body.description || '').slice(0, 140);
+      const r = await opsHelix(owner, 'POST', 'streams/markers', { user_id: String(owner.twitchId), ...(desc ? { description: desc } : {}) });
+      if (r.status === 200) {
+        const m = r.body && r.body.data && r.body.data[0];
+        return json({ ok: true, positionSeconds: m ? Number(m.position_seconds) || 0 : null });
+      }
+      return json({ ok: false, error: opsErr(r) });
+    }
+
+    if (op === 'ad' && req.method === 'POST') {
+      const len = [30, 60, 90, 120, 150, 180].includes(Number(body.length)) ? Number(body.length) : 30;
+      const r = await opsHelix(owner, 'POST', 'channels/commercial', { broadcaster_id: String(owner.twitchId), length: len });
+      if (r.status === 200) {
+        const d = r.body && r.body.data && r.body.data[0];
+        return json({ ok: true, retryAfter: d ? Number(d.retry_after) || 0 : 0, message: d && d.message || '' });
+      }
+      return json({ ok: false, error: opsErr(r) });
+    }
+
+    if (op === 'ad-snooze' && req.method === 'POST') {
+      const r = await opsHelix(owner, 'POST', 'channels/ads/schedule/snooze?broadcaster_id=' + owner.twitchId);
+      if (r.status === 200) {
+        const d = r.body && r.body.data && r.body.data[0];
+        return json({ ok: true, snoozeCount: d ? Number(d.snooze_count) || 0 : 0, nextAdAt: d && d.next_ad_at || null });
+      }
+      return json({ ok: false, error: opsErr(r) });
+    }
+
+    if (op === 'poll' && req.method === 'POST') {
+      const title = String(body.title || '').trim().slice(0, 60);
+      const choices = (Array.isArray(body.choices) ? body.choices : [])
+        .map((c) => String(c).trim().slice(0, 25)).filter(Boolean).slice(0, 5);
+      const duration = Math.max(15, Math.min(1800, Number(body.duration) || 120));
+      if (!title || choices.length < 2) return json({ ok: false, error: 'need-title-and-2-choices' }, 400);
+      const r = await opsHelix(owner, 'POST', 'polls', {
+        broadcaster_id: String(owner.twitchId), title,
+        choices: choices.map((t) => ({ title: t })), duration,
+      });
+      if (r.status === 200) return json({ ok: true });
+      return json({ ok: false, error: opsErr(r) });
+    }
+
+    if (op === 'poll-end' && req.method === 'POST') {
+      const r = await opsHelix(owner, 'PATCH', 'polls', {
+        broadcaster_id: String(owner.twitchId), id: String(body.id || ''), status: 'TERMINATED',
+      });
+      if (r.status === 200) return json({ ok: true });
+      return json({ ok: false, error: opsErr(r) });
+    }
+
+    if (op === 'prediction' && req.method === 'POST') {
+      const title = String(body.title || '').trim().slice(0, 45);
+      const outcomes = (Array.isArray(body.outcomes) ? body.outcomes : [])
+        .map((c) => String(c).trim().slice(0, 25)).filter(Boolean).slice(0, 10);
+      const window = Math.max(30, Math.min(1800, Number(body.window) || 120));
+      if (!title || outcomes.length < 2) return json({ ok: false, error: 'need-title-and-2-outcomes' }, 400);
+      const r = await opsHelix(owner, 'POST', 'predictions', {
+        broadcaster_id: String(owner.twitchId), title,
+        outcomes: outcomes.map((t) => ({ title: t })), prediction_window: window,
+      });
+      if (r.status === 200) return json({ ok: true });
+      return json({ ok: false, error: opsErr(r) });
+    }
+
+    if (op === 'prediction-end' && req.method === 'POST') {
+      const status = body.winnerId ? 'RESOLVED' : (body.status === 'LOCKED' ? 'LOCKED' : 'CANCELED');
+      const payload = {
+        broadcaster_id: String(owner.twitchId), id: String(body.id || ''), status,
+        ...(body.winnerId ? { winning_outcome_id: String(body.winnerId) } : {}),
+      };
+      const r = await opsHelix(owner, 'PATCH', 'predictions', payload);
+      if (r.status === 200) return json({ ok: true });
+      return json({ ok: false, error: opsErr(r) });
+    }
+
+    if (op === 'redemptions' && req.method === 'GET') {
+      const rewardId = String(url.searchParams.get('reward') || '');
+      const rw = await opsHelix(owner, 'GET', 'channel_points/custom_rewards?broadcaster_id=' + owner.twitchId);
+      if (rw.status !== 200) return json({ ok: false, error: opsErr(rw) });
+      const rewards = ((rw.body && rw.body.data) || []).map((x) => ({ id: x.id, title: x.title, cost: Number(x.cost) || 0 }));
+      let items = [];
+      if (rewardId) {
+        const rd = await opsHelix(owner, 'GET', 'channel_points/custom_rewards/redemptions?broadcaster_id=' + owner.twitchId +
+          '&reward_id=' + encodeURIComponent(rewardId) + '&status=UNFULFILLED&first=20&sort=OLDEST');
+        if (rd.status === 200) {
+          items = ((rd.body && rd.body.data) || []).map((x) => ({
+            id: x.id, user: x.user_name, input: x.user_input || '', redeemedAt: x.redeemed_at || null,
+          }));
+        }
+      }
+      return json({ ok: true, rewards, rewardId: rewardId || null, items });
+    }
+
+    if (op === 'redemption' && req.method === 'POST') {
+      const status = body.status === 'CANCELED' ? 'CANCELED' : 'FULFILLED';
+      const r = await opsHelix(owner, 'PATCH', 'channel_points/custom_rewards/redemptions?broadcaster_id=' + owner.twitchId +
+        '&reward_id=' + encodeURIComponent(String(body.rewardId || '')) + '&id=' + encodeURIComponent(String(body.id || '')), { status });
+      if (r.status === 200) return json({ ok: true });
+      return json({ ok: false, error: opsErr(r) });
+    }
+
+    return json({ ok: false, error: 'not-found' }, 404);
+  }
+
   // Raid Finder: category search → smallest live channels first, then
   // start/cancel the raid with the vault token (channel:manage:raids is
   // in the standard broadcaster grant). Twitch-anchored docks only.
