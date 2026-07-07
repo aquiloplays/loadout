@@ -12,6 +12,7 @@ import {
   mintRoomTicket, verifyRoomTicket,
 } from '../warden-db.js';
 import { resolveActingToken } from '../warden-twitch.js';
+import { isObsCommandAllowed, parseDb } from '../warden-obs.js';
 
 let pass = 0, fail = 0;
 async function t(name, fn) {
@@ -336,6 +337,67 @@ async function run() {
       const forced = await syncTwitchMods(envWith(m, { DB: mockDB(rows) }), 'S', { force: true });
       assert(forced.ok && forced.added === 1, JSON.stringify(forced));
     } finally { restore(); }
+  });
+
+  // ── isObsCommandAllowed (OBS capability allowlist) ──────────────────
+  const CAPS = {
+    enabled: true, brbPanic: true, brbScene: 'BRB', replay: true,
+    scenes: ['Game'], sources: ['Cam'], mics: ['Mic'],
+    movable: ['Cam', 'Overlay Group'], volumes: ['Music'], media: ['Intro'],
+    browsers: ['Alerts'], filters: ['Cam::Blur'], hotkeys: ['ClipHotkey'],
+  };
+
+  await t('obs allow: enabled gate + each capability with an allowed target', async () => {
+    assert(isObsCommandAllowed(CAPS, 'brbPanic', '', ''));
+    assert(isObsCommandAllowed(CAPS, 'saveReplay', '', ''));
+    assert(isObsCommandAllowed(CAPS, 'sceneSwitch', 'Game', ''));
+    assert(isObsCommandAllowed(CAPS, 'sourceToggle', 'Cam', ''));
+    assert(isObsCommandAllowed(CAPS, 'muteMic', 'Mic', ''));
+    assert(isObsCommandAllowed(CAPS, 'moveSource', 'Cam', 'topright'));
+    assert(isObsCommandAllowed(CAPS, 'moveSource', 'Overlay Group', 'reset'));
+    assert(isObsCommandAllowed(CAPS, 'setVolume', 'Music', '-6'));
+    assert(isObsCommandAllowed(CAPS, 'mediaControl', 'Intro', 'play'));
+    assert(isObsCommandAllowed(CAPS, 'refreshBrowser', 'Alerts', ''));
+    assert(isObsCommandAllowed(CAPS, 'filterToggle', 'Cam', 'Blur'));
+    assert(isObsCommandAllowed(CAPS, 'fireHotkey', 'ClipHotkey', ''));
+  });
+
+  await t('obs deny: disabled caps refuses everything', async () => {
+    const off = { ...CAPS, enabled: false };
+    assert(!isObsCommandAllowed(off, 'brbPanic', '', ''));
+    assert(!isObsCommandAllowed(off, 'sceneSwitch', 'Game', ''));
+  });
+
+  await t('obs deny: target not on the allowlist', async () => {
+    assert(!isObsCommandAllowed(CAPS, 'sceneSwitch', 'Private', ''));
+    assert(!isObsCommandAllowed(CAPS, 'moveSource', 'Webcam', 'topleft'));
+    assert(!isObsCommandAllowed(CAPS, 'filterToggle', 'Cam', 'Sharpen')); // wrong filter
+    assert(!isObsCommandAllowed(CAPS, 'fireHotkey', 'EndStream', ''));
+    assert(!isObsCommandAllowed(CAPS, 'unknownAction', 'Cam', '')); // unlisted verb
+  });
+
+  await t('obs deny: bad arg2 (position / verb / dB range)', async () => {
+    assert(!isObsCommandAllowed(CAPS, 'moveSource', 'Cam', 'sideways'));
+    assert(!isObsCommandAllowed(CAPS, 'mediaControl', 'Intro', 'explode'));
+    assert(!isObsCommandAllowed(CAPS, 'setVolume', 'Music', '5'));   // > 0 dB
+    assert(!isObsCommandAllowed(CAPS, 'setVolume', 'Music', '-250')); // < -100
+    assert(!isObsCommandAllowed(CAPS, 'setVolume', 'Music', 'loud')); // not a number
+  });
+
+  await t('obs deny: replay/brb only when their flag is set', async () => {
+    const noExtras = { ...CAPS, replay: false, brbPanic: false };
+    assert(!isObsCommandAllowed(noExtras, 'saveReplay', '', ''));
+    assert(!isObsCommandAllowed(noExtras, 'brbPanic', '', ''));
+  });
+
+  await t('parseDb accepts [-100,0], rejects positives / garbage', async () => {
+    assert.equal(parseDb('0'), 0);
+    assert.equal(parseDb('-6'), -6);
+    assert.equal(parseDb('-12.5'), -12.5);
+    assert.equal(parseDb('-100'), -100);
+    assert.equal(parseDb('1'), null);
+    assert.equal(parseDb('-101'), null);
+    assert.equal(parseDb('x'), null);
   });
 
   console.log(`\n${pass} passed, ${fail} failed`);
