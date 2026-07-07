@@ -719,6 +719,12 @@ export default {
     if (path === '/api/twitch/category') {
       return handleTwitchCategory(req, env);
     }
+    // Public: GET /api/twitch/categories?q=<query> → search Twitch categories
+    // by name via Helix. Powers the Gift Guide builder's category picker for
+    // everyone (signed-in or not). CORS-open, cached.
+    if (path === '/api/twitch/categories') {
+      return handleTwitchCategorySearch(req, env);
+    }
     // Public: GET /api/twitch/emotes → the canonical channel's uploaded
     // emotes via Helix chat/emotes (app token). Powers the Twitch panel's
     // idle-deck emote card + the aquilo.gg/panel web embed. CORS-open,
@@ -2507,6 +2513,35 @@ async function handleTwitchCategory(req, env) {
     return new Response(JSON.stringify({ ok: true, login, game: (ch && ch.game_name) || '' }), { status: 200, headers });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e && e.message || e).slice(0, 50), game: '' }), { status: 200, headers });
+  }
+}
+
+// GET /api/twitch/categories?q=<query> — search Twitch categories/games by
+// name via Helix (app token). Public, CORS-open, cached 5m. Powers the Gift
+// Guide builder's category picker so anyone can link a profile to the exact
+// Twitch category, signed in or not.
+async function handleTwitchCategorySearch(req, env) {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, OPTIONS',
+    'access-control-allow-headers': '*',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=300', ...cors };
+  const q = (new URL(req.url).searchParams.get('q') || '').trim().slice(0, 80);
+  if (q.length < 2) return new Response(JSON.stringify({ ok: true, q, categories: [] }), { status: 200, headers });
+  try {
+    const { helixGet } = await import('./ext-loadout.js');
+    const r = await helixGet(env, 'search/categories?first=12&query=' + encodeURIComponent(q));
+    if (!r || !r.ok) throw new Error('helix-search-' + (r ? r.status : 'no-token'));
+    const j = await r.json();
+    const categories = ((j && j.data) || []).map((c) => ({
+      name: c.name,
+      box: (c.box_art_url || '').replace('{width}', '52').replace('{height}', '72'),
+    }));
+    return new Response(JSON.stringify({ ok: true, q, categories }), { status: 200, headers });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: String((e && e.message) || e).slice(0, 50), categories: [] }), { status: 200, headers });
   }
 }
 
