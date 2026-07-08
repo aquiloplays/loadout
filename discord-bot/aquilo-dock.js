@@ -96,7 +96,7 @@ async function vaultPlatformToken(env, platform, owner) {
 // null. provider defaults to twitch (legacy recs); ONLY twitch logins
 // go through loginToId — resolving a Kick/YT login as a Twitch name
 // could silently pick up an unrelated Twitch user.
-async function dockOwner(env, k) {
+export async function dockOwner(env, k) {
   if (!/^[a-z0-9]{8,40}$/.test(String(k || ''))) return null;
   let rec = null;
   try { rec = await env.LOADOUT_BOLTS.get(KEY.byKey(k), { type: 'json' }); } catch { /* miss */ }
@@ -190,6 +190,55 @@ async function applyTwitch(env, owner, title, gameId) {
       body: JSON.stringify(body),
     });
     if (r.status === 204) return { ok: true };
+    const j = await r.json().catch(() => null);
+    return { ok: false, error: (j && j.message) || ('twitch-' + r.status) };
+  } catch { return { ok: false, error: 'twitch-unreachable' }; }
+}
+
+// ── Twitch moderator management (dock) ──────────────────────────────────
+// Listing uses moderation:read (already granted); add/remove need
+// channel:manage:moderators (broker scope + one reconnect) and return
+// needsReconnect until then. Twitch-only — Kick/YouTube have no public
+// add/remove-moderator API.
+async function twitchModList(env, owner) {
+  const twitchId = owner.twitchId;
+  if (!twitchId) return { ok: false, error: 'not-connected', mods: [] };
+  const auth = await vaultTwitchToken(env, twitchId);
+  if (!auth) return { ok: false, error: 'not-connected', mods: [] };
+  try {
+    const r = await fetch('https://api.twitch.tv/helix/moderation/moderators?first=100&broadcaster_id=' + encodeURIComponent(twitchId), {
+      headers: { Authorization: 'Bearer ' + auth.token, 'Client-Id': auth.clientId },
+    });
+    if (r.status === 401 || r.status === 403) return { ok: true, scopeMissing: true, mods: [] };
+    const j = await r.json().catch(() => null);
+    if (!r.ok) return { ok: false, error: (j && j.message) || ('twitch-' + r.status), mods: [] };
+    return { ok: true, mods: (j.data || []).map((m) => ({ id: m.user_id, login: m.user_login, name: m.user_name })) };
+  } catch { return { ok: false, error: 'twitch-unreachable', mods: [] }; }
+}
+async function twitchModSet(env, owner, login, remove) {
+  const twitchId = owner.twitchId;
+  if (!twitchId) return { ok: false, error: 'not-connected' };
+  const auth = await vaultTwitchToken(env, twitchId);
+  if (!auth) return { ok: false, error: 'not-connected' };
+  const clean = String(login || '').trim().toLowerCase().replace(/^@/, '');
+  if (!/^[a-z0-9_]{2,25}$/.test(clean)) return { ok: false, error: 'bad-login' };
+  let userId = null;
+  try {
+    const ur = await fetch('https://api.twitch.tv/helix/users?login=' + encodeURIComponent(clean), {
+      headers: { Authorization: 'Bearer ' + auth.token, 'Client-Id': auth.clientId },
+    });
+    const uj = await ur.json().catch(() => null);
+    userId = uj && uj.data && uj.data[0] && uj.data[0].id;
+  } catch { /* resolve failed below */ }
+  if (!userId) return { ok: false, error: 'no-such-user' };
+  try {
+    const qs = 'broadcaster_id=' + encodeURIComponent(twitchId) + '&user_id=' + encodeURIComponent(userId);
+    const r = await fetch('https://api.twitch.tv/helix/moderation/moderators?' + qs, {
+      method: remove ? 'DELETE' : 'POST',
+      headers: { Authorization: 'Bearer ' + auth.token, 'Client-Id': auth.clientId },
+    });
+    if (r.status === 401 || r.status === 403) return { ok: false, error: 'scope-missing', needsReconnect: true };
+    if (r.status === 204) return { ok: true, id: userId, login: clean, removed: !!remove };
     const j = await r.json().catch(() => null);
     return { ok: false, error: (j && j.message) || ('twitch-' + r.status) };
   } catch { return { ok: false, error: 'twitch-unreachable' }; }
@@ -612,6 +661,22 @@ export async function handleAquiloDock(req, env, path) {
     } catch { return json({ ok: false, error: 'twitch-unreachable' }); }
   }
 
+  // Twitch moderator management: list current mods, add or remove by login.
+  if (path === '/api/aqdock/mods' && req.method === 'GET') {
+    const owner = await dockOwner(env, url.searchParams.get('key'));
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    return json(await twitchModList(env, owner));
+  }
+  if (path === '/api/aqdock/mods' && req.method === 'POST') {
+    let body = null;
+    try { body = await req.json(); } catch { /* bad json */ }
+    if (!body) return json({ ok: false, error: 'bad-json' }, 400);
+    const owner = await dockOwner(env, body.key);
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    if (!owner.twitchId) return json({ ok: false, error: 'twitch-only' }, 400);
+    return json(await twitchModSet(env, owner, body.login, body.action === 'remove'));
+  }
+
   // Go-live blast: one click posts the announce line to the streamer's
   // Twitch chat + Kick chat (as themselves, vault tokens) and to their
   // Discord webhook (reuses PunchCard's per-channel webhook config so
@@ -721,6 +786,64 @@ export async function handleAquiloDock(req, env, path) {
     if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
     const info = await readStreamInfo(env, owner);
     return json({ ok: true, login: owner.login, ...info });
+  }
+
+  // Extension activity: recent game moments + the PowerDeck play queue.
+  if (path === '/api/aqdock/ext-activity' && req.method === 'GET') {
+    const url = new URL(req.url);
+    const owner = await dockOwner(env, url.searchParams.get('key'));
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    if (!owner.twitchId) return json({ ok: true, events: [], queue: [] });
+    const { readGameEvents, readPowerdeckQueue } = await import('./ext-events.js');
+    const [feed, queue] = await Promise.all([
+      readGameEvents(env, String(owner.twitchId), 0),
+      readPowerdeckQueue(env, String(owner.twitchId)),
+    ]);
+    const events = (feed.events || []).slice(-12).reverse();
+    return json({ ok: true, events, queue });
+  }
+
+  // Extension insights: economy health for this channel (players, Bolts in
+  // circulation, lifetime earned, top holders).
+  if (path === '/api/aqdock/ext-insights' && req.method === 'GET') {
+    const url = new URL(req.url);
+    const owner = await dockOwner(env, url.searchParams.get('key'));
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    if (!owner.twitchId) return json({ ok: true, players: 0, circulation: 0, lifetime: 0, top: [] });
+    const { guildForChannel } = await import('./ext-events.js');
+    const { leaderboard, readSnapshot } = await import('./wallet.js');
+    const guildId = guildForChannel(env, String(owner.twitchId));
+    const [top, snap] = await Promise.all([
+      leaderboard(env, guildId, 8),
+      readSnapshot(env, guildId),
+    ]);
+    let players = 0, circulation = 0, lifetime = 0;
+    const wallets = (snap && snap.wallets) || {};
+    for (const uid in wallets) {
+      const w = wallets[uid]; if (!w) continue;
+      players += 1;
+      circulation += Number(w.balance) || 0;
+      lifetime += Number(w.lifetimeEarned) || 0;
+    }
+    const topRows = (top || []).map((r, i) => ({
+      rank: i + 1,
+      name: (r.w && r.w.name) || 'Viewer',
+      balance: (r.w && r.w.balance) || 0,
+    }));
+    return json({ ok: true, players, circulation, lifetime, top: topRows });
+  }
+
+  // PowerDeck queue action from the Dock: accept | complete | decline.
+  if (path === '/api/aqdock/ext-pdeck' && req.method === 'POST') {
+    const body = await req.json().catch(() => ({}));
+    const owner = await dockOwner(env, body.key);
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    if (!owner.twitchId) return json({ ok: false, error: 'no-channel' }, 400);
+    const action = ['accept', 'complete', 'decline'].indexOf(body.action) >= 0 ? body.action : '';
+    if (!action || !body.id) return json({ ok: false, error: 'bad-request' }, 400);
+    const { actPowerdeckQueue } = await import('./ext-events.js');
+    const queue = await actPowerdeckQueue(env, String(owner.twitchId), body.id, action);
+    return json({ ok: true, queue });
   }
 
   // Category type-ahead: Twitch (Helix search) + Kick, merged client-side.
