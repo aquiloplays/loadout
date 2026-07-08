@@ -125,6 +125,30 @@ async function dockAct(env, streamerId, action) {
   }
 }
 
+// Trim Twitch's poll / prediction payloads to what the console needs.
+function shapePoll(p) {
+  const started = p.started_at ? Date.parse(p.started_at) : 0;
+  return {
+    id: String(p.id || ''), title: String(p.title || ''), status: String(p.status || ''),
+    endsAt: started && p.duration ? started + Number(p.duration) * 1000 : 0,
+    choices: (Array.isArray(p.choices) ? p.choices : []).map((c) => ({
+      id: String(c.id || ''), title: String(c.title || ''),
+      votes: Number(c.votes || 0),
+    })),
+  };
+}
+function shapePrediction(p) {
+  return {
+    id: String(p.id || ''), title: String(p.title || ''), status: String(p.status || ''),
+    endsAt: p.created_at && p.prediction_window ? Date.parse(p.created_at) + Number(p.prediction_window) * 1000 : 0,
+    winningOutcomeId: p.winning_outcome_id ? String(p.winning_outcome_id) : null,
+    outcomes: (Array.isArray(p.outcomes) ? p.outcomes : []).map((o) => ({
+      id: String(o.id || ''), title: String(o.title || ''), color: String(o.color || ''),
+      users: Number(o.users || 0), points: Number(o.channel_points || 0),
+    })),
+  };
+}
+
 // Fire-and-forget audit row; audit is never allowed to fail an action.
 async function auditSafe(env, entry) {
   try {
@@ -534,6 +558,92 @@ export async function handleWardenRoute(req, env, path, ctx) {
         // grow forever; every post refreshes the window.
         await env.LOADOUT_BOLTS.put(key, JSON.stringify(list), { expirationTtl: 86400 });
         return json({ ok: true, messages: list.slice(-80) });
+      }
+
+      // ── Polls & Predictions (Twitch REST via the broadcaster token) ─
+      // Mods run the interactive show. Pure Helix — no EventSub, no DO —
+      // so it's low blast radius; it degrades to needsReconnect until the
+      // broadcaster token carries channel:manage:polls / :predictions
+      // (broker scope + reconnect), exactly like Shield Mode. Reads return
+      // {available:false} on scope-missing; writes return needsReconnect.
+      case 'polls/get': {
+        const { vaultHelix } = await import('./warden-twitch.js');
+        const r = await vaultHelix(env, streamerId, '/polls', { params: { broadcaster_id: streamerId, first: 1 } });
+        if (r.status === 0) return json({ ok: true, available: false, needsSetup: true, poll: null });
+        if (r.status === 401 || r.status === 403) return json({ ok: true, available: false, scopeMissing: true, poll: null });
+        if (!r.ok) return json({ ok: false, error: 'helix-' + (r.status || 0), poll: null });
+        const p = (r.data && r.data.data && r.data.data[0]) || null;
+        return json({ ok: true, available: true, poll: p && p.status === 'ACTIVE' ? shapePoll(p) : null });
+      }
+      case 'polls/create': {
+        const title = String(body.title || '').trim().slice(0, 60);
+        const choices = (Array.isArray(body.choices) ? body.choices : [])
+          .map((c) => String(c || '').trim().slice(0, 25)).filter(Boolean).slice(0, 5);
+        const duration = Math.max(15, Math.min(1800, Number(body.duration) || 120));
+        if (!title || choices.length < 2) return json({ ok: false, error: 'bad-poll' }, 400);
+        const { checkObsRate } = await import('./warden-actions.js');
+        if (!(await checkObsRate(env, actorId)).ok) return json({ ok: false, error: 'rate-limited' }, 429);
+        const { vaultHelix } = await import('./warden-twitch.js');
+        const r = await vaultHelix(env, streamerId, '/polls', { method: 'POST', body: { broadcaster_id: streamerId, title, choices: choices.map((t) => ({ title: t })), duration } });
+        if (r.status === 401 || r.status === 403) return json({ ok: false, error: 'scope-missing', needsReconnect: true }, 403);
+        if (!r.ok) return json({ ok: false, error: (r.data && r.data.message) || ('helix-' + (r.status || 0)) }, 400);
+        await auditSafe(env, { streamerId, actorId, actorLogin, action: 'poll-start', platform: 'twitch', detail: { title } });
+        return json({ ok: true, poll: shapePoll((r.data && r.data.data && r.data.data[0]) || {}) });
+      }
+      case 'polls/end': {
+        const id = String(body.pollId || '');
+        const status = body.status === 'ARCHIVED' ? 'ARCHIVED' : 'TERMINATED';
+        if (!id) return json({ ok: false, error: 'bad-id' }, 400);
+        const { vaultHelix } = await import('./warden-twitch.js');
+        const r = await vaultHelix(env, streamerId, '/polls', { method: 'PATCH', body: { broadcaster_id: streamerId, id, status } });
+        if (r.status === 401 || r.status === 403) return json({ ok: false, error: 'scope-missing', needsReconnect: true }, 403);
+        if (!r.ok) return json({ ok: false, error: 'helix-' + (r.status || 0) }, 400);
+        await auditSafe(env, { streamerId, actorId, actorLogin, action: 'poll-end', platform: 'twitch' });
+        return json({ ok: true });
+      }
+      case 'predictions/get': {
+        const { vaultHelix } = await import('./warden-twitch.js');
+        const r = await vaultHelix(env, streamerId, '/predictions', { params: { broadcaster_id: streamerId, first: 1 } });
+        if (r.status === 0) return json({ ok: true, available: false, needsSetup: true, prediction: null });
+        if (r.status === 401 || r.status === 403) return json({ ok: true, available: false, scopeMissing: true, prediction: null });
+        if (!r.ok) return json({ ok: false, error: 'helix-' + (r.status || 0), prediction: null });
+        const p = (r.data && r.data.data && r.data.data[0]) || null;
+        return json({ ok: true, available: true, prediction: p && (p.status === 'ACTIVE' || p.status === 'LOCKED') ? shapePrediction(p) : null });
+      }
+      case 'predictions/create': {
+        const title = String(body.title || '').trim().slice(0, 45);
+        const outcomes = (Array.isArray(body.outcomes) ? body.outcomes : [])
+          .map((c) => String(c || '').trim().slice(0, 25)).filter(Boolean).slice(0, 10);
+        const window = Math.max(30, Math.min(1800, Number(body.window) || 120));
+        if (!title || outcomes.length < 2) return json({ ok: false, error: 'bad-prediction' }, 400);
+        const { checkObsRate } = await import('./warden-actions.js');
+        if (!(await checkObsRate(env, actorId)).ok) return json({ ok: false, error: 'rate-limited' }, 429);
+        const { vaultHelix } = await import('./warden-twitch.js');
+        const r = await vaultHelix(env, streamerId, '/predictions', { method: 'POST', body: { broadcaster_id: streamerId, title, outcomes: outcomes.map((t) => ({ title: t })), prediction_window: window } });
+        if (r.status === 401 || r.status === 403) return json({ ok: false, error: 'scope-missing', needsReconnect: true }, 403);
+        if (!r.ok) return json({ ok: false, error: (r.data && r.data.message) || ('helix-' + (r.status || 0)) }, 400);
+        await auditSafe(env, { streamerId, actorId, actorLogin, action: 'prediction-start', platform: 'twitch', detail: { title } });
+        return json({ ok: true, prediction: shapePrediction((r.data && r.data.data && r.data.data[0]) || {}) });
+      }
+      case 'predictions/resolve': {
+        const id = String(body.predictionId || '');
+        if (!id) return json({ ok: false, error: 'bad-id' }, 400);
+        // status: LOCKED (close betting), RESOLVED (+winningOutcomeId), CANCELED (refund).
+        const status = ['LOCKED', 'RESOLVED', 'CANCELED'].indexOf(String(body.status)) !== -1 ? String(body.status) : null;
+        if (!status) return json({ ok: false, error: 'bad-status' }, 400);
+        const patch = { broadcaster_id: streamerId, id, status };
+        if (status === 'RESOLVED') {
+          if (!body.winningOutcomeId) return json({ ok: false, error: 'need-outcome' }, 400);
+          patch.winning_outcome_id = String(body.winningOutcomeId);
+        }
+        const { checkObsRate } = await import('./warden-actions.js');
+        if (!(await checkObsRate(env, actorId)).ok) return json({ ok: false, error: 'rate-limited' }, 429);
+        const { vaultHelix } = await import('./warden-twitch.js');
+        const r = await vaultHelix(env, streamerId, '/predictions', { method: 'PATCH', body: patch });
+        if (r.status === 401 || r.status === 403) return json({ ok: false, error: 'scope-missing', needsReconnect: true }, 403);
+        if (!r.ok) return json({ ok: false, error: 'helix-' + (r.status || 0) }, 400);
+        await auditSafe(env, { streamerId, actorId, actorLogin, action: 'prediction-' + status.toLowerCase(), platform: 'twitch' });
+        return json({ ok: true, prediction: shapePrediction((r.data && r.data.data && r.data.data[0]) || {}) });
       }
 
       // ── room ticket (BE-1) ──────────────────────────────────────────
