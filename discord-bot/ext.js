@@ -67,7 +67,16 @@ export async function handleExt(req, env, ctx) {
   const payload = await verifyTwitchExtJwt(token, env.TWITCH_EXT_SECRET);
   if (!payload) return json({ error: 'unauthorized' }, 401);
 
-  // --- channel gate: Clay's channel only ---
+  // --- per-streamer config (multi-tenant, BEFORE the Clay gate) ---
+  // Every channel that installs the extension can configure its own panel
+  // (which tabs show, whether song requests cost Bits). Read is open to any
+  // authenticated viewer (the panel needs it to render); write is
+  // broadcaster-only. Keyed by the JWT's channel_id, so it's per-streamer.
+  if (route === 'config') {
+    return await handleExtConfig(env, payload, req);
+  }
+
+  // --- channel gate: Clay's channel only (economy / games / rotation) ---
   const clayChannel = env.CLAY_TWITCH_CHANNEL_ID;
   if (!clayChannel || String(payload.channel_id) !== String(clayChannel)) {
     return json({ error: 'forbidden' }, 403);
@@ -114,7 +123,11 @@ export async function handleExt(req, env, ctx) {
       return await handleExtMod(env, guildId, payload, req, ctx, route.slice(4));
     }
     if (route.indexOf('rotation/') === 0) {
-      return await handleRotation(env, guildId, userId, route.slice(9), req);
+      // The streamer's config decides whether song requests cost Bits.
+      const cfg = await readExtConfig(env, String(payload.channel_id || ''));
+      return await handleRotation(env, guildId, userId, route.slice(9), req, {
+        forceBits: !!(cfg.songBits && cfg.songBits.enabled),
+      });
     }
     // Shared cross-platform chat: mint a READ-ONLY viewer ticket for the
     // channel's WardenRoom (the same DO that merges Twitch/Kick/YouTube/
@@ -179,6 +192,53 @@ export async function handleRelay(req, env) {
 // (Bolts economy sunset: extHero / extWallet / extDaily / extLeaderboard
 // were removed — they exercised the deleted hero-state.js / wallet.js /
 // games.js modules.)
+
+// ── Per-streamer extension config (extcfg:<channelId>) ───────────────
+// Keyed by the panel's channel id so every streamer configures their own.
+// songBits.enabled → song requests always cost Bits (see rotation.js);
+// tabs.<name>=0 hides that tab in the panel.
+const EXTCFG_KEY = (ch) => 'extcfg:' + ch;
+const EXTCFG_TABS = ['hangman', 'casino', 'blackjack', 'tanks', 'streaks', 'chat', 'mycard', 'doodle', 'songs', 'links'];
+const DEFAULT_EXTCFG_TABS = EXTCFG_TABS.reduce((o, t) => { o[t] = 1; return o; }, {});
+
+async function readExtConfig(env, channelId) {
+  let saved = null;
+  try { saved = await env.LOADOUT_BOLTS.get(EXTCFG_KEY(channelId), { type: 'json' }); } catch { /* default */ }
+  const tabs = Object.assign({}, DEFAULT_EXTCFG_TABS);
+  if (saved && saved.tabs && typeof saved.tabs === 'object') {
+    EXTCFG_TABS.forEach((t) => { if (saved.tabs[t] === 0 || saved.tabs[t] === false) tabs[t] = 0; });
+  }
+  return {
+    // Default: song requests cost Bits (the panel's requested behavior).
+    songBits: { enabled: saved && saved.songBits ? saved.songBits.enabled !== false : true },
+    tabs,
+    updatedAt: (saved && saved.updatedAt) || 0,
+  };
+}
+
+async function handleExtConfig(env, payload, req) {
+  const channelId = String(payload.channel_id || '');
+  if (!channelId) return json({ error: 'no-channel' }, 400);
+  if (req.method === 'GET') {
+    return json({ ok: true, config: await readExtConfig(env, channelId), canEdit: payload.role === 'broadcaster' });
+  }
+  if (req.method === 'POST') {
+    if (payload.role !== 'broadcaster') return json({ ok: false, error: 'broadcaster-only' }, 403);
+    let body = {};
+    try { body = await req.json(); } catch { /* empty tolerated */ }
+    const cur = await readExtConfig(env, channelId);
+    const next = {
+      songBits: { enabled: body.songBits && typeof body.songBits.enabled === 'boolean' ? body.songBits.enabled : cur.songBits.enabled },
+      tabs: {},
+      updatedAt: Date.now(),
+    };
+    const inTabs = (body.tabs && typeof body.tabs === 'object') ? body.tabs : cur.tabs;
+    EXTCFG_TABS.forEach((t) => { next.tabs[t] = (inTabs[t] === 0 || inTabs[t] === false) ? 0 : 1; });
+    try { await env.LOADOUT_BOLTS.put(EXTCFG_KEY(channelId), JSON.stringify(next)); } catch { return json({ ok: false, error: 'kv' }, 500); }
+    return json({ ok: true, config: next });
+  }
+  return json({ ok: false, error: 'method' }, 405);
+}
 
 // GET /ext/chat/ticket — mint a read-only viewer ticket for the shared
 // cross-platform chat feed (the channel's WardenRoom DO). The panel opens

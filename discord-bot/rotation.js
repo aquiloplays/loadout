@@ -386,7 +386,7 @@ function deriveBitsRequired(vs) {
   return (vs.freeRequestsLeft || 0) === 0 || (vs.cooldownMsRemaining || 0) > 0;
 }
 
-async function rotState(env, guildId, userId, body) {
+async function rotState(env, guildId, userId, body, forceBits) {
   const cached = (await env.LOADOUT_BOLTS.get(STATE_KEY, { type: 'json' })) || {};
   const live = await relayAlive(env);
   let viewer = null;
@@ -400,7 +400,9 @@ async function rotState(env, guildId, userId, body) {
         cooldownMsRemaining: vs.cooldownMsRemaining || 0,
         allowedByStatus: !!vs.allowedByStatus,
         statusReason: vs.statusReason || '',
-        bitsRequired: !hasFree && deriveBitsRequired(vs),
+        // forceBits still honors a free/refund credit, but otherwise every
+        // request is Bits-gated (the streamer's config chose paid requests).
+        bitsRequired: !hasFree && (forceBits || deriveBitsRequired(vs)),
       };
     }
   }
@@ -417,10 +419,12 @@ async function rotValidate(env, body) {
   const text = String(body.text || '').slice(0, 300);
   const uri = String(body.uri || '').slice(0, 120);
   if (!text && !uri) return json({ ok: false, reason: 'empty' }, 400);
+  // paid rides through from the panel's bitsRequired decision (set by
+  // rotState, which honors the streamer's songBits config).
   return json(await runValidate(env, text, uri, !!body.paid));
 }
 
-async function rotRequest(env, guildId, userId, body) {
+async function rotRequest(env, guildId, userId, body, forceBits) {
   if (!(await relayAlive(env))) return json({ ok: false, reason: 'rotation-offline' });
 
   const text = String(body.text || '').slice(0, 300);
@@ -445,7 +449,7 @@ async function rotRequest(env, guildId, userId, body) {
   if (!vs.allowedByStatus) {
     return json({ ok: false, reason: 'status-locked', statusReason: vs.statusReason || '' });
   }
-  const bitsRequired = !hasFree && deriveBitsRequired(vs);
+  const bitsRequired = !hasFree && (forceBits || deriveBitsRequired(vs));
 
   // Payment gate, Bits receipt only required when bitsRequired. A Bits-paid
   // request bypasses the per-viewer cooldown (the bits ARE the skip).
@@ -537,7 +541,10 @@ async function rotRequest(env, guildId, userId, body) {
 }
 
 // Dispatched from ext.js handleExt for routes under /ext/rotation/.
-export async function handleRotation(env, guildId, userId, sub, req) {
+export async function handleRotation(env, guildId, userId, sub, req, opts) {
+  // opts.forceBits (from the streamer's extension config, songBits.enabled)
+  // makes EVERY song request require Bits, overriding the free-first model.
+  const forceBits = !!(opts && opts.forceBits);
   if (req.method === 'GET' && sub === 'search') {
     const url = new URL(req.url);
     return rotSearch(env, url.searchParams.get('q'));
@@ -551,11 +558,11 @@ export async function handleRotation(env, guildId, userId, sub, req) {
     }
   }
   if (req.method === 'POST' && sub === 'state') {
-    return rotState(env, guildId, userId, body);
+    return rotState(env, guildId, userId, body, forceBits);
   }
-  if (req.method === 'POST' && sub === 'validate') return rotValidate(env, body);
+  if (req.method === 'POST' && sub === 'validate') return rotValidate(env, body, forceBits);
   if (req.method === 'POST' && sub === 'request') {
-    return rotRequest(env, guildId, userId, body);
+    return rotRequest(env, guildId, userId, body, forceBits);
   }
   return json({ error: 'not-found' }, 404);
 }
