@@ -6,7 +6,7 @@
 //   node test/printflair-doodle-selftest.mjs
 
 import assert from 'node:assert';
-import { doodleCfg, pfWalletDebit, pfWalletCredit } from '../printflair.js';
+import { doodleCfg, pfWalletDebit, pfWalletCredit, queueDoodle } from '../printflair.js';
 
 let pass = 0, fail = 0;
 async function t(name, fn) {
@@ -89,6 +89,33 @@ async function run() {
   await t('debit refuses without a configured guild', async () => {
     const r = await pfWalletDebit({ LOADOUT_BOLTS: mockKV(new Map()) }, '555', 500);
     assert(!r.ok && r.error === 'not-configured', JSON.stringify(r));
+  });
+
+  await t('resubmit refunds the prior pending Bolts charge (no double-bill)', async () => {
+    const m = new Map();
+    const env = envWith(m);
+    // Viewer already has a pending, paid (500 Bolts) doodle awaiting review.
+    m.set('printflair:twl:someone', { doodle: 'a'.repeat(64), doodleState: 'pending', doodleCurrency: 'bolts', doodlePaid: 500, doodleTwId: '777' });
+    m.set('wallet:' + GUILD + ':777', { balance: 0, lifetimeSpent: 500 }); // already debited for #1
+    // Route already debited the RESUBMIT (balance would be -500 → clamp at 0
+    // conceptually); queueDoodle must refund the OLD 500.
+    await queueDoodle(env, 'someone', 'b'.repeat(64), { currency: 'bolts', amount: 500, twId: '777' });
+    const w = JSON.parse(m.get('wallet:' + GUILD + ':777'));
+    assert.equal(w.balance, 500, 'old charge refunded');           // 0 + 500 back
+    const rec = JSON.parse(m.get('printflair:twl:someone'));
+    assert.equal(rec.doodle, 'b'.repeat(64));                       // replaced art
+    assert.equal(rec.doodlePaid, 500);                             // tracks the NEW charge
+  });
+
+  await t('resubmit does NOT refund a prior Bits doodle (Bits are final)', async () => {
+    const m = new Map();
+    const env = envWith(m);
+    m.set('printflair:twl:bitperson', { doodleState: 'pending', doodleCurrency: 'bits', doodlePaid: 250, doodleTwId: '888' });
+    m.set('wallet:' + GUILD + ':888', { balance: 100 });
+    await queueDoodle(env, 'bitperson', 'c'.repeat(64), { currency: 'bolts', amount: 500, twId: '888' });
+    const raw = m.get('wallet:' + GUILD + ':888'); // never written (no bits refund)
+    const bal = typeof raw === 'string' ? JSON.parse(raw).balance : raw.balance;
+    assert.equal(bal, 100, 'Bits not refunded');
   });
 
   console.log(`\n${pass} passed, ${fail} failed`);
