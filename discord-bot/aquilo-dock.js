@@ -292,6 +292,41 @@ async function kickChatSay(env, owner, text) {
   } catch { return { ok: false, error: 'kick-unreachable' }; }
 }
 
+// Send a chat line to the streamer's own YouTube live chat as themselves.
+// Resolves the active broadcast's liveChatId the same way applyYouTube finds
+// the broadcast, then inserts a text message. Needs the youtube.force-ssl
+// scope on the vault token (the same scope liveBroadcasts writes use).
+async function youtubeChatSay(env, owner, text) {
+  const tok = await vaultPlatformToken(env, 'youtube', owner);
+  if (!tok) return { ok: false, error: 'not-connected' };
+  try {
+    const lr = await fetch('https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet,status&mine=true&maxResults=10', {
+      headers: { Authorization: 'Bearer ' + tok },
+    });
+    if (!lr.ok) {
+      const ej = await lr.json().catch(() => null);
+      const reason = ej && ej.error && ((ej.error.errors && ej.error.errors[0] && ej.error.errors[0].reason) || ej.error.message);
+      return { ok: false, error: reason ? String(reason).slice(0, 80) : 'youtube-' + lr.status };
+    }
+    const lj = await lr.json();
+    const items = (lj && lj.items) || [];
+    const rank = (s) => (s === 'live' ? 0 : s === 'liveStarting' ? 1 : s === 'ready' ? 2 : s === 'created' ? 3 : 9);
+    items.sort((a, b) => rank(a.status && a.status.lifeCycleStatus) - rank(b.status && b.status.lifeCycleStatus));
+    const b = items[0];
+    const liveChatId = b && b.snippet && b.snippet.liveChatId;
+    if (!liveChatId || rank(b.status && b.status.lifeCycleStatus) === 9) return { ok: false, error: 'no-broadcast' };
+    const r = await fetch('https://www.googleapis.com/youtube/v3/liveChatMessages?part=snippet', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ snippet: { liveChatId, type: 'textMessageEvent', textMessageDetails: { messageText: String(text).slice(0, 200) } } }),
+    });
+    if (r.ok) return { ok: true };
+    const j = await r.json().catch(() => null);
+    const msg = j && j.error && j.error.message;
+    return { ok: false, error: msg ? String(msg).slice(0, 80) : 'youtube-' + r.status };
+  } catch { return { ok: false, error: 'youtube-unreachable' }; }
+}
+
 export async function handleAquiloDock(req, env, path) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
@@ -629,10 +664,11 @@ export async function handleAquiloDock(req, env, path) {
     } catch { /* best effort */ }
     const message = String(body.message || '').trim().slice(0, 400);
     if (!message) return json({ ok: false, error: 'empty-message' }, 400);
-    const t = body.targets || { twitch: true, kick: true, discord: true };
+    const t = body.targets || { twitch: true, kick: true, youtube: true, discord: true };
     const jobs = {};
     if (t.twitch) jobs.twitch = twitchChatSay(env, owner, message);
     if (t.kick) jobs.kick = kickChatSay(env, owner, message);
+    if (t.youtube) jobs.youtube = youtubeChatSay(env, owner, message);
     if (t.discord) jobs.discord = (async () => {
       try {
         const chan = await env.LOADOUT_BOLTS.get('pc:chan:' + owner.login, { type: 'json' });
