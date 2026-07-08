@@ -104,6 +104,33 @@ async function wardenCounters(env, streamerId, bump) {
   }
 }
 
+// Save the full counters array (add/edit/delete/rename/perGame/links/style) —
+// mods configure the streamer's counters from the console. Proxies the bot's
+// dock bridge (POST /api/dock/bot {counters}); the bot validates + preserves
+// existing tallies by id.
+async function wardenCountersSave(env, streamerId, counters) {
+  let rec = null;
+  try { rec = env.ROTATION_KV ? await env.ROTATION_KV.get('streamer:' + streamerId, { type: 'json' }) : null; }
+  catch { /* not set up */ }
+  if (!rec || !rec.dockKey) return { ok: false, connected: false, setup: false, error: 'not-setup' };
+  try {
+    const resp = await fetch(JUKEBOX_BASE + '/api/dock/bot?key=' + encodeURIComponent(rec.dockKey), {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ counters }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || data.ok === false) return { ok: false, error: data.error || ('counter-' + resp.status) };
+    const vals = data.counterValues || {};
+    const list = (data.counters || []).map((c) => ({
+      id: c.id, name: c.name, label: c.label || c.name, perGame: !!c.perGame,
+      value: Number(vals[c.id] || 0),
+    }));
+    return { ok: true, counters: list };
+  } catch (e) {
+    return { ok: false, error: 'counter-unreachable', message: String(e?.message || e).slice(0, 80) };
+  }
+}
+
 // Generic dock-action proxy (announce / giveaway / shoutout) — same
 // server-side-dockKey resolution as the counters/queue proxies. `action` is
 // the jukebox dock body ({kind, ...}); a mod never touches the key.
@@ -377,6 +404,17 @@ export async function handleWardenRoute(req, env, path, ctx) {
               detail: { counter: res.label || c, op, value: res.value ?? null },
             });
           } catch { /* non-fatal */ }
+        }
+        return json(res, res.ok === false ? 400 : 200);
+      }
+      case 'counters/save': {
+        if (!Array.isArray(body.counters)) return json({ ok: false, error: 'bad-counters' }, 400);
+        const { checkObsRate } = await import('./warden-actions.js');
+        const rl = await checkObsRate(env, actorId);
+        if (!rl.ok) return json({ ok: false, error: 'rate-limited' }, 429);
+        const res = await wardenCountersSave(env, streamerId, body.counters.slice(0, 20));
+        if (res.ok !== false) {
+          await auditSafe(env, { streamerId, actorId, actorLogin, action: 'counters-save', platform: 'counter', detail: { count: body.counters.length } });
         }
         return json(res, res.ok === false ? 400 : 200);
       }
