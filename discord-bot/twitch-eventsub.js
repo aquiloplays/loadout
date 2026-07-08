@@ -43,6 +43,7 @@ import {
   EVENT_TYPE_HANDLERS,
   handleStreamEndedSummary,
 } from './twitch-events.js';
+import { publishActivity } from './activity-do.js';
 
 const REPLAY_KEY = (id) => `twitch:eventsub:seen:${id}`;
 const REPLAY_TTL_S = 10 * 60;
@@ -262,10 +263,102 @@ export async function handleEventSubWebhook(req, env, ctx) {
       })());
     }
 
+    // Cloud / OAuth overlays (games running WITHOUT Streamer.bot) read the
+    // streamer's events off the Aquilo activity bus via the overlay SSE
+    // (/api/overlay-canvas/events/<login>). Mirror the game-relevant events
+    // onto it, keyed by broadcaster login, using the kind names the overlay
+    // runtime already listens for. Best-effort; Streamer.bot installs are
+    // unaffected (they still read their own local WS).
+    ctx.waitUntil(publishGameBusEvent(env, subType, payload).catch((e) =>
+      console.warn('[twitch-eventsub] game-bus', e?.message || e)));
+
     return new Response(null, { status: 204 });
   }
 
   return new Response('unhandled-message-type', { status: 400 });
+}
+
+// Games/overlays that run cloud-side (no Streamer.bot) read the streamer's
+// events off the Aquilo activity bus via the overlay SSE. Map the
+// game-relevant EventSub notifications onto that bus, keyed by the
+// broadcaster's login, using the same `kind` names the overlay runtime
+// (public/overlays/**) already listens for. Returns early for types no
+// overlay consumes. Best-effort — never throws into the webhook ack path.
+async function publishGameBusEvent(env, subType, payload) {
+  const ev = (payload && payload.event) || {};
+  const broadcaster = String(ev.broadcaster_user_login || ev.to_broadcaster_user_login || '').toLowerCase();
+  if (!broadcaster) return;
+  let kind = '';
+  let data = {};
+  switch (subType) {
+    case 'channel.channel_points_custom_reward_redemption.add':
+      kind = 'channel-point-redeem';
+      data = {
+        user: ev.user_name || ev.user_login || 'viewer',
+        userId: String(ev.user_id || ''),
+        userLogin: ev.user_login || '',
+        rewardId: (ev.reward && ev.reward.id) || '',
+        rewardTitle: (ev.reward && ev.reward.title) || '',
+        cost: Number(ev.reward && ev.reward.cost) || 0,
+        input: String(ev.user_input || ''),
+      };
+      break;
+    case 'channel.cheer':
+      kind = 'bits';
+      data = {
+        user: ev.is_anonymous ? 'Anonymous' : (ev.user_name || 'viewer'),
+        userId: ev.is_anonymous ? '' : String(ev.user_id || ''),
+        bits: Number(ev.bits) || 0,
+        message: String(ev.message || ''),
+      };
+      break;
+    case 'channel.subscribe':
+      kind = 'sub';
+      data = {
+        user: ev.user_name || 'viewer', userId: String(ev.user_id || ''),
+        tier: String(ev.tier || '1000'), isGift: !!ev.is_gift,
+      };
+      break;
+    case 'channel.subscription.message':
+      kind = 'sub';
+      data = {
+        user: ev.user_name || 'viewer', userId: String(ev.user_id || ''),
+        tier: String(ev.tier || '1000'), months: Number(ev.cumulative_months) || 0,
+        streak: Number(ev.streak_months) || 0,
+        message: String((ev.message && ev.message.text) || ''),
+      };
+      break;
+    case 'channel.subscription.gift':
+      kind = 'gift-sub';
+      data = {
+        user: ev.is_anonymous ? 'Anonymous' : (ev.user_name || 'viewer'),
+        userId: ev.is_anonymous ? '' : String(ev.user_id || ''),
+        count: Number(ev.total) || 1, tier: String(ev.tier || '1000'),
+      };
+      break;
+    case 'channel.follow':
+      kind = 'follow';
+      data = { user: ev.user_name || ev.user_login || 'viewer', userId: String(ev.user_id || '') };
+      break;
+    case 'channel.raid':
+      kind = 'raid';
+      data = { user: ev.from_broadcaster_user_name || 'a raider', viewers: Number(ev.viewers) || 0 };
+      break;
+    case 'channel.hype_train.begin':
+    case 'channel.hype_train.progress':
+    case 'channel.hype_train.end':
+      kind = subType === 'channel.hype_train.begin' ? 'hype-train-begin'
+        : subType === 'channel.hype_train.progress' ? 'hype-train-progress'
+          : 'hype-train-end';
+      data = {
+        level: Number(ev.level) || 0, total: Number(ev.total) || 0,
+        progress: Number(ev.progress) || 0, goal: Number(ev.goal) || 0,
+      };
+      break;
+    default:
+      return; // no overlay consumes this type
+  }
+  await publishActivity(env, { kind, broadcaster, ...data });
 }
 
 // ── Subscription catalogue ───────────────────────────────────────
