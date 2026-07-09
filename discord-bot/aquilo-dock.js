@@ -663,6 +663,7 @@ export async function handleAquiloDock(req, env, path) {
 
   // Twitch moderator management: list current mods, add or remove by login.
   if (path === '/api/aqdock/mods' && req.method === 'GET') {
+    const url = new URL(req.url);
     const owner = await dockOwner(env, url.searchParams.get('key'));
     if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
     return json(await twitchModList(env, owner));
