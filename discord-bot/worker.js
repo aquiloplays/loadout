@@ -128,6 +128,34 @@ export default {
       return new Response('loadout-discord ok', { status: 200, headers: { 'content-type': 'text/plain' } });
     }
 
+    // Discord bot-token self-check. There was no way to confirm the worker's
+    // DISCORD_BOT_TOKEN is valid (every post/DM 401s silently on a dead
+    // token), so this hits /users/@me and reports it. Only reveals the bot's
+    // own public username, so it is safe to leave open. Use it after a token
+    // reset to confirm the worker secret was updated too (not just Railway).
+    if (method === 'GET' && path === '/health/discord-token') {
+      if (!env.DISCORD_BOT_TOKEN) return json({ ok: true, valid: false, reason: 'no-token-set' });
+      try {
+        const r = await fetch('https://discord.com/api/v10/users/@me', {
+          headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN },
+        });
+        if (r.ok) {
+          const u = await r.json();
+          return json({ ok: true, valid: true, botUser: u.username, botId: u.id });
+        }
+        return json({
+          ok: true,
+          valid: false,
+          status: r.status,
+          hint: r.status === 401
+            ? 'Token invalid. Reset in the Discord Dev Portal, then run: wrangler secret put DISCORD_BOT_TOKEN'
+            : 'Unexpected status from Discord',
+        });
+      } catch (e) {
+        return json({ ok: false, error: String((e && e.message) || e) });
+      }
+    }
+
     if (method === 'POST' && path === '/interactions') {
       return handleDiscordInteractions(req, env, ctx);
     }

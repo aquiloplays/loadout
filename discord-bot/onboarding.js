@@ -1186,14 +1186,14 @@ export async function matchAndSetupGuildRoles(env, guildId) {
   return { ok: true, mapped: result.mapped, unmapped: result.unmapped, roleCount: roles.length };
 }
 
-// ── Future-gated auto-DM hook ──────────────────────────────────────
+// ── Auto-DM hook ───────────────────────────────────────────────────
 //
-// Called from welcome.js handleMemberJoined. Today, with no gateway
-// shim, that handler is never invoked, so this fires zero times.
-// Once the shim lands + starts POSTing /member/joined, every join
-// will get a DM with the welcome embed + the same "Begin onboarding"
-// button. Failures (DM closed, rate limit) are logged + swallowed so
-// the join callout still posts even if the DM 403s.
+// Called from welcome.js handleMemberJoined. The gateway shim forwards
+// GUILD_MEMBER_ADD to /member/joined, so this fires on every real join
+// while the shim is running + the bot token is valid: the joiner gets
+// a DM with the welcome embed + the "Begin onboarding" button.
+// Failures (DM closed, rate limit) are logged + swallowed so the join
+// callout still posts even if the DM 403s.
 export async function maybeSendOnboardingDm(env, guildId, userId) {
   if (!env.DISCORD_BOT_TOKEN) return { skipped: 'no-bot-token' };
   try {

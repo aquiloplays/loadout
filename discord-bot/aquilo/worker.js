@@ -114,6 +114,8 @@ import {
   trackClipMessage, refreshClipReactions, postClipOfTheWeek
 } from './clipoftheweek.js';
 import { touchSeen, runReturningCron } from './returning.js';
+import { runStreakReminderCron } from './streak-reminder.js';
+import { runOffNightCron } from './off-night.js';
 import { refreshLeaderboardChannel } from './leaderboard-channel.js';
 import { isAdmin } from './util.js';
 
@@ -566,6 +568,18 @@ async function handleScheduled(event, env, ctx) {
   // Every cron tick, returning-member DM scan (cheap, bounded query).
   try { await runReturningCron(env); }
   catch (e) { console.error('[cron returning]', e?.message || e); }
+
+  // ~9 PM ET (this dispatcher rides the :23 tick, so hour===21 fires
+  // ~21:23 ET): the evening community beats.
+  if (hour === 21) {
+    // Streak-save reminder: DM members whose streak resets at midnight.
+    try { await runStreakReminderCron(env); }
+    catch (e) { console.error('[cron streak-reminder]', e?.message || e); }
+    // Off-night programming: a warm beat on the dark Tue/Thu nights
+    // (the module self-gates to those two weekdays).
+    try { await runOffNightCron(env); }
+    catch (e) { console.error('[cron off-night]', e?.message || e); }
+  }
 }
 
 // ---- /announce + /broadcast + /fourthwall (HTTP webhooks) ---------------

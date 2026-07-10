@@ -128,7 +128,12 @@ function alertEmbed(reasonLine) {
       '2. **Deployments** → View **Logs**. If they show `closed: 4004`, ' +
       'the bot token was invalidated. Reset it in the Discord Dev ' +
       'Portal (Bot → Reset Token) and paste the new token into the ' +
-      'service\'s `BOTS` env JSON (Variables tab) BEFORE restarting.',
+      'service\'s `BOTS` env JSON (Variables tab) BEFORE restarting. ' +
+      'The same Discord app backs the worker\'s REST too, so after ' +
+      'resetting also update the worker secret: run `wrangler secret ' +
+      'put DISCORD_BOT_TOKEN` from ~/Desktop/Aquilo/Loadout/discord-bot, ' +
+      'or every worker-side post/DM (welcome embeds, challenge posts, ' +
+      'streak reminders) keeps failing silently.',
       '3. Otherwise: latest deploy → ⋮ menu → **Restart**.',
       '4. Verify: /health should show `"connected":true` on every bot. ' +
       'Recovery is self-confirming: events resume, this alert stays quiet.',

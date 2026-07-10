@@ -139,13 +139,27 @@ export async function handleMemberJoined(env, payload) {
   const accent   = cfg?.accentColor || brand.accentColor;
   const backdrop = cfg?.backdropUrl || brand.welcomeBackdropUrl;
 
+  // Build the "here's where to go" line from only the channels that
+  // are actually configured. An unset id would otherwise render a dead
+  // literal "<#>" mention, so those fragments are dropped entirely.
+  const rulesId = guildCfg?.ids?.ch_rules;
+  const rolesId = guildCfg?.ids?.ch_roles;
+  const actions = [];
+  if (rulesId) actions.push(`read the rules in <#${rulesId}>`);
+  if (rolesId) actions.push(`pick up roles in <#${rolesId}>`);
+  actions.push('say hi in this channel');
+  // Natural list join: "a", "a and b", or "a, b, and c".
+  const joined = actions.length <= 1
+    ? actions.join('')
+    : actions.slice(0, -1).join(', ') + (actions.length > 2 ? ',' : '') + ' and ' + actions[actions.length - 1];
+  const introLine = joined.charAt(0).toUpperCase() + joined.slice(1) + '!';
+
   const embed = {
     title: `✨ Welcome to ${brand.brandName}, ${displayName}!`,
     description:
       `You're our **${ordinal(seq)} member** to join. 🎉\n\n` +
-      `Read the rules in <#${guildCfg?.ids?.ch_rules || ''}>, pick up roles in ` +
-      `<#${guildCfg?.ids?.ch_roles || ''}>, and say hi in this channel!\n\n` +
-      `🎯 **Open your Welcome Checklist** at ${brand.siteUrl}/quest, four quick steps with a bolts reward at each.`,
+      `${introLine}\n\n` +
+      `🎯 **Open your Welcome Checklist** at ${brand.siteUrl}/quest, four quick steps to get you set up.`,
     color: accent,
     thumbnail: { url: avatar },
     image: { url: backdrop },
@@ -175,9 +189,10 @@ export async function handleMemberJoined(env, payload) {
   await env.LOADOUT_BOLTS.put(dedupKey, '1', { expirationTtl: 30 * 24 * 60 * 60 });
 
   // Auto-DM the new joiner with the onboarding flow. Best-effort, // a DM 403 (user has DMs closed) is logged + ignored so the
-  // welcome embed above still stands. Dormant in practice until the
-  // gateway shim starts forwarding GUILD_MEMBER_ADD, since this
-  // function is what the shim calls.
+  // welcome embed above still stands. This runs on real joins: the
+  // gateway shim forwards GUILD_MEMBER_ADD to /member/joined, which
+  // calls this function, whenever the shim is running + the bot token
+  // is valid.
   let dm = null;
   try {
     const { maybeSendOnboardingDm } = await import('./onboarding.js');
