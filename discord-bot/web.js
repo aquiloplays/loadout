@@ -20,6 +20,17 @@
 // sports betting are gone.)
 import { recordStat } from './recap.js';
 import { verifyHmac } from './auth.js';
+import { getWallet } from './wallet.js';
+// Sports betting resurrected 2026-07-10: bet.js runs off ESPN's public
+// scoreboard (no key) and auto-settles on the :23 cron. Powers /sports
+// on aquilo.gg via /web/bet/snapshot + /web/bet/place.
+import {
+  publicSportsSnapshot,
+  readGamesCache,
+  refreshGamesCache,
+  runPlaceJson,
+  getUserBetsPublic,
+} from './bet.js';
 import {
   snapshotQueue,
   openQueue,
@@ -75,7 +86,9 @@ const ROUTES = new Set([
   'chat/channels',
   // (Bolts economy sunset 2026-06: quick bolts games removed —
   // quick/snapshot, blackjack/*, roulette, wheel, hilo/*, mines/*, plinko.)
-  // (Bolts economy sunset 2026-06: sports betting removed — bet/snapshot, bet/place.)
+  // Sports betting resurrected 2026-07-10 (bet.js on ESPN + :23 cron settle).
+  'bet/snapshot',
+  'bet/place',
   'queues/snapshot',
   'queues/open',
   'queues/close',
@@ -299,7 +312,10 @@ export async function handleWeb(req, env) {
       return await routeDockStreamkeySave(env, discordId, body);
     }
     // (Bolts economy sunset 2026-06: coinflip / dice / quick games
-    // (blackjack/roulette/wheel/hilo/mines/plinko) / sports betting dispatch removed)
+    // (blackjack/roulette/wheel/hilo/mines/plinko) dispatch removed)
+    // Sports betting resurrected 2026-07-10.
+    if (route === 'bet/snapshot') return await routeBetSnapshot(env, guildId, discordId);
+    if (route === 'bet/place')    return await routeBetPlace(env, guildId, discordId, body);
     if (route === 'queues/snapshot') return await routeQueuesSnapshot(env, guildId, body);
     if (route === 'queues/open') {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
@@ -436,8 +452,83 @@ export async function routePresenceFeed(env) {
 // recent-history slice for sparklines), plus the caller's holdings +
 // balance so the trade panel can render position size & cost basis.
 
-// (Bolts economy sunset 2026-06: Sports betting removed —
-// routeBetSnapshot + routeBetPlace deleted.)
+// ── Sports betting ────────────────────────────────────────────────────
+// Resurrected 2026-07-10. Snapshot pulls the public games list (~48h
+// window) and the caller's active + recent-history bets. /web/bet/place
+// runs the same runPlaceJson flow Discord's /bet uses; settlement happens
+// via the :23 cron tick (betCronTick) reading ESPN final scores.
+
+async function routeBetSnapshot(env, guildId, userId) {
+  let games = await readGamesCache(env);
+  if (games.length === 0) games = await refreshGamesCache(env);
+  const [bets, wallet] = await Promise.all([
+    getUserBetsPublic(env, guildId, userId),
+    getWallet(env, guildId, userId),
+  ]);
+  // 48h pre-game window only. Game records carry the kickoff as `date`
+  // (ESPN ISO string), so filter on that and stamp `startUtc` (epoch ms)
+  // for the frontend BetPlacement, which reads game.startUtc.
+  const now = Date.now();
+  const cutoff = now + 48 * 60 * 60 * 1000;
+  const upcoming = games
+    .filter((g) => {
+      if (!g || g.state !== 'pre') return false;
+      const ms = g.date ? new Date(g.date).getTime() : NaN;
+      return Number.isFinite(ms) && ms <= cutoff && ms > now - 60 * 60 * 1000;
+    })
+    .map((g) => ({ ...g, startUtc: new Date(g.date).getTime() }));
+  return json({
+    ok: true,
+    games: upcoming,
+    active: Array.isArray(bets.active) ? bets.active : [],
+    history: Array.isArray(bets.history) ? bets.history.slice(-20).reverse() : [],
+    balance: wallet.balance || 0,
+  });
+}
+
+async function routeBetPlace(env, guildId, userId, body) {
+  // Parlay payload: { kind:'parlay', bolts, legs:[{game, kind, side}] }.
+  // Solo payload: { gameId, kind?, side, bolts }.
+  const kind = String((body && body.kind) || 'moneyline').toLowerCase();
+  const bolts = Number(body && body.bolts);
+  if (!Number.isFinite(bolts) || bolts <= 0) {
+    return json({ ok: false, error: 'bad-bolts', message: 'Bolts must be a positive number.' }, 400);
+  }
+  if (kind === 'parlay') {
+    const legs = Array.isArray(body && body.legs) ? body.legs : [];
+    if (legs.length < 2) {
+      return json({ ok: false, error: 'too-few-legs', message: 'A parlay needs at least 2 legs.' }, 400);
+    }
+    const r = await runPlaceJson(env, guildId, userId, {
+      kind: 'parlay',
+      bolts: Math.floor(bolts),
+      legs,
+    });
+    return json(r, r.ok ? 200 : 400);
+  }
+  // Solo bet, kind-aware.
+  const gameId = String((body && body.gameId) || '').trim();
+  const side = String((body && body.side) || '').toLowerCase();
+  if (!gameId) return json({ ok: false, error: 'bad-game', message: 'Pick a game.' }, 400);
+  if (kind === 'moneyline' || kind === 'spread') {
+    if (side !== 'home' && side !== 'away') {
+      return json({ ok: false, error: 'bad-side', message: 'Side must be home or away.' }, 400);
+    }
+  } else if (kind === 'total') {
+    if (side !== 'over' && side !== 'under') {
+      return json({ ok: false, error: 'bad-side', message: 'Side must be over or under.' }, 400);
+    }
+  } else {
+    return json({ ok: false, error: 'bad-kind', message: 'kind must be moneyline, spread, total, or parlay.' }, 400);
+  }
+  const r = await runPlaceJson(env, guildId, userId, {
+    game: gameId,
+    kind,
+    side,
+    bolts: Math.floor(bolts),
+  });
+  return json(r, r.ok ? 200 : 400);
+}
 
 // ── Queue (Community / Variety Night) ─────────────────────────────────
 

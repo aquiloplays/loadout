@@ -1008,8 +1008,13 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_quest-trace/')) {
       return handleQuestTrace(req, env, path);
     }
-    // (Removed with the Bolts economy sunset: the public sports-betting
-    // snapshot route /sports/public — bet.js was deleted.)
+    // Public read-only sports snapshot for aquilo.gg's /sports board
+    // (SportsBoard.tsx). The 48h upcoming-games slice with moneyline odds.
+    // CORS-open + unauthenticated (read-only). Resurrected 2026-07-10.
+    if (method === 'GET' && path === '/sports/public') {
+      const { publicSportsSnapshot } = await import('./bet.js');
+      return publicSportsSnapshot(env);
+    }
 
     // Public read-only schedule snapshot for aquilo.gg + (later) the
     // panel's Schedule tab. Composes schedule:v1 + games:v1 +
@@ -1579,11 +1584,12 @@ export default {
           }
         })());
       } else if (event.cron === '23 * * * *') {
-        // (Removed with the Bolts economy sunset: the :23 sports-bet
-        // settlement (bet.js) + bolts-feed digest (bolts-feed.js) ticks.
-        // The non-currency :23 work — aquilo fold-in, gifter roles,
-        // polls, ticket sweep, vote-hub, schedule — runs in the
-        // separate `if (event.cron === '23 * * * *')` block below.)
+        // Sports-bet settlement (resurrected 2026-07-10): reads ESPN
+        // final scores and pays out finished games. Idempotent
+        // (clear-then-settle), best-effort, independent waitUntil.
+        // (bolts-feed.js digest stays removed with the economy sunset.)
+        const { betCronTick } = await import('./bet.js');
+        ctx.waitUntil(betCronTick(env));
       } else if (event.cron === '0 1 * * *' || event.cron === '0 2 * * *') {
         // Queue auto-open at 9 PM ET on variety/community nights.
         // autoOpenIfDue is idempotent + bails if conditions aren't met.
