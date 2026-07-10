@@ -150,9 +150,17 @@ function callbackUrl(env) {
 }
 
 // ── sanitizers ────────────────────────────────────────────────────────
+// Channel-slug aliases from Twitch renames. PunchCard keys everything by
+// the login slug, so a rename would orphan every viewer's streak/card.
+// Instead: the pc:* data was migrated old→new once (2026-07-10), and every
+// entry point canonicalizes here — old ?ch= URLs baked into OBS sources,
+// panel links and Streamer.bot actions keep working forever, while all
+// reads/writes converge on the new slug's keys. Add a line per rename.
+const CH_ALIAS = { prodigalttv: 'itsaquilo' };
 function chanName(s) {
   const v = String(s || '').trim().toLowerCase();
-  return /^[a-z0-9_]{2,25}$/.test(v) ? v : null;
+  if (!/^[a-z0-9_]{2,25}$/.test(v)) return null;
+  return CH_ALIAS[v] || v;
 }
 // Viewer keys: bare Twitch login, or platform-prefixed for SB-relayed
 // YouTube/Kick chat command check-ins.
