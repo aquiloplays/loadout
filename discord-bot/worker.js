@@ -1044,6 +1044,29 @@ export default {
       return publicSportsSnapshot(env);
     }
 
+    // Public read-only check-in streak leaderboard for the /community page.
+    // No auth, no self rank (logged-out visitors); names only (same data the
+    // weekly Discord recap already posts publicly). Edge-cached 60s so the
+    // name resolution runs at most once a minute regardless of traffic.
+    if (method === 'GET' && path === '/public/checkin-leaderboard') {
+      const guildId = env.AQUILO_VAULT_GUILD_ID;
+      if (!env.LOADOUT_BOLTS || !guildId) {
+        return new Response(JSON.stringify({ ok: false, error: 'not-configured', top: [], total: 0 }), {
+          status: 503, headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
+        });
+      }
+      const { topCheckinStreaks } = await import('./community-checkin.js');
+      const data = await topCheckinStreaks(env, guildId, 10, null);
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'cache-control': 'public, max-age=0, s-maxage=60',
+          'access-control-allow-origin': '*',
+        },
+      });
+    }
+
     // Public read-only schedule snapshot for aquilo.gg + (later) the
     // panel's Schedule tab. Composes schedule:v1 + games:v1 +
     // channel:vote:guild and computes nextStream + voteActive. See

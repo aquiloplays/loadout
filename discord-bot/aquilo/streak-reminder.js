@@ -13,6 +13,7 @@
 
 import { sendDm } from './util.js';
 import { todayET } from '../community-checkin.js';
+import { getFreezes } from '../streak-freeze.js';
 
 const MIN_STREAK = 3;               // don't nag brand-new streaks
 const DEDUP_TTL = 30 * 60 * 60;     // 30h, survives past midnight
@@ -72,21 +73,37 @@ export async function runStreakReminderCron(env) {
     const dedupKey = `streak-reminder:sent:${guildId}:${c.userId}:${today}`;
     if (await env.LOADOUT_BOLTS.get(dedupKey)) continue;
     if (!(await wantsReminder(env, c.userId))) continue;
+    // Shield-aware copy: a member who banked a Streak Shield will not lose
+    // their streak on a miss (community-checkin auto-consumes one), so the
+    // "about to reset" alarm would be inaccurate and would waste the 250
+    // Bolts they spent for peace of mind. Read the freeze count (cheap, the
+    // at-risk list is small) and soften the message for shielded members.
+    let shields = 0;
+    try { shields = (await getFreezes(env, guildId, c.userId)).discord || 0; } catch { /* best-effort */ }
+
+    const embed = shields > 0
+      ? {
+          title: "Keep your streak going",
+          description:
+            `You're on a **${c.streak}-day** streak and you haven't checked in today. ` +
+            `You have **${shields}** streak shield${shields === 1 ? "" : "s"} banked, so one will save your streak automatically if you miss.\n\n` +
+            `Want to keep the shields for later? [Check in now](https://aquilo.gg/checkin/).`,
+          color: 0x5ee5ff,
+          footer: { text: "Turn these off anytime in your notification settings." },
+        }
+      : {
+          title: "Your check-in streak is about to reset",
+          description:
+            `You're on a **${c.streak}-day** streak. It resets at midnight ET if you don't check in today.\n\n` +
+            `Keep it alive: [check in now](https://aquilo.gg/checkin/).`,
+          color: 0xffb454,
+          footer: { text: "Turn these off anytime in your notification settings." },
+        };
+
     // Reserve before sending so a retry can never double-DM the same night.
     await env.LOADOUT_BOLTS.put(dedupKey, "1", { expirationTtl: DEDUP_TTL });
     try {
-      await sendDm(env, c.userId, {
-        embeds: [
-          {
-            title: "Your check-in streak is about to reset",
-            description:
-              `You're on a **${c.streak}-day** streak. It resets at midnight ET if you don't check in today.\n\n` +
-              `Keep it alive: [check in now](https://aquilo.gg/checkin/).`,
-            color: 0xffb454,
-            footer: { text: "Turn these off anytime in your notification settings." },
-          },
-        ],
-      });
+      await sendDm(env, c.userId, { embeds: [embed] });
       sent++;
     } catch {
       // Dead token or member has DMs closed (50007): already reserved, skip.

@@ -33,6 +33,7 @@
 
 // (Bolts economy sunset: removed wallet/economy-pace/cards-packs import)
 import { consumeFreeze, getFreezes } from './streak-freeze.js';
+import { resolveActorName } from './actor-name.js';
 import { getCheckinChannel } from './admin-menu.js';
 import { emitProgressionEvent } from './progression/event-bus.js';
 import { publishActivity } from './activity-do.js';
@@ -661,6 +662,68 @@ export async function getStatus(env, guildId, userId) {
 // (web route) keep their import + a stable response shape.)
 export async function collectBonus(env, guildId, userId, claimId) {
   return { ok: true, collected: [], totalCredited: 0, remaining: 0 };
+}
+
+// Whole-day distance between two "YYYY-MM-DD" ET day strings (b - a).
+function dayDiffEt(a, b) {
+  if (!a || !b) return 999;
+  const da = Date.parse(a + 'T00:00:00Z');
+  const db = Date.parse(b + 'T00:00:00Z');
+  if (!Number.isFinite(da) || !Number.isFinite(db)) return 999;
+  return Math.round((db - da) / 86400000);
+}
+
+// Leaderboard of the ALIVE community check-in streaks, the visible stakes
+// that make a Streak Shield worth buying. Walks the KV list() metadata
+// ({ streak, lastDayEt } stamped by saveState) so the scan costs zero
+// per-key gets; only the top `limit` names are resolved (resolveActorName
+// caches each in KV for 6h). A streak counts as alive when the member
+// checked in today or yesterday (dayDiff <= 1); dayDiff >= 2 means it
+// already lapsed and must not rank. When selfUserId is supplied the
+// caller's own rank + streak ride back even if they sit outside the top.
+export async function topCheckinStreaks(env, guildId, limit = 10, selfUserId = null) {
+  if (!guildId || !env.LOADOUT_BOLTS) return { ok: false, top: [], you: null, total: 0 };
+  const today = todayET();
+  const prefix = `community-checkin:${guildId}:`;
+
+  const alive = [];
+  let cursor;
+  for (let page = 0; page < 6; page++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix, cursor, limit: 1000 });
+    for (const k of r.keys) {
+      const md = k.metadata;
+      if (!md || typeof md.streak !== 'number' || md.streak < 1) continue;
+      if (dayDiffEt(md.lastDayEt, today) > 1) continue; // lapsed, does not rank
+      alive.push({ userId: k.name.slice(prefix.length), streak: md.streak });
+    }
+    if (r.list_complete || !r.cursor) break;
+    cursor = r.cursor;
+  }
+
+  // Highest streak first; stable userId tiebreak keeps ranks deterministic.
+  alive.sort((a, b) => b.streak - a.streak || (a.userId < b.userId ? -1 : 1));
+
+  const selfId = selfUserId ? String(selfUserId) : null;
+  let you = null;
+  if (selfId) {
+    const idx = alive.findIndex((e) => e.userId === selfId);
+    if (idx >= 0) you = { rank: idx + 1, streak: alive[idx].streak, total: alive.length };
+  }
+
+  const cap = Math.max(1, Math.min(50, limit));
+  const top = alive.slice(0, cap);
+  const named = [];
+  for (let i = 0; i < top.length; i++) {
+    let name = null;
+    try { name = await resolveActorName(env, guildId, top[i].userId, null); } catch { /* best-effort */ }
+    named.push({
+      rank: i + 1,
+      streak: top[i].streak,
+      name: name || 'A viewer',
+      you: selfId ? top[i].userId === selfId : false,
+    });
+  }
+  return { ok: true, top: named, you, total: alive.length };
 }
 
 // ── Discord /checkin slash command ─────────────────────────────────────

@@ -139,6 +139,11 @@ const ROUTES = new Set([
   'checkin/card/save',       // POST, validate vs entitlements + upsert config
   'checkin/show',            // POST, rate-limited; publish streamcheckin.shown to OBS
   'checkin/badges',          // POST, earned-badge list (optional lookupUserId)
+  // Streak Freeze store (Duolingo-style streak protection, paid in Bolts).
+  // Nested under checkin/ so it rides the existing site check-in bridge.
+  'checkin/freeze/status',   // POST, owned/max/price/balance for the discord freeze
+  'checkin/freeze/buy',      // POST, spend Bolts to bank one discord freeze
+  'checkin/leaderboard',     // POST, top alive check-in streaks + the caller's rank
   // Boltbound per-user card art override (meme-GIF skin layer).
   // Rendering integrated 2026-05-28: cards-web routeState ships the
   // user's overrides + the global defaults in the bootstrap payload.
@@ -333,6 +338,9 @@ export async function handleWeb(req, env) {
     if (route === 'checkin')               return await routeCommunityCheckin(env, guildId, discordId);
     if (route === 'checkin/status')        return await routeCommunityCheckinStatus(env, guildId, discordId);
     if (route === 'checkin/card')          return await routeCommunityCheckinCard(env, guildId, discordId, body);
+    if (route === 'checkin/freeze/status') return await routeFreezeStatus(env, guildId, discordId);
+    if (route === 'checkin/freeze/buy')    return await routeFreezeBuy(env, guildId, discordId);
+    if (route === 'checkin/leaderboard')   return await routeCheckinLeaderboard(env, guildId, discordId);
     // (Bolts economy sunset 2026-06: checkin/bonus/collect dispatch removed — bonus payout was removed)
     if (route === 'checkin/card/me')       return await routeStreamCheckinCardMe(env, guildId, discordId);
     if (route === 'checkin/card/save')     return await routeStreamCheckinCardSave(env, guildId, discordId, body);
@@ -1033,6 +1041,67 @@ async function routeCommunityCheckin(env, guildId, discordId) {
 async function routeCommunityCheckinStatus(env, guildId, discordId) {
   const { getStatus } = await import('./community-checkin.js');
   const r = await getStatus(env, guildId, discordId);
+  return json(r);
+}
+
+// Streak Freeze store. A viewer spends Bolts to bank a "discord" freeze that
+// community-checkin.js auto-consumes on a missed ET-day, so a single lapse
+// does not reset the streak. streak-freeze.js owns the per-type cap; the Bolts
+// debit lives here and is refunded if the cap add loses a race, so we never
+// take Bolts without granting a freeze. Identity is the same (guildId,
+// discordId) the community-checkin streak and the wallet are keyed under.
+async function routeFreezeStatus(env, guildId, discordId) {
+  const { getFreezes, FREEZE_PRICE, MAX_FREEZES_PER_TYPE } = await import('./streak-freeze.js');
+  const f = await getFreezes(env, guildId, discordId);
+  const w = await getWallet(env, guildId, discordId);
+  return json({
+    ok: true,
+    type: 'discord',
+    owned: f.discord,
+    max: MAX_FREEZES_PER_TYPE,
+    price: FREEZE_PRICE,
+    balance: w.balance,
+    atCap: f.discord >= MAX_FREEZES_PER_TYPE,
+  });
+}
+
+async function routeFreezeBuy(env, guildId, discordId) {
+  const { getFreezes, addFreeze, FREEZE_PRICE, MAX_FREEZES_PER_TYPE } = await import('./streak-freeze.js');
+  const { spend, earn } = await import('./wallet.js');
+
+  const f = await getFreezes(env, guildId, discordId);
+  if ((f.discord || 0) >= MAX_FREEZES_PER_TYPE) {
+    return json({ ok: false, error: 'at-cap', owned: f.discord, max: MAX_FREEZES_PER_TYPE, price: FREEZE_PRICE });
+  }
+  const w = await getWallet(env, guildId, discordId);
+  if (w.balance < FREEZE_PRICE) {
+    return json({ ok: false, error: 'insufficient', balance: w.balance, price: FREEZE_PRICE });
+  }
+  const paid = await spend(env, guildId, discordId, FREEZE_PRICE, 'freeze:buy:discord');
+  if (!paid.ok) {
+    const balance = paid.balance != null ? paid.balance : w.balance;
+    return json({ ok: false, error: 'insufficient', balance, price: FREEZE_PRICE });
+  }
+  const added = await addFreeze(env, guildId, discordId, 'discord');
+  if (!added.ok) {
+    // Cap race between the check above and the add: refund the debit.
+    await earn(env, guildId, discordId, FREEZE_PRICE, 'freeze:refund:cap');
+    return json({ ok: false, error: 'at-cap', owned: added.count, max: MAX_FREEZES_PER_TYPE, balance: w.balance, price: FREEZE_PRICE });
+  }
+  return json({
+    ok: true,
+    owned: added.count,
+    max: MAX_FREEZES_PER_TYPE,
+    spent: FREEZE_PRICE,
+    balance: paid.wallet.balance,
+  });
+}
+
+// Check-in streak leaderboard (top alive streaks + the caller's own rank).
+// The visible stakes that make a Streak Shield worth buying.
+async function routeCheckinLeaderboard(env, guildId, discordId) {
+  const { topCheckinStreaks } = await import('./community-checkin.js');
+  const r = await topCheckinStreaks(env, guildId, 10, discordId);
   return json(r);
 }
 
