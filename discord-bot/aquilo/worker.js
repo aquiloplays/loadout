@@ -116,6 +116,7 @@ import {
 import { touchSeen, runReturningCron } from './returning.js';
 import { runStreakReminderCron } from './streak-reminder.js';
 import { runOffNightCron } from './off-night.js';
+import { runBindingHealthCron } from './binding-health.js';
 import { refreshLeaderboardChannel } from './leaderboard-channel.js';
 import { isAdmin } from './util.js';
 
@@ -568,6 +569,13 @@ async function handleScheduled(event, env, ctx) {
   // Every cron tick, returning-member DM scan (cheap, bounded query).
   try { await runReturningCron(env); }
   catch (e) { console.error('[cron returning]', e?.message || e); }
+
+  // Morning: daily binding health check (pause insurance, silent if all
+  // core channels are bound).
+  if (hour === 9) {
+    try { await runBindingHealthCron(env); }
+    catch (e) { console.error('[cron binding-health]', e?.message || e); }
+  }
 
   // ~9 PM ET (this dispatcher rides the :23 tick, so hour===21 fires
   // ~21:23 ET): the evening community beats.
