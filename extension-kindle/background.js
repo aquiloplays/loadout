@@ -6,18 +6,9 @@
 // The ingest secret lives in chrome.storage.local (Chrome profile encryption),
 // is the same hex set as the worker's VAULT_INGEST_SECRET, and is never logged.
 
-const INGEST_URL = "https://aquilo.gg/api/vault/kindle/ingest";
+const SYNC_BASE = "https://kindle-sync.aquiloplays.workers.dev";
 const NOTEBOOK_URL = "https://read.amazon.com/notebook";
-const CHUNK = 500;
-const ALARM = "aquilo-kindle-daily";
-
-// ── HMAC (WebCrypto), matches the worker: hex SHA-256 over ts + "\n" + body ──
-async function sign(secret, ts, body) {
-  const key = await crypto.subtle.importKey(
-    "raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(ts + "\n" + body));
-  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+const ALARM = "codex-kindle-daily";
 
 async function getStore(keys) {
   return new Promise((res) => chrome.storage.local.get(keys, res));
@@ -69,26 +60,16 @@ function sendScrape(tabId) {
   });
 }
 
-// ── push highlights (chunked, HMAC) ─────────────────────────────────────
-async function pushHighlights(secret, highlights) {
-  let inserted = 0;
-  for (let i = 0; i < highlights.length; i += CHUNK) {
-    const body = JSON.stringify({ highlights: highlights.slice(i, i + CHUNK) });
-    const ts = String(Math.floor(Date.now() / 1000));
-    const sig = await sign(secret, ts, body);
-    const r = await fetch(INGEST_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-aquilo-vault-ts": ts, "x-aquilo-vault-sig": sig },
-      body,
-    });
-    if (r.status === 401) return { ok: false, error: "bad-secret", inserted };
-    if (r.status === 503) return { ok: false, error: "secret-not-set-on-worker", inserted };
-    if (!r.ok) return { ok: false, error: "http-" + r.status, inserted };
-    let d = {};
-    try { d = await r.json(); } catch (e) { d = {}; }
-    inserted += Number(d.inserted || 0);
-  }
-  return { ok: true, inserted };
+// ── push highlights (full array, key-in-path) to the Codex sync worker ──
+async function pushHighlights(key, highlights) {
+  const r = await fetch(SYNC_BASE + "/h/" + encodeURIComponent(key), {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(highlights),
+  });
+  if (r.status === 400) return { ok: false, error: "bad-key", inserted: 0 };
+  if (!r.ok) return { ok: false, error: "http-" + r.status, inserted: 0 };
+  return { ok: true, inserted: highlights.length };
 }
 
 // ── the sync pipeline ───────────────────────────────────────────────────
@@ -100,10 +81,10 @@ async function runSync() {
   await setStore({ status: "Starting...", lastError: "" });
   let createdTabId = null;
   try {
-    const { secret } = await getStore(["secret"]);
-    if (!secret) {
-      await setStore({ lastError: "Paste your ingest secret in the popup first.", status: "" });
-      return { ok: false, error: "no-secret" };
+    const { key } = await getStore(["key"]);
+    if (!key) {
+      await setStore({ lastError: "Paste your Codex sync key in the popup first.", status: "" });
+      return { ok: false, error: "no-key" };
     }
     // Reuse an open notebook tab, else open one in the background.
     let tabs = await queryTabs({ url: "https://read.amazon.com/notebook*" });
@@ -121,7 +102,7 @@ async function runSync() {
     }
     const highlights = res.highlights || [];
     await setStore({ status: "Uploading " + highlights.length + " highlights..." });
-    const out = await pushHighlights(secret, highlights);
+    const out = await pushHighlights(key, highlights);
     if (out.ok) {
       await setStore({ lastSyncMs: Date.now(), lastCount: highlights.length, lastError: "", status: "" });
       return { ok: true, count: highlights.length, inserted: out.inserted };
