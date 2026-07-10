@@ -38,6 +38,7 @@ import {
   listSubscriptions,
   getStreamInfo,
   getUserById,
+  getRecentClips,
 } from './twitch-helix.js';
 import {
   EVENT_TYPE_HANDLERS,
@@ -46,6 +47,133 @@ import {
 
 const REPLAY_KEY = (id) => `twitch:eventsub:seen:${id}`;
 const REPLAY_TTL_S = 10 * 60;
+
+// ── Auto "what you missed last night" recap (roadmap item 14) ─────
+//
+// On stream.offline we snapshot the session into KV `recap:latest`
+// with EXACTLY the shape the site's StreamRecapCard consumes via
+// GET /community/recap-latest:
+//   { endedAt, startedAt, durationMin, game, title, peakViewers,
+//     topClip: null | { url, title, thumbnail } }
+//
+// Session facts come from the live-status dashboard's KV record
+// (live-status-embed.js stamps game/title/peakViewers on the
+// per-minute refresh); legacy twitch:live:state:* is the fallback.
+// The top clip is the highest-viewed Helix clip of the last 24h.
+//
+// Called from live-status-embed.js handleStreamOffline (which passes
+// the KV rec it read BEFORE deleting it) — the authoritative writer.
+// Both the EventSub stream.offline branch and the per-minute cron's
+// missed-offline detection route through handleStreamOffline, so
+// every data-bearing path is covered by that single call site.
+// A caller with no session facts never overwrites an existing recap;
+// the rec-bearing caller is authoritative.
+const RECAP_LATEST_KEY = 'recap:latest';
+
+export async function persistLatestRecap(env, broadcasterId, preRec = null) {
+  try {
+    const guildId = String(env.AQUILO_VAULT_GUILD_ID || '').trim();
+    const endedAt = Date.now();
+
+    let rec = preRec || null;
+    if (!rec && guildId) {
+      try { rec = await env.LOADOUT_BOLTS.get(`live-status-embed:${guildId}`, { type: 'json' }); }
+      catch { /* fall through */ }
+    }
+    let legacy = null;
+    if (!rec) {
+      try { legacy = await env.LOADOUT_BOLTS.get(`twitch:live:state:${broadcasterId}`, { type: 'json' }); }
+      catch { /* ignore */ }
+      // Legacy hardening: only trust a twitch:live:state record whose
+      // startedAt is fresh (within 24h). A months-old leftover record
+      // must never seed lastGame/lastTitle/startedAt into a recap (an
+      // absurd durationMin and stale facts would clobber real data).
+      if (legacy) {
+        const startedMs = Date.parse(legacy.startedAt || '') || 0;
+        if (!startedMs || (endedAt - startedMs) > 24 * 60 * 60 * 1000) legacy = null;
+      }
+    }
+    // No-facts guard: when BOTH fact sources are missing, never
+    // overwrite an existing recap regardless of age — the topClip
+    // alone doesn't justify clobbering real session data with a
+    // fact-free husk. Only write the factless shape when no recap
+    // exists at all (first-ever run).
+    if (!rec && !legacy) {
+      try {
+        const existing = await env.LOADOUT_BOLTS.get(RECAP_LATEST_KEY, { type: 'json' });
+        if (existing) {
+          return { ok: true, skipped: 'no-session-facts' };
+        }
+      } catch { /* write anyway */ }
+    }
+
+    const startedAtIso = rec?.startedAtIso || legacy?.startedAt || null;
+    const startedAtMs  = startedAtIso ? (Date.parse(startedAtIso) || null) : null;
+    const startedAt    = Number.isFinite(startedAtMs) && startedAtMs > 0 ? startedAtMs : null;
+    const durationMin  = startedAt ? Math.max(0, Math.round((endedAt - startedAt) / 60_000)) : null;
+    const peakRaw      = Number(rec?.peakViewers ?? legacy?.lastPeakViewers);
+    const peakViewers  = Number.isFinite(peakRaw) && peakRaw > 0 ? peakRaw : null;
+
+    // Top clip of the session: last-24h window, highest view count.
+    // Best-effort — a Helix failure just means topClip: null.
+    let topClip = null;
+    try {
+      const sinceIso = new Date(endedAt - 24 * 60 * 60 * 1000).toISOString();
+      const clips = await getRecentClips(env, broadcasterId, sinceIso);
+      const best = (Array.isArray(clips) ? clips : [])
+        .filter(c => c && c.url)
+        .sort((a, b) => (Number(b.view_count) || 0) - (Number(a.view_count) || 0))[0];
+      if (best) {
+        topClip = {
+          url:       String(best.url),
+          title:     String(best.title || ''),
+          thumbnail: String(best.thumbnail_url || ''),
+        };
+      }
+    } catch (e) {
+      console.warn('[recap-latest] top-clip lookup failed:', e?.message || e);
+    }
+
+    const recap = {
+      endedAt,
+      startedAt,
+      durationMin,
+      game:  String(rec?.game || legacy?.lastGame || ''),
+      title: String(rec?.title || legacy?.lastTitle || ''),
+      peakViewers,
+      topClip,
+    };
+    await env.LOADOUT_BOLTS.put(RECAP_LATEST_KEY, JSON.stringify(recap));
+    return { ok: true, recap };
+  } catch (e) {
+    console.warn('[recap-latest] persist failed:', e?.message || e);
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+// GET /community/recap-latest — public read for the site proxy
+// (functions/api/community/recap-latest.js). Always { ok, recap };
+// recap is null until the first stream.offline after deploy.
+export async function handleRecapLatest(req, env) {
+  if (req.method !== 'GET') {
+    return new Response(JSON.stringify({ ok: false, error: 'method' }), {
+      status: 405, headers: { 'content-type': 'application/json' },
+    });
+  }
+  let recap = null;
+  try {
+    const raw = await env.LOADOUT_BOLTS.get(RECAP_LATEST_KEY, { type: 'json' });
+    if (raw && typeof raw === 'object') recap = raw;
+  } catch { /* recap stays null */ }
+  return new Response(JSON.stringify({ ok: true, recap }), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json',
+      'access-control-allow-origin': '*',
+      'cache-control': 'public, max-age=0, s-maxage=60',
+    },
+  });
+}
 
 // ── Signature verification ───────────────────────────────────────
 
@@ -152,6 +280,12 @@ export async function handleEventSubWebhook(req, env, ctx) {
       // lifecycleState is best-effort, only present if the retired
       // twitch-live.js card happens to have left state behind.
       ctx.waitUntil((async () => {
+        // The "what you missed last night" recap (roadmap item 14) is
+        // persisted inside handleStreamOffline below, which reads the
+        // live-status KV rec BEFORE deleting it and passes it to
+        // persistLatestRecap. Every data-bearing path (EventSub +
+        // the cron's missed-offline detection) routes through it, so
+        // no direct persist call is needed here.
         let lifecycleState = null;
         try {
           lifecycleState = await env.LOADOUT_BOLTS.get(`twitch:live:state:${broadcasterId}`, { type: 'json' });
@@ -240,6 +374,70 @@ export async function handleEventSubWebhook(req, env, ctx) {
         } catch (e) { console.warn('[twitch-eventsub] stats accumulate', e?.message || e); }
       })());
     }
+    // 2026-07-09 (community roadmap item 10): site activity-feed
+    // producers. Independent side-effect so a feed hiccup can never
+    // disturb the primary dispatch. Kinds + meta match the contract
+    // documented in activity-feed.js appendFeedEvent: subs, resubs,
+    // gift subs, cheers >= 100 bits, raids, hype-train completions.
+    {
+      const FEED_SUBTYPES = new Set([
+        'channel.subscribe', 'channel.subscription.message',
+        'channel.subscription.gift', 'channel.cheer',
+        'channel.raid', 'channel.hype_train.end',
+      ]);
+      if (subType && FEED_SUBTYPES.has(subType)) {
+        ctx.waitUntil((async () => {
+          try {
+            const ev = payload?.event || {};
+            const gid = env.AQUILO_VAULT_GUILD_ID || null;
+            const { appendFeedEvent } = await import('./activity-feed.js');
+            if (subType === 'channel.subscribe') {
+              if (ev.is_gift) return; // recipients ride the gift event
+              await appendFeedEvent(env, {
+                kind: 'twitch.sub', guildId: gid,
+                username: ev.user_name || ev.user_login || 'Someone',
+                meta: { tier: ev.tier || '1000' },
+              });
+            } else if (subType === 'channel.subscription.message') {
+              await appendFeedEvent(env, {
+                kind: 'twitch.resub', guildId: gid,
+                username: ev.user_name || ev.user_login || 'Someone',
+                meta: { tier: ev.tier || '1000', months: Number(ev.cumulative_months) || null },
+              });
+            } else if (subType === 'channel.subscription.gift') {
+              await appendFeedEvent(env, {
+                kind: 'twitch.gift', guildId: gid,
+                username: ev.is_anonymous ? 'An anonymous gifter' : (ev.user_name || ev.user_login || 'Someone'),
+                meta: { total: Number(ev.total) || 1, tier: ev.tier || '1000' },
+              });
+            } else if (subType === 'channel.cheer') {
+              const bits = Number(ev.bits) || 0;
+              if (bits < 100) return; // notable cheers only
+              await appendFeedEvent(env, {
+                kind: 'twitch.cheer', guildId: gid,
+                username: ev.is_anonymous ? 'An anonymous cheerer' : (ev.user_name || ev.user_login || 'Someone'),
+                meta: { bits },
+              });
+            } else if (subType === 'channel.raid') {
+              await appendFeedEvent(env, {
+                kind: 'twitch.raid', guildId: gid,
+                username: ev.from_broadcaster_user_name || ev.from_broadcaster_user_login || 'A streamer',
+                meta: { viewers: Number(ev.viewers) || 0 },
+              });
+            } else if (subType === 'channel.hype_train.end') {
+              await appendFeedEvent(env, {
+                kind: 'twitch.hypetrain', guildId: gid,
+                username: 'The community',
+                meta: { level: Number(ev.level) || 1, total: Number(ev.total) || 0 },
+              });
+            }
+          } catch (e) {
+            console.warn('[twitch-eventsub] feed producer', e?.message || e);
+          }
+        })());
+      }
+    }
+
     // 2026-07-03: Warden moderator-suite ingestion. Independent side-effect
     // so it can't disturb the primary dispatch above. Chat messages feed the
     // unified live console + banned-terms auto-actions; moderation events

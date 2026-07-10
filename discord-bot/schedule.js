@@ -32,18 +32,20 @@ const DEFAULT_SCHEDULE = {
   tz: 'America/New_York',
   updatedAt: 0,
   updatedBy: null,
-  // Schedule v4 (2026-06-11, Clay's final): Fallout 4 Crowd Control
-  // Chaos Mon/Wed/Fri, Community Votes Night Sun/Tue/Thu/Sat (game
-  // picked night by night by community vote; pool managed on
-  // aquilo.gg/admin). The Rotation slot is retired.
+  // Schedule v7 (2026-07-09, matches aquilo/aq-schedule.js WEEKLY):
+  // solo Crowd Control Sun/Mon/Wed/Fri/Sat, Tue/Thu OFF (rest days,
+  // startLocal:null so every consumer — Discord scheduled events,
+  // pre-stream pings, the site schedule/countdown — skips them). The
+  // community-vote nights (v4) and the Rotation slot are retired; a
+  // KV wipe or unsaved guild must NOT resurrect either.
   days: [
-    { dow: 0, label: 'Community Votes Night',         kind: 'community', startLocal: '22:30', endLocal: '00:30' },
-    { dow: 1, label: 'Fallout 4 Crowd Control Chaos', kind: 'fo4cc',     startLocal: '22:30', endLocal: '00:30' },
-    { dow: 2, label: 'Community Votes Night',         kind: 'community', startLocal: '22:30', endLocal: '00:30' },
-    { dow: 3, label: 'Fallout 4 Crowd Control Chaos', kind: 'fo4cc',     startLocal: '22:30', endLocal: '00:30' },
-    { dow: 4, label: 'Community Votes Night',         kind: 'community', startLocal: '22:30', endLocal: '00:30' },
-    { dow: 5, label: 'Fallout 4 Crowd Control Chaos', kind: 'fo4cc',     startLocal: '22:30', endLocal: '00:30' },
-    { dow: 6, label: 'Community Votes Night',         kind: 'community', startLocal: '22:30', endLocal: '00:30' },
+    { dow: 0, label: 'Crowd Control',        kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
+    { dow: 1, label: 'Crowd Control',        kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
+    { dow: 2, label: 'No stream (rest day)', kind: 'fo4cc', startLocal: null,    endLocal: null },
+    { dow: 3, label: 'Crowd Control',        kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
+    { dow: 4, label: 'No stream (rest day)', kind: 'fo4cc', startLocal: null,    endLocal: null },
+    { dow: 5, label: 'Crowd Control',        kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
+    { dow: 6, label: 'Crowd Control',        kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
   ],
 };
 
@@ -262,6 +264,9 @@ function voteActiveAt(schedule, now = Date.now()) {
   const t = nowInZone(tz, now);
   const day = schedule.days.find((dd) => dd.dow === t.dow);
   if (!day) return { active: false };
+  // Off day (startLocal:null): no stream means no vote window, even
+  // when the day's kind is community/variety.
+  if (!day.startLocal) return { active: false, kind: day.kind, dow: day.dow };
   if (day.kind !== 'variety' && day.kind !== 'community') {
     return { active: false, kind: day.kind, dow: day.dow };
   }

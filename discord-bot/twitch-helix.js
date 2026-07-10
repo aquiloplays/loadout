@@ -212,12 +212,17 @@ export async function helixFetch(env, path, params, opts = {}) {
 
 // ── Endpoint wrappers ─────────────────────────────────────────────
 
-// Returns the active stream object (live) OR null (offline / not
-// configured). Helix returns an empty `data` array for offline
-// channels, we flatten that to null so callers can just `if (stream)`.
+// Returns the active stream object (live), null (genuinely offline),
+// or undefined (Helix/auth error — unknown state). Helix returns a
+// truthy `{ data: [] }` body for offline channels, so the two cases
+// are distinguishable: helixFetch yields null only on error. Callers
+// that just `if (stream)` treat both falsy shapes as conservative
+// not-live; callers with destructive offline cascades (live-status-
+// embed.js) skip the tick on undefined instead of tearing down.
 export async function getStreamInfo(env, broadcasterId) {
   const j = await helixFetch(env, '/streams', { user_id: broadcasterId });
-  if (!j || !Array.isArray(j.data) || j.data.length === 0) return null;
+  if (!j) return undefined;                                  // Helix/auth error
+  if (!Array.isArray(j.data) || j.data.length === 0) return null; // offline
   return j.data[0];
 }
 

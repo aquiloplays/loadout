@@ -38,11 +38,10 @@ export const COMMANDS = [
     // reach the Loadout main menu via the pinned games menu in #games.
     default_member_permissions: '0',
   },
-  // B7, Temp voice channels
-  {
-    name: 'voice',
-    description: 'Create a personal voice channel; auto-deletes after a while when empty',
-  },
+  // (2026-07 hygiene: the /voice slash command was removed with
+  // voice-temp.js — the gateway-driven join-to-create system in
+  // temp-vc.js is the single temp-VC implementation now. Re-register
+  // commands after deploy: POST /admin/register-commands/<guildId>.)
   // L8, Ticketing
   {
     name: 'ticket',

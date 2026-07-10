@@ -15,7 +15,9 @@
 // KV layout:
 //   live-status-embed:<guildId> -> {
 //     messageId, channelId, broadcasterId, startedAtIso,
-//     hypeTrain?: { level, percent, expiresUtc }, updatedUtc
+//     hypeTrain?: { level, percent, expiresUtc }, updatedUtc,
+//     offlinePendingUtc?   // set on a first null Helix read (offline
+//                          // debounce), cleared by any live tick
 //   }
 
 import { getStreamInfo, getUserById, getRecentVod } from './twitch-helix.js';
@@ -193,10 +195,16 @@ export async function handleStreamOnline(env, broadcasterId) {
   if (existing?.messageId && existing.channelId === channelId) {
     const r = await discordPatch(env, channelId, existing.messageId, payload);
     if (r.ok) {
-      await env.LOADOUT_BOLTS.put(KEY(guildId), JSON.stringify({
+      const upd = {
         ...existing, broadcasterId, startedAtIso: stream.started_at,
+        game:  stream.game_name || existing.game || '',
+        title: stream.title || existing.title || '',
+        peakViewers: Math.max(Number(existing.peakViewers) || 0, Number(stream.viewer_count) || 0),
         updatedUtc: new Date().toISOString(),
-      }));
+      };
+      // Live signal → clear any pending offline debounce marker.
+      delete upd.offlinePendingUtc;
+      await env.LOADOUT_BOLTS.put(KEY(guildId), JSON.stringify(upd));
       return { ok: true, action: 'patched', messageId: existing.messageId };
     }
     // Patch failed (likely 404, message deleted). Fall through to POST.
@@ -210,6 +218,12 @@ export async function handleStreamOnline(env, broadcasterId) {
     channelId,
     broadcasterId,
     startedAtIso: stream.started_at,
+    // Session facts for the auto "what you missed" recap (roadmap
+    // item 14): the per-minute refresh keeps these fresh and tracks
+    // the peak; stream.offline snapshots them into recap:latest.
+    game:         stream.game_name || '',
+    title:        stream.title || '',
+    peakViewers:  Number(stream.viewer_count) || 0,
     updatedUtc:   new Date().toISOString(),
   };
   await env.LOADOUT_BOLTS.put(KEY(guildId), JSON.stringify(rec));
@@ -232,8 +246,26 @@ export async function refreshLiveStatusEmbed(env) {
   if (!rec?.messageId) return { ok: true, skipped: 'no-tracked-embed', vod };
 
   const stream = await getStreamInfo(env, rec.broadcasterId);
+  if (stream === undefined) {
+    // Helix/auth error — stream state UNKNOWN. Keep the embed + KV
+    // untouched and try again next minute; a transient 5xx/429 must
+    // never fire the destructive offline cascade mid-stream.
+    return { ok: true, skipped: 'helix-error', vod };
+  }
   if (!stream) {
-    // Stream went offline, Helix returned nothing. Clean up.
+    // Genuinely offline (Helix answered with an empty data array).
+    // Even so, the offline cascade (recap:latest persist, embed
+    // delete, VOD arming) is destructive enough to debounce: require
+    // TWO consecutive null ticks before treating it as a missed
+    // offline. Costs at most one extra minute on a real missed
+    // offline; EventSub stream.offline still acts immediately.
+    if (!rec.offlinePendingUtc) {
+      await env.LOADOUT_BOLTS.put(KEY(guildId), JSON.stringify({
+        ...rec, offlinePendingUtc: new Date().toISOString(),
+      }));
+      return { ok: true, action: 'offline-pending', vod };
+    }
+    // Previous minute also read null — genuinely offline. Clean up.
     return handleStreamOffline(env, rec.broadcasterId);
   }
   const login = await loginFor(env, rec.broadcasterId);
@@ -252,7 +284,20 @@ export async function refreshLiveStatusEmbed(env) {
     }
     return { ok: false, error: 'patch-failed', ...r };
   }
-  const next = { ...rec, updatedUtc: new Date().toISOString() };
+  const next = {
+    ...rec,
+    // Keep the recap facts current (roadmap item 14): latest game/
+    // title win (mid-stream category swaps should recap as the last
+    // thing played), peak is a running max across the session.
+    game:  stream.game_name || rec.game || '',
+    title: stream.title || rec.title || '',
+    peakViewers: Math.max(Number(rec.peakViewers) || 0, Number(stream.viewer_count) || 0),
+    updatedUtc: new Date().toISOString(),
+  };
+  // Any live tick clears the offline debounce (see the !stream branch
+  // above) — a single null blip mid-stream must not leave a pending
+  // marker that turns the NEXT blip into a full offline cascade.
+  delete next.offlinePendingUtc;
   if (hypeTrain !== rec.hypeTrain) next.hypeTrain = hypeTrain || undefined;
   await env.LOADOUT_BOLTS.put(KEY(guildId), JSON.stringify(next));
   return { ok: true, action: 'refreshed', viewerCount: stream.viewer_count };
@@ -299,6 +344,19 @@ export async function handleStreamOffline(env, broadcasterId) {
   const guildId = await activeGuildId(env);
   if (!guildId) return { ok: true, skipped: 'no-guild' };
   const rec = await env.LOADOUT_BOLTS.get(KEY(guildId), { type: 'json' });
+
+  // Snapshot the session into the site's "what you missed last night"
+  // recap (roadmap item 14) BEFORE the record is deleted below. This
+  // is the SOLE persist call site — both the EventSub stream.offline
+  // branch and the per-minute cron's missed-offline detection route
+  // through here, and persistLatestRecap itself refuses to overwrite
+  // an existing recap when it has no session facts.
+  if (rec) {
+    try {
+      const { persistLatestRecap } = await import('./twitch-eventsub.js');
+      await persistLatestRecap(env, broadcasterId, rec);
+    } catch (e) { console.warn('[live-status] recap persist failed', e?.message || e); }
+  }
 
   // Arm the VOD-drop BEFORE deleting the dashboard so the per-minute cron
   // can post the VOD once Twitch finishes processing it (the recording

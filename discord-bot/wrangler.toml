@@ -66,14 +66,15 @@ DISCORD_APP_ID = "1500849448866025573"
 # Primary Aquilo guild ID. Used as the default/active guild across the
 # schedule embeds, stream pings, vote hub, lineup, and admin HMAC auth.
 AQUILO_VAULT_GUILD_ID = "1504103035951906883"
-# Clay's Twitch channel (login: prodigalttv) — relay room-key derivation +
-# channel gate for /ext/* routes. Swapped 2026-06-02 from aquilogg
-# (1497793223) → prodigalttv (991099623) per Clay; old aquilogg OAuth
-# registration kept dormant for a potential switch-back.
+# Clay's Twitch channel (login: itsaquilo since the 2026-07-10 rename) —
+# relay room-key derivation + channel gate for /ext/* routes. The id
+# (991099623) is permanent and survives renames; swapped 2026-06-02 from
+# aquilogg (1497793223) per Clay.
 CLAY_TWITCH_CHANNEL_ID = "991099623"
 # Twitch login slug used for twitch.tv/<login> links + display. Falls
 # back to the live Helix lookup; this var is the explicit override.
-CLAY_TWITCH_LOGIN = "prodigalttv"
+# Flipped prodigalttv → itsaquilo on rename day 2026-07-10.
+CLAY_TWITCH_LOGIN = "itsaquilo"
 
 # ── Aquilo-server channel + role wiring ────────────────────────────────
 # Rewritten 2026-05 to point at the channels created by the L6 guild
@@ -93,7 +94,16 @@ SR_ROLE_LIMITS_JSON = "[]"
 # Default stream time in ET (HH:MM) for countdown + schedule defaults.
 STREAM_TIME_ET = "22:30"
 STAFF_ROLE_ID = "1507973879442964660"          # 🛡️ Moderator
-PRODUCTS = ""
+# Per-product announcement routing for /announce + /broadcast + the
+# product-release webhooks (aquilo/products.js getProducts merges this
+# JSON over the baked-in defaults). Empty = every product throws
+# "No channel configured" — /announce is effectively dead until set.
+# ACTIVATION (roadmap item 4): point every product at 📢│updates
+# (1507973923957112973) — one line, then redeploy:
+#   PRODUCTS = "{\"streamfusion\":{\"channel\":\"1507973923957112973\"},\"loadout\":{\"channel\":\"1507973923957112973\"},\"general\":{\"channel\":\"1507973923957112973\"}}"
+# Optional per-product role_ping keys (role snowflake) enable the
+# ping:true flag on /announce.
+PRODUCTS = "{\"streamfusion\":{\"channel\":\"1507973923957112973\"},\"loadout\":{\"channel\":\"1507973923957112973\"},\"general\":{\"channel\":\"1507973923957112973\"}}"
 FOURTHWALL_SALES_CHANNEL = "1507973923957112973"  # 📢│updates (product announcements)
 ROTATION_POLL_CHANNEL_ID = ""
 ENGAGEMENT_CHANNEL_ID = "1507973904164061194"  # 💬│general (engagement nudges)
@@ -104,12 +114,21 @@ DAILY_POLL_CHANNEL_ID = "1509565584092692512"
 QOTD_CHANNEL_ID       = "1509570450148036649"
 COUNTDOWN_CHANNEL_ID = "1507973917350957067"   # 🔴│live-now
 COUNTDOWN_VC_ID = ""                           # no dedicated countdown VC yet — Clay can create later
+# 30-minute pre-stream ping channel (stream-events.js preStreamPings,
+# checked by the per-minute cron; a per-event KV marker dedupes to ONE
+# ping per stream). Empty = feature off, the cron skips the import
+# entirely. ACTIVATED 2026-07-10 (roadmap item 2): 🔴│live-now.
+STREAM_PING_CHANNEL = "1507973917350957067"
 # Where scratch-off wins (challenge/tamper hits) echo. Empty -> falls back to
 # COUNTDOWN_CHANNEL_ID (🔴│live-now), then CHECKIN_CHANNEL_ID. See scratch-off.js.
 SCRATCH_ECHO_CHANNEL_ID = ""
 ROLES_CHANNEL_ID = "1507973902146732222"       # 🎭│roles (self-assign panel)
 COUNTING_CHANNEL_ID = "1507973915270582333"    # 🔢│counting
 COUNTING_FAIL_ROLE_ID = ""                     # no penalty role configured
+# ⭐ Starboard trip point (guild-features.js starboardThreshold).
+# Unset/invalid falls back to the code default (2). Kept as a var so
+# a hot community can raise it without a code edit.
+STARBOARD_THRESHOLD = "2"
 COUNTING_BASE_REWARD = "1"
 COUNTING_FAIL_PENALTY = "10"
 COUNTING_FAIL_DURATION_MIN = "60"

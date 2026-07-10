@@ -38,16 +38,33 @@ export async function verifyDiscordSignature(req, publicKeyHex) {
 export async function verifyGatewaySig(req, env, body) {
   const legacy = req.headers.get('x-counting-secret') || '';
   if (legacy) {
-    if (env.AQUILO_GATEWAY_SECRET   && legacy === env.AQUILO_GATEWAY_SECRET)   return { ok: true, via: 'shared-gateway' };
-    if (env.COUNTING_WEBHOOK_SECRET && legacy === env.COUNTING_WEBHOOK_SECRET) return { ok: true, via: 'shared-counting' };
+    if (env.AQUILO_GATEWAY_SECRET   && legacy === env.AQUILO_GATEWAY_SECRET)   return gatewayOk(env, 'shared-gateway');
+    if (env.COUNTING_WEBHOOK_SECRET && legacy === env.COUNTING_WEBHOOK_SECRET) return gatewayOk(env, 'shared-counting');
   }
   const ts  = req.headers.get('x-aquilo-gw-ts');
   const sig = req.headers.get('x-aquilo-gw-sig');
   if (ts && sig && env.AQUILO_GATEWAY_SECRET) {
     const ok = await verifyHmac(env.AQUILO_GATEWAY_SECRET, ts, body, sig);
-    if (ok) return { ok: true, via: 'gw-hmac' };
+    if (ok) return gatewayOk(env, 'gw-hmac');
   }
   return { ok: false };
+}
+
+// Every authenticated gateway event doubles as a liveness signal for
+// the dead-man switch (gateway-watchdog.js). verifyGatewaySig is ONLY
+// called by the aquilo-presence forwarded-event routes, so stamping
+// here covers all of them in one place — and this path is the ONLY
+// writer of gateway:last-seen (the public /forward-channels poll
+// stamps the separate gateway:poll-seen key), so the watchdog can
+// tell "events rejected, shim alive" apart from "shim dead". The
+// stamp is throttled + fully try/caught inside the watchdog, so it
+// can never fail an event route.
+async function gatewayOk(env, via) {
+  try {
+    const { stampGatewaySeen } = await import('./gateway-watchdog.js');
+    await stampGatewaySeen(env);
+  } catch { /* liveness bookkeeping must never block auth */ }
+  return { ok: true, via };
 }
 
 // ── Per-guild sync secret (registration / HMAC key store) ─────────

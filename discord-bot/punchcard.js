@@ -823,7 +823,7 @@ async function handleCheckin(env, body) {
       posted = true;
     } else if (crown && cfg.announceFirst) {
       await sendChat(env, ch, chan,
-        `👑 ${display} is FIRST in today — day ${next.s} of the streak! aquilo.gg/punchcard/card/?ch=${ch}`);
+        `👑 ${display} is FIRST in today, day ${next.s} of the streak! aquilo.gg/punchcard/card/?ch=${ch}`);
       posted = true;
     } else if (!next.dup && next.t === 1 && cfg.announceWelcome) {
       await sendChat(env, ch, chan,
@@ -841,7 +841,7 @@ async function handleCheckin(env, body) {
     }
     if (!posted && !next.dup && cfg.checkinReply) {
       await sendChat(env, ch, chan, fillTemplate(
-        cfg.checkinReplyMsg || '🔥 {name} checked in — day {streak}!',
+        cfg.checkinReplyMsg || '🔥 {name} checked in, day {streak}!',
         { name: display, streak: next.s, total: next.t, best: next.b }));
     }
   } catch { /* best effort */ }
@@ -1332,13 +1332,13 @@ async function handleStreakLookup(env, body) {
   const display = cleanDisplay(body.display) || vk;
   const user = await kvGet(env, KEY.user(ch, vk));
   if (!user || !user.t) {
-    await sendChat(env, ch, chan, `@${display} you haven't checked in yet — redeem "${chan.rewardTitle || 'Daily Check-In'}" to start a streak!`);
+    await sendChat(env, ch, chan, `@${display} you haven't checked in yet. Redeem "${chan.rewardTitle || 'Daily Check-In'}" to start a streak!`);
     return json({ ok: true });
   }
   const lb = (await kvGet(env, KEY.lb(ch))) || { top: [] };
   const rank = (lb.top || []).findIndex((e) => e && e.v === vk);
   const rankStr = rank >= 0 ? ` · #${rank + 1} on the board` : '';
-  await sendChat(env, ch, chan, `🔥 @${display} — ${user.s} day streak (best ${user.b}, ${user.t} total)${rankStr}`);
+  await sendChat(env, ch, chan, `🔥 @${display}: ${user.s} day streak (best ${user.b}, ${user.t} total)${rankStr}`);
   return json({ ok: true });
 }
 
@@ -1386,7 +1386,7 @@ async function handleRecap(env, body) {
   const lb = (await kvGet(env, KEY.lb(ch))) || { top: [] };
   const leader = (lb.top || [])[0];
   const leadStr = leader ? ` Top streak: ${leader.display} (${leader.s} days).` : '';
-  const ok = await sendChat(env, ch, chan, `📊 PunchCard this week: ${week} check-ins from ${st.unique || 0} total punchers.${leadStr} Keep the streaks alive — aquilo.gg/punchcard/card/?ch=${ch}`);
+  const ok = await sendChat(env, ch, chan, `📊 PunchCard this week: ${week} check-ins from ${st.unique || 0} total punchers.${leadStr} Keep the streaks alive: aquilo.gg/punchcard/card/?ch=${ch}`);
   return json({ ok });
 }
 
@@ -1727,7 +1727,7 @@ async function handleDiscordBoard(env, body) {
   const top = (lb.top || []).slice(0, 10);
   if (!top.length) return json({ ok: false, error: 'empty' }, 400);
   const medal = ['🥇', '🥈', '🥉'];
-  const lines = top.map((e, i) => `${medal[i] || (i + 1) + '.'} **${cleanDisplay(e.display || e.v)}** — ${e.s}-day streak`);
+  const lines = top.map((e, i) => `${medal[i] || (i + 1) + '.'} **${cleanDisplay(e.display || e.v)}**, ${e.s}-day streak`);
   const ok = await postDiscord(chan.cfg.discordWebhook, `**🏆 ${cleanDisplay(chan.display || ch)} check-in leaderboard**\n` + lines.join('\n'));
   return json({ ok });
 }

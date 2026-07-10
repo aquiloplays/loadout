@@ -302,13 +302,10 @@ export async function handleInteraction(req, env, body, ctx) {
     // were unregistered with the Bolts economy sunset. Stale clients
     // fall through to the default "unknown command" reply below.
 
-    case 'voice': {
-      // B7, temp voice channels. /voice creates a personal VC + moves
-      // the caller in. Auto-deletes on inactivity (cron sweep).
-      const { handleVoiceSlash } = await import('./voice-temp.js');
-      const text = await handleVoiceSlash(env, guild, userId, userName);
-      return json({ type: 4, data: { content: text, flags: 64 } });
-    }
+    // (2026-07 hygiene: the /voice slash command + voice-temp.js were
+    // removed — temp-VCs are minted by joining the ➕│join-to-create
+    // channel, handled gateway-side by temp-vc.js. A stale /voice from
+    // an old command cache falls through to "unknown command" below.)
 
     case 'ticket': {
       // L8, Support ticketing. Opens a private channel visible only

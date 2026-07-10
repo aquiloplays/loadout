@@ -319,7 +319,7 @@ async function handleFollowReward(env, guildId, aquiloId, twitchUserId, ev) {
   } catch { /* entitlement record best-effort */ }
   const embed = await postRewardEmbed(env, guildId, {
     author: { name: ev.userName || 'New follower' },
-    description: `📡 <@${aquiloId}> followed on Twitch — welcome!`,
+    description: `📡 <@${aquiloId}> followed on Twitch. Welcome!`,
     footer: { text: 'First follow only · refollowing later doesn\'t re-trigger' },
   });
   return { ok: true, action: 'granted', granted: [], embed };
@@ -363,8 +363,8 @@ async function handleGiftGivenReward(env, guildId, aquiloId, twitchUserId, ev) {
     await addGiftEntitlement(env, guildId, aquiloId, count);
   } catch { /* entitlement record best-effort */ }
   const desc = count > 1
-    ? `🎁 <@${aquiloId}> **gifted ${count} ${tier === '3000' ? 'Tier 3' : tier === '2000' ? 'Tier 2' : 'Tier 1'} subs** — thank you!`
-    : `🎁 <@${aquiloId}> **gifted a ${tier === '3000' ? 'Tier 3' : tier === '2000' ? 'Tier 2' : 'Tier 1'} sub** — thank you!`;
+    ? `🎁 <@${aquiloId}> **gifted ${count} ${tier === '3000' ? 'Tier 3' : tier === '2000' ? 'Tier 2' : 'Tier 1'} subs**, thank you!`
+    : `🎁 <@${aquiloId}> **gifted a ${tier === '3000' ? 'Tier 3' : tier === '2000' ? 'Tier 2' : 'Tier 1'} sub**, thank you!`;
   const embed = await postRewardEmbed(env, guildId, {
     author: { name: ev.userName || 'Gifter' },
     description: desc,
@@ -383,7 +383,7 @@ async function handleCheerReward(env, guildId, aquiloId, twitchUserId, ev) {
   } catch { /* entitlement record best-effort */ }
   const embed = await postRewardEmbed(env, guildId, {
     author: { name: ev.userName || 'Cheerer' },
-    description: `💎 <@${aquiloId}> **cheered ${bits.toLocaleString()} bits** — thank you!`,
+    description: `💎 <@${aquiloId}> **cheered ${bits.toLocaleString()} bits**, thank you!`,
   });
   return { ok: true, action: 'granted', granted: [], embed };
 }
@@ -394,7 +394,7 @@ async function handleRaidLeaderReward(env, guildId, aquiloId, twitchUserId, ev) 
   const viewers = Number(ev.viewers || 0);
   const embed = await postRewardEmbed(env, guildId, {
     author: { name: ev.fromBroadcasterName || 'Raider' },
-    description: `⚔️ <@${aquiloId}> **raided with ${viewers.toLocaleString()} viewer${viewers === 1 ? '' : 's'}** — thanks for the raid!`,
+    description: `⚔️ <@${aquiloId}> **raided with ${viewers.toLocaleString()} viewer${viewers === 1 ? '' : 's'}**, thanks for the raid!`,
   });
   return { ok: true, action: 'granted', granted: [], embed };
 }

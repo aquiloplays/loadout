@@ -168,7 +168,7 @@ async function openNominations(env, guildId, iso, dow, cfg) {
   const options = pool.slice(0, 25).map((g) => ({ label: g.name.slice(0, 100), value: g.id }));
   const payload = {
     content:
-      `${ping}🎲 **Community Night** — tonight's random pick is **${auto.name}**.\n` +
+      `${ping}🎲 **Community Night**: tonight's random pick is **${auto.name}**.\n` +
       `Want something else? Nominate up to **3** games below. The top picks go to a vote at ` +
       `${fmtHour(cfg.voteHourEt)}, and if one wins (≥ ${cfg.minVotes} votes) it replaces tonight's game.`,
     allowed_mentions: cfg.pingRoleId ? { parse: [], roles: [String(cfg.pingRoleId)] } : { parse: [] },
@@ -201,7 +201,7 @@ export async function handleCnVoteComponent(env, interaction) {
   const values = Array.isArray(interaction?.data?.values) ? interaction.data.values : [];
   const userId = interaction?.member?.user?.id || interaction?.user?.id;
   if (!guildId || !iso || !userId) {
-    return ephemeral('Could not record that — try again.');
+    return ephemeral('Could not record that. Try again.');
   }
   const state = await getState(env, guildId, iso);
   if (!state || state.phase !== 'nominate') {
@@ -242,7 +242,7 @@ async function openVote(env, guildId, iso, cfg) {
   if (counts.size === 0) {
     if (channelId) {
       await postMessage(env, channelId, {
-        content: `🎲 No nominations came in — Community Night stays on tonight's random pick, **${state.autoGameName}**.`,
+        content: `🎲 No nominations came in, so Community Night stays on tonight's random pick, **${state.autoGameName}**.`,
         allowed_mentions: { parse: [] },
       });
     }

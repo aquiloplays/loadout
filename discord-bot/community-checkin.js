@@ -88,7 +88,14 @@ async function loadState(env, guildId, userId) {
   return env.LOADOUT_BOLTS.get(STATE_KEY(guildId, userId), { type: 'json' });
 }
 async function saveState(env, guildId, userId, state) {
-  await env.LOADOUT_BOLTS.put(STATE_KEY(guildId, userId), JSON.stringify(state));
+  // KV metadata carries the two fields the weekly-recap top-streaks
+  // section needs, so its roster walk can run off list() alone (zero
+  // per-key gets). saveState is the only writer of this key, and it
+  // rewrites on every check-in, so the roster self-migrates: any key
+  // still missing metadata is pre-deploy legacy state.
+  await env.LOADOUT_BOLTS.put(STATE_KEY(guildId, userId), JSON.stringify(state), {
+    metadata: { streak: state.streak, lastDayEt: state.lastDayEt },
+  });
 }
 export async function getCard(env, guildId, userId) {
   return env.LOADOUT_BOLTS.get(CARD_KEY(guildId, userId), { type: 'json' });
@@ -584,6 +591,24 @@ export async function recordCheckin(env, guildId, userId, source = 'web', opts =
   // and bake the user's message + chosen GIF directly into the card.
   const member = await fetchMemberInfo(env, guildId, userId);
   const embed  = await postCheckinEmbed(env, guildId, userId, state, card, member, firstTimeNoCard, opts);
+
+  // Community-feed producer (roadmap item 10): every successful
+  // check-in lands on the site's "What's happening" feed; milestone
+  // days (7/30/100) go out as `streak.milestone` (already rendered
+  // with the flame treatment by ActivityFeed.tsx), everything else as
+  // `community.checkin` with the streak number. Best-effort, a feed
+  // failure never rolls back the check-in.
+  try {
+    const { appendFeedEvent } = await import('./activity-feed.js');
+    const milestone = (nextStreak === 7 || nextStreak === 30 || nextStreak === 100) ? nextStreak : null;
+    await appendFeedEvent(env, {
+      kind: milestone ? 'streak.milestone' : 'community.checkin',
+      userId,
+      guildId,
+      username: member?.displayName || (opts && (opts.displayName || opts.userName || opts.name)) || null,
+      meta: milestone ? { days: milestone, streak: nextStreak } : { streak: nextStreak },
+    });
+  } catch { /* non-fatal */ }
 
   // Referral milestone: if this user was attributed to a referrer and
   // this is their FIRST ever community check-in (state.total === 1

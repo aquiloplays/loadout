@@ -559,7 +559,7 @@ export async function applyFalloutPhase2(token, guildId, kv) {
   // Self-assign platform + ping buttons in #roles.
   if (ids.ch_roles) {
     const r = await dapi(token, 'POST', `/channels/${ids.ch_roles}/messages`, {
-      content: '**Pick your platform** — Fallout 76 has no crossplay, so this helps you find squads — **and your pings.** Toggle a button to add/remove a role.',
+      content: '**Pick your platform**: Fallout 76 has no crossplay, so this helps you find squads, **and your pings.** Toggle a button to add/remove a role.',
       components: [
         { type: 1, components: [
           { type: 2, style: 1, label: '🖥️ PC',          custom_id: 'guild:role:pc' },

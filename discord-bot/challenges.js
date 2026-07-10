@@ -36,79 +36,98 @@ const ROTATION_MARKER = 'challenge:rotation:lastIsoWeek';
 //
 // `kinds` is the set of progressionEvent kinds that contribute (with
 // optional `units(event)` to derive the contribution magnitude from
-// the event meta). `target` is calibrated for a ~Discord-sized server
-// (low hundreds of active players per week).
+// the event meta).
+//
+// Reseeded 2026-07-09 (community roadmap item 9). Two rules applied:
+//   1. Every `kinds` entry is verified to ACTUALLY FIRE on the sunset
+//      line today: daily.claimed + stream.checkin (check-ins),
+//      cards.match.played / .won.* / .pack.opened / .crafted
+//      (Boltbound web), achievement.unlocked (achievement engine),
+//      quest.claimed (daily-quests claim route, producer added in the
+//      same slate), star.received (starboard, producer added in the
+//      same slate). The old catalog was mostly dead kinds
+//      (bet.won, minigame.played, cards.deck.built, board.match.played
+//      have no emitters on this line, so those weeks could never move).
+//   2. Targets are sized for the actual community (tens of actives,
+//      not hundreds), per the roadmap's example sizes, a week should
+//      be winnable but not trivial.
+//
+// (Bolts economy sunset: `reward` omitted, the site's WeeklyChallenge
+// card hides its reward chips when the field is absent, and the
+// worker-side payout has been a no-op since the sunset.)
 
 const TEMPLATES = [
   {
-    id: 'play-pvp-week',
-    name: 'Game Night',
-    description: 'The community plays {target} Boltbound and board game matches this week.',
-    kinds: ['cards.match.played', 'board.match.played'],
+    id: 'roll-call-week',
+    name: 'Roll Call',
+    description: 'The community logs {target} daily check-ins this week.',
+    kinds: ['daily.claimed', 'stream.checkin'],
     units: () => 1,
-    target: 500,
-    reward: { bolts: 1000, top: 5 },
+    target: 150,
+    icon: '📅',
+  },
+  {
+    id: 'game-night-week',
+    name: 'Game Night',
+    description: 'The community plays {target} Boltbound matches this week.',
+    kinds: ['cards.match.played'],
+    units: () => 1,
+    target: 40,
     icon: '🎮',
   },
   {
-    id: 'open-packs-week',
+    id: 'star-search-week',
+    name: 'Star Search',
+    description: 'Collect {target} ⭐ stars on community messages this week.',
+    kinds: ['star.received'],
+    units: (e) => Math.max(1, Number(e?.meta?.stars) || 1),
+    target: 30,
+    icon: '⭐',
+  },
+  {
+    id: 'quest-crushers-week',
+    name: 'Quest Crushers',
+    description: 'The community claims {target} daily quests this week.',
+    kinds: ['quest.claimed'],
+    units: () => 1,
+    target: 40,
+    icon: '🗺️',
+  },
+  {
+    id: 'booster-frenzy-week',
     name: 'Booster Frenzy',
     description: 'The community opens {target} Boltbound packs this week.',
     kinds: ['cards.pack.opened'],
     units: () => 1,
-    target: 400,
-    reward: { bolts: 1500, top: 5 },
+    target: 30,
     icon: '📦',
   },
   {
-    id: 'bet-wins-week',
-    name: 'Hot Streak',
-    description: 'The community wins {target} bets this week.',
-    kinds: ['bet.won', 'bet.won.parlay'],
-    units: () => 1,
-    target: 250,
-    reward: { bolts: 1500, top: 5 },
-    icon: '🎯',
-  },
-  {
-    id: 'achievement-week',
+    id: 'trophy-hunt-week',
     name: 'Trophy Hunt',
     description: 'The community unlocks {target} achievements this week.',
     kinds: ['achievement.unlocked'],
     units: () => 1,
-    target: 300,
-    reward: { bolts: 1500, top: 5 },
+    target: 25,
     icon: '🏆',
   },
   {
-    id: 'daily-checkin-week',
-    name: 'Roll Call',
-    description: 'The community logs {target} daily check-ins this week.',
-    kinds: ['daily.claimed'],
+    id: 'victory-lap-week',
+    name: 'Victory Lap',
+    description: 'The community wins {target} Boltbound matches this week.',
+    kinds: ['cards.match.won.pvp', 'cards.match.won.npc'],
     units: () => 1,
-    target: 400,
-    reward: { bolts: 1500, top: 5 },
-    icon: '📅',
+    target: 25,
+    icon: '🥇',
   },
   {
-    id: 'minigame-week',
-    name: 'Arcade Run',
-    description: 'The community plays {target} mini-games this week.',
-    kinds: ['minigame.played', 'quick.game.played'],
+    id: 'workshop-week',
+    name: 'Workshop Week',
+    description: 'The community crafts {target} Boltbound cards this week.',
+    kinds: ['cards.crafted'],
     units: () => 1,
-    target: 600,
-    reward: { bolts: 1500, top: 5 },
-    icon: '🎲',
-  },
-  {
-    id: 'deckbuild-week',
-    name: 'Deck Lab',
-    description: 'The community builds {target} Boltbound decks this week.',
-    kinds: ['cards.deck.built'],
-    units: () => 1,
-    target: 150,
-    reward: { bolts: 1500, top: 5 },
-    icon: '🃏',
+    target: 15,
+    icon: '🛠️',
   },
 ];
 
@@ -181,6 +200,20 @@ export async function rotateIfDue(env) {
 
   // Close out the existing one (if any), archive + final embed.
   if (current) {
+    // Snapshot BOTH guards BEFORE the backfills below mutate the
+    // record:
+    //   • alreadyAnnounced — contributeToChallenge posted the
+    //     celebration embed mid-week when it stamped completedUtc, so
+    //     the close-out must not post it a second time. (The
+    //     completedUtc BACKFILL two lines down is a legitimately
+    //     un-announced completion and keeps its embed.)
+    //   • staleMs — a challenge dead for >8 days (e.g. the expired
+    //     June challenge on the first post-deploy tick, or any future
+    //     long outage) archives silently; a weeks-late eulogy is
+    //     noise. Computed before the expiresUtc backfill, which would
+    //     otherwise pin staleMs to ~0.
+    const alreadyAnnounced = !!current.completedUtc;
+    const staleMs = Date.now() - (current.expiresUtc || current.startedUtc || 0);
     current.expiresUtc = current.expiresUtc || Date.now();
     if (!current.completedUtc && current.progress >= current.target) {
       current.completedUtc = Date.now();
@@ -197,8 +230,10 @@ export async function rotateIfDue(env) {
       completedUtc: current.completedUtc || null,
       expiresUtc: current.expiresUtc,
     });
-    try { await postCompletionEmbed(env, current); } catch (e) {
-      console.warn('[challenges] completion embed failed:', e && e.message);
+    if (!alreadyAnnounced && staleMs < 8 * 24 * 60 * 60 * 1000) {
+      try { await postCompletionEmbed(env, current); } catch (e) {
+        console.warn('[challenges] completion embed failed:', e && e.message);
+      }
     }
     // Top-contributor rewards, fire on completion only, not on
     // expiry without completion.
@@ -254,6 +289,7 @@ export async function contributeToChallenge(env, event) {
     // The single-isolate write here is fine because the bus is the
     // only writer and emits are serialized per request. A lost update
     // across regions is acceptable here (community goal, not a wallet).
+    const prevProgress = current.progress | 0;
     current.progress = Math.min(current.target * 2, (current.progress | 0) + delta);
     current.contributors = current.contributors || {};
     current.contributors[event.userId] = (current.contributors[event.userId] || 0) + delta;
@@ -265,6 +301,34 @@ export async function contributeToChallenge(env, event) {
       try { await postCompletionEmbed(env, current); } catch { /* non-fatal */ }
       try { await rewardTopContributors(env, current); } catch { /* non-fatal */ }
     }
+
+    // Community-feed producer (roadmap item 10): surface the moments
+    // that matter, the contribution that pushed the bar past 25/50/75%
+    // and the one that completed the challenge. Every individual tick
+    // would drown the feed; the quarter-marks keep it a story. Wrapped
+    // so a feed failure can never break the contribution itself.
+    try {
+      let crossedPct = null;
+      for (const mark of [0.25, 0.5, 0.75]) {
+        const at = Math.ceil(current.target * mark);
+        if (prevProgress < at && current.progress >= at) crossedPct = Math.round(mark * 100);
+      }
+      if (justCompleted || crossedPct) {
+        const { appendFeedEvent } = await import('./activity-feed.js');
+        await appendFeedEvent(env, {
+          kind: justCompleted ? 'challenge.completed' : 'challenge.progress',
+          userId: event.userId,
+          guildId: event.guildId || null,
+          meta: {
+            challengeId: current.id,
+            name: current.name,
+            pct: justCompleted ? 100 : crossedPct,
+            progress: current.progress,
+            target: current.target,
+          },
+        });
+      }
+    } catch { /* non-fatal */ }
     return { ok: true, delta, progress: current.progress, target: current.target, justCompleted };
   } catch (e) {
     console.warn('[challenges] contribute failed:', e && e.message);

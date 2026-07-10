@@ -26,6 +26,10 @@
 //
 // Daily-cron-once-per-UTC-day marker:
 //   gifter-roles:last-cron-day:<g>  → YYYY-MM-DD
+//
+// Public leaderboard snapshots (written by the daily tick, served by
+// GET /community/top-supporters — see handleTopSupporters):
+//   gifter-top:<g>:<cat>  → [{ name, total, platform }] (top 50)
 
 import { verifyHmac } from './auth.js';
 
@@ -33,12 +37,24 @@ export const GIFTER_CATEGORIES = Object.freeze({
   sub:    { name: 'Top Sub Gifter',    color: 0x9146FF, eventType: 'sub-gift' },
   tiktok: { name: 'Top TikTok Gifter', color: 0xFF0050, eventType: 'tip' },
   cheer:  { name: 'Top Cheerer',       color: 0x5A3AFF, eventType: 'cheer' },
+  // 2026-07-09 (community roadmap item 13): Kick supporters. Fed by
+  // the sf-community.js event tap (Clay's own SF install relays Kick
+  // gift subs as /sf/community-event eventType 'gift'; tips are NOT
+  // counted — the bucket is a gift-sub count). Role is minted the
+  // next time /admin/gifter-roles/ensure runs; until then the daily
+  // reconcile safely skips the category ('no-role-id-for-kick').
+  kick:   { name: 'Top Kick Gifter',   color: 0x53FC18, eventType: 'gift' },
 });
 
 const ROLE_MAP_KEY    = (g) => `gifter-roles:${g}`;
 const BUCKET_KEY      = (cat, g, uid, day) => `gifter:${cat}:${g}:${uid}:${day}`;
 const IDENTITY_KEY    = (cat, g, key) => `gifter-identity:${cat}:${g}:${key}`;
 const LAST_CRON_KEY   = (g) => `gifter-roles:last-cron-day:${g}`;
+// Precomputed public leaderboard snapshot, written once per UTC day by
+// gifterRolesDailyTick and served by GET /community/top-supporters so
+// the unauthenticated route never triggers an O(roster) KV scan.
+//   gifter-top:<guildId>:<cat> → [{ name, total, platform }] (top 50)
+const SNAPSHOT_KEY    = (g, cat) => `gifter-top:${g}:${cat}`;
 const HMAC_SKEW_S = 300;
 const ROLLING_WINDOW_DAYS = 30;
 const TRIM_OLDER_THAN_DAYS = 32;
@@ -71,6 +87,13 @@ function categoryFor(eventType, platform) {
   if (t === 'sub-gift' && p === 'twitch') return 'sub';
   if (t === 'tip'      && p === 'tiktok') return 'tiktok';
   if (t === 'cheer'    && p === 'twitch') return 'cheer';
+  // Kick leg (2026-07-09): SF relays Kick gift subs as eventType
+  // 'gift'. Gift subs ONLY — Kick tips ('tip') are dollar amounts and
+  // must never mix into a gift-sub COUNT bucket (the wall's "gifted"
+  // unit label and the 'Top Kick Gifter' role name both mean gift
+  // subs). sf-community.js gates ingest to 'gift' too; this is the
+  // belt-and-braces so a stray tip can't enter via any other path.
+  if (t === 'gift' && p === 'kick') return 'kick';
   return null;
 }
 
@@ -282,26 +305,45 @@ export async function gifterRolesDailyTick(env) {
   const last = await env.LOADOUT_BOLTS.get(LAST_CRON_KEY(guildId));
   if (last === today) return { skipped: 'already-ran-today', day: today };
 
+  // Precompute the public top-supporters snapshots FIRST, and for
+  // EVERY category — before the role-map early-return below — so
+  // /community/top-supporters works even for categories whose role
+  // hasn't been minted yet (kick pre-mint) and even before Clay runs
+  // /admin/gifter-roles/ensure. The boards double as the reconcile
+  // input so the 30d walk runs once per category per day, not twice.
+  const boards = {};
+  for (const cat of Object.keys(GIFTER_CATEGORIES)) {
+    try {
+      const board = await rolling30dLeaderboard(env, cat, guildId, 50);
+      boards[cat] = board;
+      await env.LOADOUT_BOLTS.put(SNAPSHOT_KEY(guildId, cat), JSON.stringify(
+        board.map(r => ({ name: r.login || r.key, total: r.total, platform: r.platform })),
+      ));
+    } catch (e) {
+      console.warn('[gifter-roles] snapshot', cat, 'failed:', e?.message || e);
+    }
+  }
+
   const map = await env.LOADOUT_BOLTS.get(ROLE_MAP_KEY(guildId), { type: 'json' });
   if (!map || !map.sub || !map.tiktok || !map.cheer) {
     // Stamp anyway so we don't re-scan all day. Re-run after
     // ensure populates the map.
     await env.LOADOUT_BOLTS.put(LAST_CRON_KEY(guildId), today);
-    return { skipped: 'no-role-map', day: today };
+    return { skipped: 'no-role-map', day: today, snapshots: Object.keys(boards) };
   }
 
   const summary = {};
   for (const cat of Object.keys(GIFTER_CATEGORIES)) {
-    summary[cat] = await reconcileCategory(env, guildId, cat, map[cat]);
+    summary[cat] = await reconcileCategory(env, guildId, cat, map[cat], boards[cat]);
   }
   await trimOldBuckets(env, guildId);
   await env.LOADOUT_BOLTS.put(LAST_CRON_KEY(guildId), today);
   return { ok: true, day: today, summary };
 }
 
-async function reconcileCategory(env, guildId, category, roleId) {
+async function reconcileCategory(env, guildId, category, roleId, precomputedBoard) {
   if (!roleId) return { skipped: 'no-role-id-for-' + category };
-  const board = await rolling30dLeaderboard(env, category, guildId, 50);
+  const board = precomputedBoard || await rolling30dLeaderboard(env, category, guildId, 50);
   // Top 3 with a Discord link, unlinked contributors can lead the
   // leaderboard but can't hold the role (no member to grant to).
   const top3Ids = board.filter(r => r.discordUserId).slice(0, 3).map(r => r.discordUserId);
@@ -516,6 +558,93 @@ export async function handleTopGiftersCommand(env, data) {
       flags: FLAG_EPHEMERAL,
     },
   };
+}
+
+// ── GET /community/top-supporters ────────────────────────────────
+//
+// Public read powering the site's SupporterWall (community roadmap
+// item 13). The site proxy (aquilo-site functions/api/community/
+// top-supporters.js) calls:
+//   GET /community/top-supporters?platforms=tiktok,kick&limit=12
+// and expects:
+//   { ok: true, categories: { tiktok: [Row], kick: [Row] } }
+//   Row = { rank, name, total, platform }
+// where `name` is the supporter's PLATFORM handle (the wall links it
+// to tiktok.com/@name / kick.com/name) and `total` is the rolling-30d
+// sum from the gifter buckets. Unknown platforms return empty arrays
+// so the wall degrades to its "warming up" card, never an error.
+//
+// Served from the precomputed gifter-top:<g>:<cat> snapshots that
+// gifterRolesDailyTick writes once per UTC day — this route is
+// unauthenticated, so it must NEVER trigger the O(wallet-roster)
+// rolling30dLeaderboard scan per request (read amplification against
+// the shared KV namespace). One KV GET per (deduped) platform, plus a
+// caches.default layer (300s TTL on a normalized key) so repeat hits
+// don't even touch KV. Freshness is daily — fine for a 30d rolling
+// wall. Empty until the first daily tick after deploy.
+
+const TOP_SUPPORTERS_PLATFORM_CATEGORY = Object.freeze({
+  tiktok: 'tiktok',
+  kick:   'kick',
+  twitch: 'sub',
+});
+
+export async function handleTopSupporters(req, env) {
+  if (req.method !== 'GET') return jsonResp({ ok: false, error: 'method' }, 405);
+  const guildId = String(env.AQUILO_VAULT_GUILD_ID || '').trim();
+  const url = new URL(req.url);
+  const platforms = [...new Set(
+    String(url.searchParams.get('platforms') || 'tiktok,kick')
+      .split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+  )].slice(0, 5);
+  const limit = Math.max(1, Math.min(50, parseInt(url.searchParams.get('limit') || '12', 10) || 12));
+
+  // Edge-cache layer. The key is a NORMALIZED synthetic URL (sorted
+  // deduped platforms + clamped limit only) so query-string noise
+  // can't fan out into distinct cache entries. Guarded: caches is
+  // undefined under the Node test harness — serve direct then.
+  let cache = null, cacheKey = null;
+  try {
+    cache = caches.default;
+    const norm = new URL('https://loadout-internal/community/top-supporters');
+    norm.searchParams.set('platforms', [...platforms].sort().join(','));
+    norm.searchParams.set('limit', String(limit));
+    cacheKey = new Request(norm.toString(), { method: 'GET' });
+    const hit = await cache.match(cacheKey);
+    if (hit) return hit;
+  } catch { cache = null; cacheKey = null; }
+
+  const categories = {};
+  for (const p of platforms) {
+    const cat = TOP_SUPPORTERS_PLATFORM_CATEGORY[p];
+    if (!cat || !guildId) { categories[p] = []; continue; }
+    try {
+      const snap = await env.LOADOUT_BOLTS.get(SNAPSHOT_KEY(guildId, cat), { type: 'json' });
+      categories[p] = (Array.isArray(snap) ? snap : []).slice(0, limit).map((r, i) => ({
+        rank: i + 1,
+        name: r.name,
+        total: r.total,
+        platform: p,
+      }));
+    } catch (e) {
+      console.warn('[top-supporters]', p, 'snapshot read failed:', e?.message || e);
+      categories[p] = [];
+    }
+  }
+  const res = new Response(JSON.stringify({ ok: true, fetchedAt: Date.now(), categories }), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json',
+      'access-control-allow-origin': '*',
+      // s-maxage drives both the caches.default TTL and the site
+      // proxy's edge cache.
+      'cache-control': 'public, max-age=0, s-maxage=300',
+    },
+  });
+  if (cache && cacheKey) {
+    try { await cache.put(cacheKey, res.clone()); } catch { /* best-effort */ }
+  }
+  return res;
 }
 
 // ── helpers ──────────────────────────────────────────────────────

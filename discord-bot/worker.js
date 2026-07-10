@@ -558,14 +558,11 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/counting/clear-shame-role/')) {
       return handleCountingClearShameRole(req, env, path);
     }
-    // MC whitelist gating removed 2026-05-31 (Clay dropped Minecraft as
-    // a featured offering). One remaining one-shot, KV-token-gated
-    // endpoint deletes the "Minecraft Whitelist" Discord role + clears
-    // its KV id. Token written via `wrangler kv key put
-    // bootstrap-mc-role-delete-token <value>`; self-destructs on use.
-    if (method === 'POST' && path.startsWith('/admin/_mc-role-delete/')) {
-      return handleMcRoleDelete(req, env, path);
-    }
+    // (MC whitelist gating removed 2026-05-31; the last one-shot
+    // /admin/_mc-role-delete/:token endpoint + mc-whitelist.js were
+    // removed 2026-07 with the Minecraft server closed. If a
+    // "Minecraft Whitelist" role still exists in the guild, delete it
+    // by hand in Server Settings → Roles.)
     // Twitch reward roles, provision Twitch Sub / T2 / T3 roles +
     // store ids at twitch-rewards:role:<gid>:<tier>. Idempotent.
     if (method === 'POST' && path.startsWith('/admin/twitch-rewards/ensure-roles/')) {
@@ -626,10 +623,10 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_gift-embed-post/')) {
       return handleGiftEmbedPost(req, env, path);
     }
-    // One-shot KV-token-gated batch, runs the four "Clay would
-    // otherwise have to fire by hand" admin actions in sequence:
-    // self-roles-hub provision, games-menu post, mc-whitelist
-    // ensure-role, slash-command re-register. Self-destructs.
+    // One-shot KV-token-gated batch, runs the "Clay would otherwise
+    // have to fire by hand" admin actions in sequence: self-roles-hub
+    // provision, games-menu post, slash-command re-register.
+    // Self-destructs.
     if (method === 'POST' && path.startsWith('/admin/_clay-batch/')) {
       return handleClayBatch(req, env, path);
     }
@@ -900,8 +897,12 @@ export default {
     // the public EventSource stream; POST /activity/publish is the
     // internal HMAC-gated producer endpoint (also reachable in-process
     // via publishActivity()).
-    if (path === '/activity/sse' || path === '/activity/publish') {
-      return handleActivityStream(req, env, path);
+    // "/sse/community-activity" is the path the DEPLOYED site's
+    // useCommunityActivity hook requests — it 404'd from day one
+    // (live-observed in a wrangler tail 2026-07-10). Alias it here so
+    // every already-cached site bundle starts streaming on deploy.
+    if (path === '/activity/sse' || path === '/activity/publish' || path === '/sse/community-activity') {
+      return handleActivityStream(req, env, path === '/sse/community-activity' ? '/activity/sse' : path);
     }
     // Triple-C current campaign + pool, public, CORS-open (site's
     // StreamSchedule + admin dropdown). Owner-gated `set` is at
@@ -1197,12 +1198,23 @@ export default {
       const { handleFriendsRoute } = await import('./friends.js');
       return handleFriendsRoute(req, env, path);
     }
+    // Cross-game daily quests web surface (aquilo.gg /play/quests).
+    // Re-mounted 2026-07 (community roadmap item 11): the signed-in
+    // quests page was calling GET /web/quests/today + quests/claim
+    // against a 404 and rendering an error card. GET is public; the
+    // claim/increment writes are AQUILO_SITE_WEB_SECRET-HMAC-gated
+    // inside the handler. Claimed BEFORE the generic /web dispatcher
+    // (web.js has no quests routes — /web/quest/* there is the
+    // welcome-checklist, a different system).
+    if (path === '/web/quests/today' || path.startsWith('/web/quests/')) {
+      const { handleQuestsRoute } = await import('./daily-quests.js');
+      return handleQuestsRoute(req, env, path);
+    }
     // Boltbound web TCG, re-wired on the sunset line (revive). Same
     // lazy-import dispatch pattern as /web/friends/. cards-web.js owns
     // HMAC verification + server-stamped identity + tenant gate before
-    // dispatching to routeBoltbound. (Daily Quests /web/quests/* stay
-    // removed — daily-quests.js is invoked in-process by cards-web.js,
-    // not exposed as its own web surface.)
+    // dispatching to routeBoltbound. (Boltbound's own quest reads ride
+    // /web/boltbound/quests/* through cards-web.js in-process.)
     if (path.startsWith('/web/boltbound/')) {
       const { handleBoltboundWeb } = await import('./cards-web.js');
       return handleBoltboundWeb(req, env, path);
@@ -1315,6 +1327,19 @@ export default {
     if (method === 'GET' && path === '/community/twitch-stats') {
       const { handleTwitchStats } = await import('./twitch-community-stats.js');
       return handleTwitchStats(req, env);
+    }
+    // Rolling-30d TikTok/Kick top supporters, consumed by the site's
+    // SupporterWall via /api/community/top-supporters (roadmap item 13).
+    if (method === 'GET' && path === '/community/top-supporters') {
+      const { handleTopSupporters } = await import('./gifter-roles.js');
+      return handleTopSupporters(req, env);
+    }
+    // Auto "what you missed last night" recap, persisted on EventSub
+    // stream.offline; consumed by the site's StreamRecapCard via
+    // /api/community/recap-latest (roadmap item 14).
+    if (method === 'GET' && path === '/community/recap-latest') {
+      const { handleRecapLatest } = await import('./twitch-eventsub.js');
+      return handleRecapLatest(req, env);
     }
 
     // StreamFusion community-night queue manager, see sf-queue.js.
@@ -1464,6 +1489,26 @@ export default {
             } catch (e) { console.warn('[cron] kitchen weekly pick', e?.message || e); }
           })());
         }
+        // Gateway dead-man switch (roadmap item 12). Two split stamps:
+        // authenticated forwarded events refresh gateway:last-seen
+        // (auth.js verifyGatewaySig) and the shim's 5-min
+        // /forward-channels poll refreshes gateway:poll-seen. Alarms
+        // when the poll stamp goes stale >6h OR the authenticated
+        // stamp goes stale >30h (events rejected while the shim keeps
+        // polling — e.g. secret rotation), posting ONE alert
+        // (⚙️│bot-admin embed + DM to Clay with Railway restart steps),
+        // then mutes itself for 24h. Checked every 10th minute — a few
+        // cheap KV reads — and fully try/caught inside the module so
+        // it can never break the cron.
+        if (mm % 10 === 0) {
+          ctx.waitUntil((async () => {
+            try {
+              const { checkGatewayHeartbeat } = await import('./gateway-watchdog.js');
+              const r = await checkGatewayHeartbeat(env);
+              if (r?.alerted) console.warn('[cron] gateway dead-man alert fired', JSON.stringify(r));
+            } catch (e) { console.warn('[cron] gateway watchdog', e?.message || e); }
+          })());
+        }
         // Hourly work below is the OLD :17 schedule, only runs when
         // the current minute is 17 to preserve the original cadence.
         if (mm !== 17) {
@@ -1512,10 +1557,14 @@ export default {
             console.warn('[cron] twitch hourly bundle', e?.message || e);
           }
         })());
-        // Sunday 8pm ET → weekly recap. Sunday 10pm ET → clip of
-        // the week. ET-gated via getETInfo so DST is handled
-        // automatically; both functions are KV-marker idempotent
-        // so the at-least-once cron semantics don't double-fire.
+        // Sunday 8pm ET → weekly recap. ET-gated via getETInfo so DST
+        // is handled automatically; KV-marker idempotent so the
+        // at-least-once cron semantics don't double-fire.
+        // (2026-07 hygiene: the Sunday-22-ET twitch-clips.js
+        // postClipOfTheWeekCron call was REMOVED — it double-posted
+        // against aquilo/clipoftheweek.js's Sunday-10-ET top-3, which
+        // is the keeper. twitch-clips.js keeps its hourly clip
+        // FETCH/cross-post duties above.)
         ctx.waitUntil((async () => {
           try {
             const { getETInfo } = await import('./aquilo/util.js');
@@ -1524,11 +1573,6 @@ export default {
               const { postWeeklyRecap } = await import('./weekly-recap.js');
               const r = await postWeeklyRecap(env);
               console.log('[cron] weekly-recap', JSON.stringify(r));
-            }
-            if (weekday === 'sunday' && hour === 22) {
-              const { postClipOfTheWeekCron } = await import('./twitch-clips.js');
-              const r = await postClipOfTheWeekCron(env);
-              console.log('[cron] clip-of-the-week', JSON.stringify(r));
             }
           } catch (e) {
             console.warn('[cron] sunday gates', e?.message || e);
@@ -1601,6 +1645,33 @@ export default {
         ctx.waitUntil(gifterRolesDailyTick(env).then(r =>
           console.log('[cron] gifter-roles daily', JSON.stringify(r))).catch(e =>
           console.warn('[cron] gifter-roles', e?.message || e)));
+        // Weekly community challenge rotation (2026-07-09, roadmap
+        // item 9 — rotateIfDue previously had ZERO callers, which is
+        // why the prod challenge sat expired since 2026-06-08).
+        // Idempotent per ISO week via the challenge:rotation KV
+        // marker, so the hourly :23 firing rotates exactly once and
+        // bootstraps a fresh challenge on the first tick after deploy.
+        ctx.waitUntil((async () => {
+          try {
+            // Hold rotation until after the Sunday-8pm-ET recap in
+            // both DST regimes: skip Monday UTC hours 0-1 so the
+            // first rotation tick is Monday 02:23 UTC (= Sunday 21:23
+            // EST / 22:23 EDT), comfortably after the 20:17-ET recap
+            // reads challenge:current. rotateIfDue's ISO-week marker
+            // still dedupes correctly at 02:23, and endOfIsoWeekUtc
+            // at Monday 02:23 still yields NEXT Monday. Known,
+            // pre-existing bleed (acceptable): contributions between
+            // Monday 00:00 UTC and the rotation tick land on the
+            // outgoing week — was 23 min, now ~2h23m.
+            const t = new Date(event.scheduledTime || Date.now());
+            if (t.getUTCDay() === 1 && t.getUTCHours() < 2) return;
+            const { rotateIfDue } = await import('./challenges.js');
+            const r = await rotateIfDue(env);
+            if (r?.action === 'rotated') console.log('[cron] challenge rotated', JSON.stringify(r));
+          } catch (e) {
+            console.warn('[cron] challenge rotation', e?.message || e);
+          }
+        })());
         // (Removed 2026-05-31: the MC paid-Patreon whitelist daily sweep.
         // Clay dropped Minecraft as a featured offering, no more role
         // gating. The #smp-chat channel + DiscordSRV bridge stay; only
@@ -1865,15 +1936,24 @@ async function handleSync(req, env, path) {
   // events here so the worker can drive "join channel X → spawn a temp
   // VC" without maintaining a Gateway connection. HMAC same as the
   // other /sync/* routes. Body: { userId, displayName?, channelId|null }.
-  // channelId === TEMP_VC_PARENT_ID → spawn-then-move flow;
-  // channelId on a tracked temp VC → stamp lastActivityUtc so the
-  // cleanup heuristic doesn't delete a busy room.
+  //
+  // 2026-07 hygiene: this used to drive a SECOND, parallel temp-VC
+  // system (voice-temp.js, its own tempvc:* KV) that could double-mint
+  // rooms alongside the gateway-driven one. voice-temp.js was deleted;
+  // the DLL payload is now remapped onto temp-vc.js — the single
+  // implementation the aquilo-presence /voice/state route uses — so
+  // both event sources share one KV state + reuse/cleanup path.
   if (sub === 'voice' && parts[3] === 'joined' && req.method === 'POST') {
     let payload;
     try { payload = JSON.parse(body); } catch { return new Response('bad-json', { status: 400 }); }
-    const { handleVoiceStateUpdate } = await import('./voice-temp.js');
-    const r = await handleVoiceStateUpdate(env, { ...payload, guildId });
-    return new Response(JSON.stringify(r), { status: r.ok ? 200 : 400, headers: { 'content-type': 'application/json' } });
+    const { handleVoiceStateUpdate } = await import('./temp-vc.js');
+    const r = await handleVoiceStateUpdate(env, {
+      guild_id:   guildId,
+      channel_id: payload.channelId || null,
+      user_id:    payload.userId,
+    });
+    const failed = !!(r && r.error);
+    return new Response(JSON.stringify(r), { status: failed ? 400 : 200, headers: { 'content-type': 'application/json' } });
   }
 
   // /sync/:guildId/games?since=<ms>, DLL pulls recent minigame results so
@@ -3007,13 +3087,13 @@ async function handleGamesMenuPost(req, env, path) {
 
 // ── /admin/_clay-batch/:token (KV-token, self-destructing) ──────
 //
-// One-shot batch, runs four admin actions in sequence that Clay
+// One-shot batch, runs the admin actions in sequence that Clay
 // would otherwise need to HMAC-sign by hand:
 //   1. self-roles-hub provision  (mints SF/Loadout/Rotation Updates roles)
 //   2. games-menu post           (pinned menu in #games)
-//   3. mc-whitelist ensure-role  (Minecraft Whitelist role)
+//   3. (removed 2026-05-31: mc-whitelist ensure-role — Minecraft dropped)
 //   4. register-commands         (PUT slash commands at guild scope)
-// Returns a single response with all four results. Self-destructs.
+// Returns a single response with all results. Self-destructs.
 async function handleClayBatch(req, env, path) {
   const parts = path.split('/').filter(Boolean);   // ['admin','_clay-batch',':token']
   const token = parts[2];
@@ -3052,6 +3132,33 @@ async function handleClayBatch(req, env, path) {
 
   // 3. (Removed 2026-05-31) mc-whitelist ensure-role, Minecraft dropped
   //    as a featured offering; no whitelist role is provisioned anymore.
+
+  // 5. Gifter-role map provision (2026-07-10, roadmap item 8 + the new
+  //    Top Kick Gifter category). Idempotent: existing roles are reused.
+  try {
+    const { ensureGifterRoles } = await import('./gifter-roles.js');
+    results.gifterRolesEnsure = await ensureGifterRoles(env, guildId);
+  } catch (e) {
+    results.gifterRolesEnsure = { ok: false, error: e?.message || String(e) };
+  }
+
+  // 6. Counting shame-role provision (2026-07-10, roadmap item 7).
+  //    Idempotent; on-brand name per the roadmap.
+  try {
+    const { provisionShameRole } = await import('./aquilo/counting.js');
+    results.countingShameRole = await provisionShameRole(env, guildId, { name: 'Bolt Dropper' });
+  } catch (e) {
+    results.countingShameRole = { ok: false, error: e?.message || String(e) };
+  }
+
+  // 7. Fresh schedule embed repost (2026-07-10): the v7 cadence made
+  //    Tue/Thu rest days — delete stale embeds + repost one clean copy.
+  try {
+    const { freshRepostSchedule } = await import('./aquilo/aq-schedule.js');
+    results.scheduleRepost = await freshRepostSchedule(env, guildId);
+  } catch (e) {
+    results.scheduleRepost = { ok: false, error: e?.message || String(e) };
+  }
 
   // 4. Register slash commands at guild scope.
   try {
@@ -3672,30 +3779,10 @@ async function handleTwitchRewardsEnsureRoles(req, env, path) {
   return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
 }
 
-// ── /admin/_mc-role-delete/:token (KV-token, self-destructing) ────
-// One-shot removal of the "Minecraft Whitelist" role (Clay dropped
-// Minecraft as a featured offering, 2026-05-31). Token written via
-// `wrangler kv key put bootstrap-mc-role-delete-token <value>`;
-// self-destructs on first use. Deletes the role by its KV-stored id +
-// any role matching the canonical name, and clears the KV id key.
-// Optional body { roleId } forces deletion of a specific snowflake.
-async function handleMcRoleDelete(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['admin','_mc-role-delete',':token']
-  const token = parts[2];
-  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
-  const stored = await env.LOADOUT_BOLTS.get('bootstrap-mc-role-delete-token').catch(() => null);
-  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
-  // Self-destruct first so a replay can't re-run it.
-  await env.LOADOUT_BOLTS.delete('bootstrap-mc-role-delete-token').catch(() => {});
-  let opts = {};
-  const body = await req.text();
-  if (body) { try { opts = JSON.parse(body) || {}; } catch { /* ignore */ } }
-  const guildId = String(opts.guildId || env.AQUILO_VAULT_GUILD_ID || '');
-  if (!guildId) return jsonResp({ ok: false, error: 'no-guild' }, 400);
-  const { deleteWhitelistRole } = await import('./mc-whitelist.js');
-  const r = await deleteWhitelistRole(env, guildId, { roleId: opts.roleId });
-  return jsonResp(r, r.ok ? 200 : 400);
-}
+// (2026-07 hygiene: the one-shot /admin/_mc-role-delete/:token handler
+// + mc-whitelist.js were removed — the Minecraft server is closed. Any
+// leftover "Minecraft Whitelist" role is a manual Server Settings →
+// Roles delete.)
 
 // ── /admin/_twitch-token-validate/:token + /admin/_twitch-setup-debug/:token
 //

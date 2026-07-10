@@ -26,6 +26,18 @@
 //   model as the X-Live-Key the retired aquilo-live worker used. Not a
 //   real secret; just enough to keep casual abuse off the endpoint.
 //
+// Owner-only Kick supporter ingest (handleCommunityEvent):
+//   The Kick gift/tip → gifter-buckets tap additionally requires
+//   header `x-sf-owner-key` == env.SF_OWNER_COMMUNITY_KEY — a REAL
+//   secret only Clay's own install carries, because the distributed
+//   community key + a client-supplied userId can't authenticate
+//   identity. ⚠ DARK until Clay runs
+//   `wrangler secret put SF_OWNER_COMMUNITY_KEY` AND StreamFusion
+//   ships the header on its community-event POSTs: until both land,
+//   the ingest is silently skipped (embeds still post, clients still
+//   get their normal ok responses) and the Kick supporter wall simply
+//   stays empty — graceful degradation, no errors anywhere.
+//
 // Storage layout:
 //   sf:community:live:all      Single KV key holding a JSON map
 //                              userId → { name, platform, channel, url,
@@ -78,6 +90,24 @@ const PLATFORM_LABELS = {
   tt: 'TikTok', tiktok: 'TikTok',
   kk: 'Kick', kick: 'Kick',
 };
+// Canonical platform slugs (2026-07-09, community roadmap item 13).
+// StreamFusion sends SHORT codes ('tw'/'yt'/'tt'/'kk') but every
+// downstream consumer — the public /community/live contract
+// ("twitch"|"youtube"|"kick"|"tiktok"), the golive Twitch-skip gate
+// below, and the gifter-roles supporter ingest — expects the LONG
+// form. Normalise once at ingest AND once at read (for entries that
+// were stored before this fix), so 'kk' heartbeats stop leaking short
+// codes to the site and Kick supporters actually reach the wall/roles.
+const PLATFORM_CANON = {
+  tw: 'twitch',  twitch: 'twitch',
+  yt: 'youtube', youtube: 'youtube',
+  tt: 'tiktok',  tiktok: 'tiktok',
+  kk: 'kick',    kick: 'kick',
+};
+function canonPlatform(p) {
+  const key = String(p || '').toLowerCase();
+  return PLATFORM_CANON[key] || key;
+}
 
 function json(obj, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(obj), {
@@ -316,7 +346,7 @@ export async function handleCommunityLive(req, env) {
   const entry = {
     userId,
     name:      s(body.name, 64) || 'streamer',
-    platform:  s(body.platform, 16).toLowerCase() || 'twitch',
+    platform:  canonPlatform(s(body.platform, 16)) || 'twitch',
     channel:   s(body.channel, 64),
     url:       safeUrl(body.url),
     title:     s(body.title, 200),
@@ -383,7 +413,7 @@ export async function handleCommunityEvent(req, env) {
   const ev = {
     userId:    s(body.userId, 64),
     name:      s(body.name, 64) || 'streamer',
-    platform:  s(body.platform, 16).toLowerCase(),
+    platform:  canonPlatform(s(body.platform, 16)),
     url:       safeUrl(body.url),
     eventType: s(body.eventType, 32).toLowerCase(),
     user:      s(body.user, 64),
@@ -392,6 +422,56 @@ export async function handleCommunityEvent(req, env) {
     message:   s(body.message, 280),
   };
   if (!ev.eventType) return json({ ok: false, error: 'missing_eventType' }, 400);
+
+  // Kick supporter ingest (2026-07-09, community roadmap item 13).
+  // When the event comes from CLAY'S OWN StreamFusion install and
+  // it's a Kick GIFT-SUB event, record it into the same rolling-30d
+  // gifter buckets that drive /community/top-supporters + the Top
+  // Gifter roles. Gift subs ONLY — tips are dollar amounts, and
+  // summing them with gift-sub counts made the bucket total a
+  // unit-incoherent number (the wall's "gifted" label and the 'Top
+  // Kick Gifter' role name both mean gift subs). Scoped to Kick only:
+  // Twitch already ingests via EventSub, TikTok via TikFinity
+  // (recording SF's TikTok relay too would double-count under a
+  // second identity key). Best-effort, never blocks the embed.
+  //
+  // Identity binding (2026-07-10 review): the community key is a
+  // distributed soft-secret baked into every shipped SF build, so the
+  // client-supplied userId can never authenticate "Clay's own
+  // install" — any install could forge it and poison the public wall
+  // / Top Kick Gifter role. This path therefore requires a DEDICATED
+  // owner secret: header `x-sf-owner-key` must equal
+  // env.SF_OWNER_COMMUNITY_KEY. On any mismatch (secret unset, header
+  // missing/wrong) the recordGifterEvent is skipped SILENTLY and the
+  // response stays the normal ok/posted shape, so old clients never
+  // error and forgers learn nothing.
+  try {
+    const clayId = String(env.CLAY_TWITCH_CHANNEL_ID || '').trim();
+    const ownerKey = String(env.SF_OWNER_COMMUNITY_KEY || '');
+    const ownerBound = !!ownerKey
+      && String(req.headers.get('x-sf-owner-key') || '') === ownerKey;
+    if (ownerBound && clayId && String(ev.userId) === clayId
+        && ev.platform === 'kick'
+        && ev.eventType === 'gift'
+        && ev.user) {
+      const gid = (await getActiveGuildId(env)) || env.AQUILO_VAULT_GUILD_ID;
+      if (gid) {
+        const { recordGifterEvent } = await import('./gifter-roles.js');
+        let amount = (ev.amount != null && Number.isFinite(Number(ev.amount)) && Number(ev.amount) > 0)
+          ? Number(ev.amount) : 1;
+        // Defense-in-depth: cap a single event's magnitude so even an
+        // authenticated-but-buggy client can't nuke the leaderboard.
+        if (amount > 500) {
+          console.warn('[sf-community] kick gifter amount clamped:',
+            amount, '→ 500 (user:', ev.user + ')');
+          amount = 500;
+        }
+        await recordGifterEvent(env, gid, ev.eventType, 'kick', ev.user, amount, Date.now());
+      }
+    }
+  } catch (e) {
+    console.warn('[sf-community] kick gifter ingest failed:', e && e.message);
+  }
 
   const channel = await resolveCommunityChannel(env);
   if (!channel) {
@@ -456,7 +536,9 @@ export async function handlePublicCommunityLive(req, env) {
   const merged = { ...twMap, ...map };
   const list = Object.values(merged).map((e) => ({
     name:         e.name,
-    platform:     e.platform,
+    // Read-side canonicalisation covers entries stored before the
+    // 2026-07-09 ingest fix ('yt'/'kk' short codes in old heartbeats).
+    platform:     canonPlatform(e.platform),
     channel:      e.channel,
     url:          e.url,
     title:        e.title,

@@ -126,6 +126,173 @@ async function sectionNewMembers(env, guildId) {
   }
 }
 
+// ── 2026-07-09 enrichment (community roadmap item 15) ─────────────
+
+// UTC day-string diff for "is this streak still alive" checks.
+// Inputs are YYYY-MM-DD (the ET day-keys community-checkin stores).
+function dayDiff(a, b) {
+  const [ay, am, ad] = String(a).split('-').map(Number);
+  const [by, bm, bd] = String(b).split('-').map(Number);
+  if (![ay, am, ad, by, bm, bd].every(Number.isFinite)) return Infinity;
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000);
+}
+
+// Top-3 ACTIVE check-in streaks. Walks community-checkin:<g>:* via
+// KV list() METADATA only — community-checkin.js saveState attaches
+// { streak, lastDayEt } to every put, so the whole roster costs 1-5
+// list subrequests and ZERO gets. Keys written before the metadata
+// change (legacy state) fall back to a per-key get, hard-capped so a
+// large un-migrated roster can't exhaust the shared Sunday-cron
+// invocation's subrequest budget — once the cap is hit the section
+// degrades to a partial top-3 built from whatever rows were readable.
+// A streak counts as active when the last check-in was today or
+// yesterday (ET) — older means it's broken and shouting it out would
+// be salt in the wound.
+const STREAK_LEGACY_GET_CAP = 20;
+
+async function sectionTopStreaks(env, guildId) {
+  try {
+    const { todayET } = await import('./community-checkin.js');
+    const today = todayET();
+    const prefix = `community-checkin:${guildId}:`;
+    const rows = [];
+    let cursor;
+    let legacyGets = 0;
+    for (let page = 0; page < 5; page++) {
+      const r = await env.LOADOUT_BOLTS.list({ prefix, cursor, limit: 1000 });
+      for (const k of r.keys) {
+        let st = null;
+        const md = k.metadata;
+        if (md && (md.streak !== undefined || md.lastDayEt !== undefined)) {
+          // Metadata row (post-deploy state). `longest` isn't carried
+          // in metadata, so the cosmetic "(best N)" annotation is
+          // omitted for these rows — worth it, the walk stays O(list).
+          st = { streak: md.streak, lastDayEt: md.lastDayEt, longest: md.streak };
+        } else {
+          // Legacy metadata-less key: bounded get-fallback. Over the
+          // cap → skip (partial rows) rather than burn the invocation.
+          if (legacyGets >= STREAK_LEGACY_GET_CAP) continue;
+          legacyGets++;
+          const full = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+          if (full) st = { streak: full.streak, lastDayEt: full.lastDayEt, longest: full.longest || full.streak };
+        }
+        if (!st || !(st.streak > 0) || !st.lastDayEt) continue;
+        if (dayDiff(st.lastDayEt, today) > 1) continue;
+        rows.push({
+          userId: k.name.slice(prefix.length),
+          streak: st.streak,
+          longest: st.longest || st.streak,
+        });
+      }
+      if (r.list_complete || !r.cursor) break;
+      cursor = r.cursor;
+    }
+    if (rows.length === 0) return null;
+    rows.sort((a, b) => b.streak - a.streak);
+    const lines = rows.slice(0, 3).map((r, i) =>
+      `${i + 1}. <@${r.userId}> · 🔥 **${r.streak}-day** streak` +
+      (r.longest > r.streak ? ` _(best ${r.longest})_` : ''),
+    );
+    return { name: '🔥  Longest active check-in streaks', value: lines.join('\n'), inline: false };
+  } catch (e) {
+    console.warn('[recap] topStreaks failed', e?.message || e);
+    return null;
+  }
+}
+
+// This week's community challenge result. The recap fires Sunday 8pm
+// ET; the worker-side rotation gate (worker.js ':23' block) holds the
+// weekly rotation until Monday 02:23 UTC (after this recap in both
+// DST regimes) so challenge:current is normally the week being
+// recapped. Defense-in-depth: if challenge:current was minted within
+// the last 3h (a delayed tick let the rotation run first), fall back
+// to the just-closed week's entry in challenge:list / its archive
+// record so the recap never reports the NEW week's 0-progress bar.
+async function sectionWeeklyChallenge(env) {
+  try {
+    const { readCurrent } = await import('./challenges.js');
+    let c = await readCurrent(env);
+    if (!c || !c.name) return null;
+    // `fresh` = rotation already ran inside this recap window.
+    const fresh = !!c.startedUtc && (Date.now() - c.startedUtc) < 3 * 3600e3;
+    let rotatedAway = false;   // rendering the just-closed week's record
+    if (fresh) {
+      const list = await env.LOADOUT_BOLTS.get('challenge:list', { type: 'json' });
+      const prev = Array.isArray(list) && list.length ? list[0] : null;
+      if (prev && prev.name) {
+        // Prefer the full archive record (has contributors + icon);
+        // the list entry alone lacks both, degrade gracefully.
+        let full = null;
+        if (prev.id) {
+          try { full = await env.LOADOUT_BOLTS.get(`challenge:archive:${prev.id}`, { type: 'json' }); }
+          catch { /* list entry is enough */ }
+        }
+        c = (full && full.name) ? full : prev;
+        rotatedAway = true;
+      }
+      // No list entry (first-ever week): keep rendering the fresh
+      // current challenge, just without the misleading final-push line.
+    }
+    const progress = c.progress | 0;
+    const target = Math.max(1, c.target | 0);
+    const pct = Math.min(100, Math.round((progress / target) * 100));
+    // A rotated-away challenge is CLOSED: done means it completed, no
+    // "final push" is possible anymore.
+    const done = !!c.completedUtc || progress >= target;
+    const contributors = Object.keys(c.contributors || {}).length;
+    const lines = [
+      (done ? '✅ **COMPLETE!** ' : '') +
+        `**${c.name}**: ${progress.toLocaleString()} / ${target.toLocaleString()} (${pct}%)`,
+    ];
+    if (contributors > 0) lines.push(`${contributors} contributor${contributors === 1 ? '' : 's'} pitched in.`);
+    if (!done) {
+      if (rotatedAway) {
+        lines.push('_A fresh challenge is already live. Check the challenge channel!_');
+      } else if (!fresh) {
+        lines.push('_Final push: a fresh challenge starts Monday._');
+      }
+    }
+    return { name: `${c.icon || '🎯'}  Weekly challenge`, value: lines.join('\n'), inline: false };
+  } catch (e) {
+    console.warn('[recap] weeklyChallenge failed', e?.message || e);
+    return null;
+  }
+}
+
+// Clip of the week: the same D1 tally aquilo/clipoftheweek.js posts
+// from Sunday 10am ET; the recap re-surfaces the current leader with
+// its link so night-missers can one-click it.
+async function sectionClipOfTheWeek(env) {
+  try {
+    if (!env.DB) return null;
+    const { weekStartET } = await import('./aquilo/util.js');
+    const since = weekStartET();
+    const row = await env.DB.prepare(
+      `SELECT author_id, url, clap_count
+         FROM clips
+        WHERE posted_at >= ? AND clap_count > 0
+        ORDER BY clap_count DESC, posted_at ASC
+        LIMIT 1`
+    ).bind(since).first();
+    if (!row || !row.url) return null;
+    return {
+      name: '🎬  Clip of the week',
+      value: `👏 **${row.clap_count}** · shared by <@${row.author_id}>\n${row.url}`,
+      inline: false,
+    };
+  } catch (e) {
+    console.warn('[recap] clipOfTheWeek failed', e?.message || e);
+    return null;
+  }
+}
+
+// ("Community vs. The House" — the shared panel-game payout path this
+// section would count from (ext-econ.js) is WIP in another checkout
+// and does NOT exist on the deployed sunset line, so the per-ISO-week
+// won/lost counters were intentionally NOT added here. When that
+// payout path lands, add the two KV counters there and a section
+// reading them here.)
+
 async function sectionTopReactions(env, guildId) {
   // Gateway-shim-dependent, we don't ingest MESSAGE_REACTION_ADD
   // events from chat-at-large, just the starboard ⭐ pathway. Until
@@ -155,7 +322,10 @@ export async function postWeeklyRecap(env) {
 
   const sections = (await Promise.all([
     sectionTopXp(env),
+    sectionTopStreaks(env, guildId),
+    sectionWeeklyChallenge(env),
     sectionTopStarboard(env, guildId),
+    sectionClipOfTheWeek(env),
     sectionClashWars(env, guildId),
     sectionBoltbound(env, guildId),
     sectionNewMembers(env, guildId),
@@ -165,7 +335,16 @@ export async function postWeeklyRecap(env) {
   // Even with zero data sections we stamp the week so we don't
   // keep retrying every hourly tick this Sunday, and we still
   // post a one-line "quiet week" embed so the channel stays alive.
-  await env.LOADOUT_BOLTS.put(LAST_WEEK_KEY(guildId), week);
+  // Own try/catch with a distinct tag: if this put throws (KV outage,
+  // subrequest-budget exhaustion), bail WITHOUT posting — posting
+  // unstamped risks a double-post on the cron's at-least-once retry,
+  // and the distinct log line tells us exactly which step died.
+  try {
+    await env.LOADOUT_BOLTS.put(LAST_WEEK_KEY(guildId), week);
+  } catch (e) {
+    console.warn('[recap] last-week stamp put failed:', e?.message || e);
+    return { ok: false, error: 'stamp-failed', week };
+  }
 
   const brand = await getBranding(env, guildId);
   const embed = sections.length > 0 ? {
@@ -181,15 +360,24 @@ export async function postWeeklyRecap(env) {
     timestamp: new Date().toISOString(),
   };
 
-  const r = await fetch(`https://discord.com/api/v10/channels/${recapChannelId}/messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
-      'Content-Type': 'application/json',
-      'User-Agent':   'loadout-discord weekly-recap',
-    },
-    body: JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] } }),
-  });
+  // Own try/catch with a distinct tag (see the stamp put above): a
+  // throw here (network failure, budget exhaustion) must be legible
+  // in the logs as "the Discord POST died", not a generic cron warn.
+  let r;
+  try {
+    r = await fetch(`https://discord.com/api/v10/channels/${recapChannelId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+        'Content-Type': 'application/json',
+        'User-Agent':   'loadout-discord weekly-recap',
+      },
+      body: JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] } }),
+    });
+  } catch (e) {
+    console.warn('[recap] discord post threw:', e?.message || e);
+    return { ok: false, error: 'post-threw', message: String(e?.message || e), week };
+  }
   if (!r.ok) {
     const t = await r.text();
     return { ok: false, error: 'post-failed', status: r.status, body: t.slice(0, 200), week };

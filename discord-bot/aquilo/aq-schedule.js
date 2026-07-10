@@ -1,8 +1,16 @@
-// Stream schedule v6 (rev 2026-06-26): SOLO CROWD CONTROL every night.
-//   All 7 nights -> Crowd Control playthrough ("Triple-C"). The current
-//                   campaign game is admin-selectable on aquilo.gg/admin
-//                   (KV triple-c:current:<g>); defaults to Fallout 4. One
-//                   game at a time, swapped when Clay finishes it.
+// Stream schedule v7 (rev 2026-07-09): SOLO CROWD CONTROL five nights.
+//   Sun/Mon/Wed/Fri/Sat -> Crowd Control playthrough ("Triple-C"). The
+//                   current campaign game is admin-selectable on
+//                   aquilo.gg/admin (KV triple-c:current:<g>); defaults to
+//                   Fallout 4. One game at a time, swapped when Clay
+//                   finishes it.
+//   Tue/Thu -> OFF (rest days, added 2026-07-09 per Clay). kind 'off'
+//                   renders a muted rest-day embed + slot 'off' publicly.
+//                   NOTE: the site's KV cadence (schedule:v1) got its
+//                   matching startLocal:null Tue/Thu days via a ONE-TIME
+//                   manual KV write (2026-07-09, already live) — nothing
+//                   in code syncs the two; schedule.js DEFAULT_SCHEDULE
+//                   carries the same v7 shape as the wipe fallback.
 // Community Night was dropped 2026-06-26 (was Tue/Thu/Sat random picks); the
 // `community` kind + weeklyCommunityPick + cn-change-vote stay in the code
 // but are DORMANT (no `community` day in WEEKLY, cnvote disabled). Per-day
@@ -21,16 +29,16 @@ import { gameSlug } from './today-game.js';
 const WEEKLY = [
   { day: 'sunday',    dow: 0, kind: 'fo4cc' },
   { day: 'monday',    dow: 1, kind: 'fo4cc' },
-  { day: 'tuesday',   dow: 2, kind: 'fo4cc' },
+  { day: 'tuesday',   dow: 2, kind: 'off' },
   { day: 'wednesday', dow: 3, kind: 'fo4cc' },
-  { day: 'thursday',  dow: 4, kind: 'fo4cc' },
+  { day: 'thursday',  dow: 4, kind: 'off' },
   { day: 'friday',    dow: 5, kind: 'fo4cc' },
   { day: 'saturday',  dow: 6, kind: 'fo4cc' },
 ];
 
 // kind -> the public `slot` enum the site + Discord embed consume.
 const PUBLIC_SLOT = {
-  'fo4cc': 'fo4cc', 'rotation': 'rotation', 'community': 'cn',
+  'fo4cc': 'fo4cc', 'rotation': 'rotation', 'community': 'cn', 'off': 'off',
 };
 
 // ISO date (YYYY-MM-DD, ET) of the next occurrence of `targetDow`,
@@ -188,6 +196,7 @@ const SLOT_META = {
   // Retired slot; kept so an old payload or override can still render.
   'rotation':  { emoji: '🔁', show: 'Featured Run' },
   'community': { emoji: '🎲', show: 'Community Night' },
+  'off':       { emoji: '😴', show: 'No Stream' },
 };
 
 async function buildSchedulePayload(env, guildId, sched) {
@@ -195,13 +204,22 @@ async function buildSchedulePayload(env, guildId, sched) {
     title: `📅 Aquilo · Weekly Stream Schedule`,
     description:
       `🗓️ **Week of ${weekDateLabel(0)} – ${weekDateLabel(6)}** · refreshes every Sunday\n` +
-      'Solo **Crowd Control** runs every night — chat controls the chaos. All streams **' + TIME_LABEL + '**.',
+      'Solo **Crowd Control**: chat controls the chaos. Live Sun · Mon · Wed · Fri · Sat, **' + TIME_LABEL + '**. Tue + Thu are rest days.',
     color: COLOR_SCHEDULE,
   };
 
   const dayEmbeds = [];
   for (const slot of WEEKLY) {
     const meta = SLOT_META[slot.kind] || { emoji: '📺', show: cap(slot.kind) };
+    // Rest days: muted one-liner, no game resolution, no thumbnail.
+    if (slot.kind === 'off') {
+      dayEmbeds.push({
+        title: `${cap(slot.day)} · ${weekDateLabel(slot.dow)}`,
+        description: `${meta.emoji} **No stream**: rest day. See you ${slot.dow === 2 ? 'Wednesday' : 'Friday'}!`,
+        color: COLOR_SCHEDULE,
+      });
+      continue;
+    }
     const game = await resolveSlotGame(env, guildId, slot.kind, sched, slot.dow, slot.day);
     let desc;
     if (game && game.name && game.name !== meta.show) {
@@ -225,6 +243,18 @@ export async function getPublicSchedule(env, guildId) {
   const sched = await loadSchedule(env, guildId);
   const days = [];
   for (const slot of WEEKLY) {
+    // Rest days publish as slot 'off' with no game/times so consumers
+    // (site merge, overlay) can't mistake them for a scheduled night.
+    if (slot.kind === 'off') {
+      days.push({
+        weekday: slot.day,
+        slot:    'off',
+        game:    null,
+        status:  'off',
+        times:   null,
+      });
+      continue;
+    }
     const game = await resolveSlotGame(env, guildId, slot.kind, sched, slot.dow, slot.day);
     days.push({
       weekday: slot.day,

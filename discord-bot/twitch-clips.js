@@ -1,4 +1,4 @@
-// Twitch clip cross-post + "Clip of the Week".
+// Twitch clip cross-post (Helix poll → #clips embeds).
 //
 // Twitch removed the clip-created webhook in 2022, Helix `clips`
 // polling is the only path. Called from the :17 hourly cron:
@@ -14,22 +14,19 @@
 // Dedup: KV `clips:posted:<broadcasterId>` is a JSON set of clip
 // ids that have been cross-posted. Bounded at 500 ids; FIFO trim.
 //
-// Clip-of-the-week (Sunday 22 ET): tallies 👍 minus 👎 reaction
-// counts for every clip posted in the last 7 days, picks the top
-// one, posts an announcement embed + awards 250 bolts to the
-// clip creator (resolved by linking Twitch username → Discord id
-// via the existing wallet `links` array; falls back to a clipper
-// shout-out with no payout if not linked).
+// 2026-07 hygiene: this module's Sunday-22-ET "Clip of the Week"
+// poster (postClipOfTheWeekCron) was REMOVED — it double-posted
+// against aquilo/clipoftheweek.js, whose Sunday-10-ET member-clip
+// top-3 is the surviving Clip of the Week. The per-clip posted-meta
+// KV records + the isoWeek helper stay: the recap / "what you missed"
+// features read them.
 
 import { getRecentClips, isTwitchConfigured } from './twitch-helix.js';
-// (Bolts economy sunset: the wallet.js `earn` import + Clip-of-the-Week
-// bolt reward were removed; the shout-out post + 🏆 reaction stay.)
 import { getChannelBinding } from './channel-bindings.js';
 
 const POSTED_KEY  = (b) => `clips:posted:${b}`;
 const POSTED_CAP  = 500;
 const POLL_TICK_KEY = (b) => `clips:poll-tick:${b}`;     // round-robin counter when offline
-const LAST_WEEKLY_KEY = (b) => `clips:weekly:last-week:${b}`;
 
 function startedAtIsoForWindow(daysBack) {
   const d = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
@@ -152,21 +149,11 @@ export async function pollNewClipsCron(env) {
   return { ok: true, polled: clips.length, posted: postedCount };
 }
 
-// ── Clip of the Week ──────────────────────────────────────────────
+// ── ISO week helper ───────────────────────────────────────────────────
 //
-// Sunday 22 ET (= Monday 02:17 or 03:17 UTC depending on DST) fires
-// once per ISO week. Tallies 👍 - 👎 net score on every clip whose
-// posted-meta record falls inside the last 7 days, picks the top
-// one, edits the message with a 🏆 reaction + posts a separate
-// "Clip of the Week" announcement embed in CLIPS_CHANNEL_ID.
-//
-// 250-bolt reward goes to the clip creator IF we can resolve their
-// Twitch username → Discord id via the wallet `links` array, that's
-// the same lookup the bolts-feed digest uses. Otherwise a shout-out
-// with no payout (still publicly recognised).
-//
-// Idempotency via clips:weekly:last-week:<b> = ISO week string.
-// Re-running the same week is a no-op.
+// (The Sunday-22-ET postClipOfTheWeekCron that lived here was removed
+// 2026-07 — duplicate of aquilo/clipoftheweek.js, see header. isoWeek
+// stays: it is unit-tested and useful for weekly KV keying.)
 
 function isoWeek(date = new Date()) {
   // ISO 8601 week-numbering year + week. Standard algorithm.
@@ -176,121 +163,6 @@ function isoWeek(date = new Date()) {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const weekNo = Math.ceil((((d - yearStart) / 86_400_000) + 1) / 7);
   return d.getUTCFullYear() + '-W' + String(weekNo).padStart(2, '0');
-}
-
-export async function postClipOfTheWeekCron(env) {
-  if (!isTwitchConfigured(env)) return { skipped: 'twitch-not-configured' };
-  const clipsChannelId = await getChannelBinding(env, env.AQUILO_VAULT_GUILD_ID, 'clips');
-  if (!clipsChannelId)    return { skipped: 'no-clips-channel' };
-  const broadcasterId = env.CLAY_TWITCH_CHANNEL_ID;
-  if (!broadcasterId) return { skipped: 'no-broadcaster-id' };
-
-  const week = isoWeek(new Date());
-  const lastWeek = await env.LOADOUT_BOLTS.get(LAST_WEEKLY_KEY(broadcasterId));
-  if (lastWeek === week) return { skipped: 'already-fired-this-week', week };
-
-  // Scan posted clips. We don't keep a separate "last week's" list, // list the posted set then filter each meta record by postedAt.
-  const posted = await loadPostedSet(env, broadcasterId);
-  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const candidates = [];
-  for (const clipId of posted) {
-    const meta = await env.LOADOUT_BOLTS.get(
-      `clips:posted-meta:${broadcasterId}:${clipId}`, { type: 'json' });
-    if (!meta) continue;
-    if (meta.postedAt < sevenDaysAgo) continue;
-    candidates.push({ clipId, ...meta });
-  }
-  if (candidates.length === 0) {
-    // Nothing to tally, still stamp the week so we don't keep
-    // looking. Avoids the worst case of re-scanning the meta records
-    // on every hourly tick after Sunday until we move past 22 ET.
-    await env.LOADOUT_BOLTS.put(LAST_WEEKLY_KEY(broadcasterId), week);
-    return { skipped: 'no-clips-in-window', week };
-  }
-
-  // Fetch reactions for each candidate. We GET the Discord message
-  // and read `reactions[]` which already has aggregate counts.
-  let best = null;
-  for (const c of candidates) {
-    const msg = await discordRest(env, 'GET',
-      `/channels/${c.channelId}/messages/${c.messageId}`);
-    if (!msg.ok || !msg.body) continue;
-    const ups   = (msg.body.reactions || []).find(r => r.emoji?.name === '👍')?.count || 0;
-    const downs = (msg.body.reactions || []).find(r => r.emoji?.name === '👎')?.count || 0;
-    // -1 each (subtract the bot's own pre-reaction).
-    const net = Math.max(0, ups - 1) - Math.max(0, downs - 1);
-    if (!best || net > best.net) {
-      best = { ...c, net, ups, downs };
-    }
-  }
-  if (!best || best.net <= 0) {
-    await env.LOADOUT_BOLTS.put(LAST_WEEKLY_KEY(broadcasterId), week);
-    return { skipped: 'no-net-positive-clip', week };
-  }
-
-  // Resolve the creator to a Discord user (if linked) so we can
-  // @-mention them in the shout-out. Best-effort; failing to resolve
-  // isn't a hard error, the embed still posts. (Bolts economy sunset:
-  // the bolts payout to the clipper was removed; the recognition post
-  // stays.)
-  let rewardedDiscordId = null;
-  if (best.creatorName) {
-    try {
-      rewardedDiscordId = await resolveTwitchLinkToDiscord(env, best.creatorName);
-    } catch (e) {
-      console.warn('[twitch-clips] creator resolve failed', e?.message || e);
-    }
-  }
-
-  // Post the announcement.
-  const lines = [
-    `🏆  **Clip of the Week** 🏆`,
-    `_${best.title || 'Untitled clip'}_`,
-    `Clipped by **${best.creatorName || 'someone'}**, ${best.ups} 👍 / ${best.downs} 👎 (net ${best.net})`,
-    `${best.url || ''}`,
-    '',
-    rewardedDiscordId
-      ? `🎉 Congrats <@${rewardedDiscordId}> on Clip of the Week!`
-      : `(Link your Twitch account on aquilo.gg to get tagged for future Clip-of-the-Week shout-outs.)`,
-  ];
-  await discordRest(env, 'POST', `/channels/${clipsChannelId}/messages`, {
-    content: lines.join('\n'),
-    allowed_mentions: rewardedDiscordId ? { users: [rewardedDiscordId] } : { parse: [] },
-  });
-  // Add a 🏆 reaction to the original clip message so it stands out.
-  await reactTo(env, best.channelId, best.messageId, '🏆');
-
-  await env.LOADOUT_BOLTS.put(LAST_WEEKLY_KEY(broadcasterId), week);
-  return {
-    ok: true, week, clipId: best.clipId,
-    creator: best.creatorName, net: best.net,
-    rewardedDiscordId,
-  };
-}
-
-// Resolve a Twitch login name to a Discord user id by scanning
-// wallet records' `links` array. Bounded scan (first 1000 keys
-// matching wallet:<g>:*). Returns null if not found.
-async function resolveTwitchLinkToDiscord(env, twitchLogin) {
-  const guildId = env.AQUILO_VAULT_GUILD_ID;
-  if (!guildId) return null;
-  const target = String(twitchLogin).toLowerCase();
-  let cursor;
-  for (let page = 0; page < 5; page++) {
-    const r = await env.LOADOUT_BOLTS.list({
-      prefix: `wallet:${guildId}:`, cursor, limit: 1000,
-    });
-    for (const k of r.keys) {
-      const w = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
-      const link = (w?.links || []).find(l =>
-        l && String(l.platform || '').toLowerCase() === 'twitch'
-        && String(l.username || '').toLowerCase() === target);
-      if (link) return k.name.split(':').pop();
-    }
-    if (r.list_complete) break;
-    cursor = r.cursor;
-  }
-  return null;
 }
 
 export { isoWeek as _isoWeekForTest };

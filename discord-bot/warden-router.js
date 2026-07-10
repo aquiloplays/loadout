@@ -439,7 +439,7 @@ export async function handleWardenRoute(req, env, path, ctx) {
         const { checkObsRate } = await import('./warden-actions.js');
         const rl = await checkObsRate(env, actorId);
         if (!rl.ok) return json({ ok: false, error: 'rate-limited' }, 429);
-        const res = await dockAct(env, streamerId, { kind: 'say', text: `📢 Go show @${login} some love — twitch.tv/${login}` });
+        const res = await dockAct(env, streamerId, { kind: 'say', text: `📢 Go show @${login} some love: twitch.tv/${login}` });
         if (res.ok) await auditSafe(env, { streamerId, actorId, actorLogin, action: 'show-shoutout', platform: 'chat', targetLogin: login });
         return json(res, res.ok ? 200 : 400);
       }

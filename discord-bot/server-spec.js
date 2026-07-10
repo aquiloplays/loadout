@@ -176,9 +176,9 @@ export const FALLOUT_SPEC = {
     {
       name: '╭- 🤝 find a squad -',
       channels: [
-        { name: '🖥️│lfg-pc',          type: 'text', topic: 'Looking for group — PC (no crossplay).' },
-        { name: '🎮│lfg-playstation', type: 'text', topic: 'Looking for group — PlayStation (no crossplay).' },
-        { name: '❎│lfg-xbox',         type: 'text', topic: 'Looking for group — Xbox (no crossplay).' },
+        { name: '🖥️│lfg-pc',          type: 'text', topic: 'Looking for group: PC (no crossplay).' },
+        { name: '🎮│lfg-playstation', type: 'text', topic: 'Looking for group: PlayStation (no crossplay).' },
+        { name: '❎│lfg-xbox',         type: 'text', topic: 'Looking for group: Xbox (no crossplay).' },
         { name: '☢️│nuke-runs',        type: 'text', topic: 'Coordinate nuke runs. /nukecodes posts here.' },
         { name: '📅│events',           type: 'text', topic: 'Public event meetups (Eviction Notice, etc.).' },
       ],

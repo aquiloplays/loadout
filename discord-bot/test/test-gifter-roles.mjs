@@ -21,6 +21,7 @@ import {
   rolling30dLeaderboard,
   gifterRolesDailyTick,
   ensureGifterRoles,
+  handleTopSupporters,
   lastNDays,
   _utcDayForTest,
   _categoryForTest,
@@ -89,10 +90,14 @@ function makeReq(body, opts = {}) {
 
 console.log('- categories sanity');
 {
-  eq(Object.keys(GIFTER_CATEGORIES), ['sub', 'tiktok', 'cheer'], 'three categories');
+  // 'kick' added 2026-07-09 (community roadmap item 13, SF Kick
+  // gift-sub ingest via sf-community.js; tips are excluded so the
+  // bucket stays a coherent gift-sub count).
+  eq(Object.keys(GIFTER_CATEGORIES), ['sub', 'tiktok', 'cheer', 'kick'], 'four categories');
   eq(GIFTER_CATEGORIES.sub.name,    'Top Sub Gifter',    'sub name');
   eq(GIFTER_CATEGORIES.tiktok.name, 'Top TikTok Gifter', 'tiktok name');
   eq(GIFTER_CATEGORIES.cheer.name,  'Top Cheerer',       'cheer name');
+  eq(GIFTER_CATEGORIES.kick.name,   'Top Kick Gifter',   'kick name');
 }
 
 console.log('- event-type → category mapping');
@@ -100,6 +105,9 @@ console.log('- event-type → category mapping');
   eq(_categoryForTest('sub-gift', 'twitch'), 'sub',    'sub-gift twitch');
   eq(_categoryForTest('tip',      'tiktok'), 'tiktok', 'tip tiktok');
   eq(_categoryForTest('cheer',    'twitch'), 'cheer',  'cheer twitch');
+  eq(_categoryForTest('gift',     'kick'),   'kick',   'gift kick');
+  eq(_categoryForTest('tip',      'kick'),   null,     'kick tip refused (dollar amounts must not mix into the gift-sub count)');
+  eq(_categoryForTest('cheer',    'kick'),   null,     'kick cheer refused');
   eq(_categoryForTest('sub-gift', 'tiktok'), null,     'cross-platform refused');
   eq(_categoryForTest('whatever', 'tiktok'), null,     'unknown type');
 }
@@ -253,9 +261,38 @@ console.log('- gifterRolesDailyTick: top-3 add + revoke fall-outs + idempotent')
   // Marker stamped, second call same UTC day is a no-op.
   const r2 = await gifterRolesDailyTick(env);
   eq(r2.skipped, 'already-ran-today', 'second run same day skipped');
+  // Public top-supporters snapshot precomputed by the tick (one per
+  // category, including kick — even though kick has no role mapped).
+  const snap = await env.LOADOUT_BOLTS.get(`gifter-top:${GUILD}:sub`, { type: 'json' });
+  eq(snap.length, 5, 'sub snapshot has all 5 contributors');
+  eq(snap[0], { name: 'alice', total: 100, platform: 'twitch' }, 'snapshot top row shape');
+  const kickSnap = await env.LOADOUT_BOLTS.get(`gifter-top:${GUILD}:kick`, { type: 'json' });
+  eq(kickSnap, [], 'kick snapshot written (empty) despite unmapped role');
 }
 
-console.log('- ensureGifterRoles: creates the three roles');
+console.log('- handleTopSupporters: served from snapshot, deduped + limited');
+{
+  const env = { LOADOUT_BOLTS: makeKv(), AQUILO_VAULT_GUILD_ID: GUILD };
+  await env.LOADOUT_BOLTS.put(`gifter-top:${GUILD}:kick`, JSON.stringify([
+    { name: 'kfan1', total: 40, platform: 'kick' },
+    { name: 'kfan2', total: 30, platform: 'kick' },
+    { name: 'kfan3', total: 20, platform: 'kick' },
+  ]));
+  // Prove the handler never falls back to the O(roster) scan: any
+  // KV list() call (rolling30dLeaderboard / loadLinksReverseIndex)
+  // would throw and surface as a failed request.
+  env.LOADOUT_BOLTS.list = async () => { throw new Error('list() must not be called by handleTopSupporters'); };
+  const req = new Request('https://w/community/top-supporters?platforms=kick,kick,tiktok&limit=2');
+  const res = await handleTopSupporters(req, env);
+  const j = await res.json();
+  assert(j.ok, 'ok:true');
+  eq(Object.keys(j.categories).sort(), ['kick', 'tiktok'], 'platforms deduped');
+  eq(j.categories.kick.length, 2, 'limit slices the snapshot');
+  eq(j.categories.kick[0], { rank: 1, name: 'kfan1', total: 40, platform: 'kick' }, 'row contract intact');
+  eq(j.categories.tiktok, [], 'no snapshot yet → empty array (warming up card)');
+}
+
+console.log('- ensureGifterRoles: creates the four roles');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   fetchHandler = async (url, init) => {
@@ -272,9 +309,9 @@ console.log('- ensureGifterRoles: creates the three roles');
   const r = await ensureGifterRoles(env, GUILD);
   fetchHandler = null;
   assert(r.ok, 'ok:true');
-  eq(r.created.map(c => c.key).sort(), ['cheer', 'sub', 'tiktok'].sort(), 'three created');
+  eq(r.created.map(c => c.key).sort(), ['cheer', 'kick', 'sub', 'tiktok'].sort(), 'four created');
   const map = await env.LOADOUT_BOLTS.get(`gifter-roles:${GUILD}`, { type: 'json' });
-  eq(Object.keys(map).sort(), ['cheer', 'sub', 'tiktok'].sort(), 'map written');
+  eq(Object.keys(map).sort(), ['cheer', 'kick', 'sub', 'tiktok'].sort(), 'map written');
 }
 
 console.log('- identity / day helpers');

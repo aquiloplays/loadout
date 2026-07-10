@@ -29,7 +29,16 @@
 
 import { sendDm } from './aquilo/util.js';
 
-export const STARBOARD_THRESHOLD = 5;
+// Starboard trip point. Env-driven (STARBOARD_THRESHOLD in wrangler.toml
+// [vars]) so tuning is a config change, not a code edit. Default dropped
+// 5 → 2 (2026-07 community audit: nothing EVER crossed 5 in this
+// community; at 2 the first highlight lands within days and members
+// learn the ⭐ ritual actually works).
+export const STARBOARD_DEFAULT_THRESHOLD = 2;
+export function starboardThreshold(env) {
+  const n = parseInt(env && env.STARBOARD_THRESHOLD, 10);
+  return Number.isFinite(n) && n > 0 ? n : STARBOARD_DEFAULT_THRESHOLD;
+}
 export const STARBOARD_EMOJI     = '⭐';
 
 // Public-read starboard ringbuffer, fed by handleStarboardReaction
@@ -171,7 +180,7 @@ export async function handleStarboardReaction(env, payload) {
   const msg = msgRes.body;
   const star = (msg.reactions || []).find(r => r.emoji?.name === STARBOARD_EMOJI);
   const count = star?.count || 0;
-  if (count < STARBOARD_THRESHOLD) return { skipped: 'below-threshold', count };
+  if (count < starboardThreshold(env)) return { skipped: 'below-threshold', count };
 
   // Build the highlights embed
   const author = msg.author || {};
@@ -196,8 +205,12 @@ export async function handleStarboardReaction(env, payload) {
   });
   if (!postRes.ok) return { error: 'post-failed', status: postRes.status };
 
-  // Stamp dedup (30-day TTL)
-  await env.LOADOUT_BOLTS.put(stampKey, '1', { expirationTtl: 30 * 24 * 60 * 60 });
+  // Stamp dedup — PERMANENT. "Posts once per message EVER" is the
+  // intended semantic: a TTL'd stamp let an old message re-trip the
+  // starboard (duplicate highlight post) AND re-credit the weekly
+  // challenge via the star.received emit below once the stamp
+  // expired. Starboard trips are rare; unbounded keys are negligible.
+  await env.LOADOUT_BOLTS.put(stampKey, '1');
 
   // Persist for the public wall (best-effort, a KV write fail here
   // shouldn't undo the Discord post that already landed).
@@ -221,6 +234,27 @@ export async function handleStarboardReaction(env, payload) {
     });
   } catch (e) {
     console.warn('[starboard] persist failed', e?.message || e);
+  }
+
+  // Progression producer (community roadmap item 9): credit the
+  // message AUTHOR with the stars their message collected when it
+  // trips the starboard. Drives the "Star Search" weekly community
+  // challenge (kind 'star.received', units = meta.stars). Fires once
+  // per message (the dedup stamp above already gates re-entry, and
+  // the bus double-checks via stableKeys: ['messageId']). Best-effort.
+  try {
+    if (author.id && !author.bot) {
+      const { emitProgressionEvent } = await import('./progression/event-bus.js');
+      await emitProgressionEvent(env, {
+        kind: 'star.received',
+        userId: String(author.id),
+        guildId,
+        meta: { messageId: String(messageId), stars: count },
+        stableKeys: ['messageId'],
+      });
+    }
+  } catch (e) {
+    console.warn('[starboard] star.received emit failed', e?.message || e);
   }
 
   return { posted: true, count };

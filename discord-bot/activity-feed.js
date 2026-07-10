@@ -78,32 +78,86 @@ export async function appendIfNoteworthy(env, event) {
     if (!event || !event.kind || !event.userId) return { ok: false };
     if (!passesNoteworthyFilter(event)) return { ok: true, skipped: true };
     const username = await usernameFor(env, event.userId);
-    const entry = {
-      id: newEntryId(),
+    return await writeFeedEntry(env, {
       kind: event.kind,
       userId: event.userId,
       username,
       guildId: event.guildId || null,
       meta: event.meta || {},
       utc: event.utc || Date.now(),
-    };
-    const raw = await env.LOADOUT_BOLTS.get(FEED_KEY, { type: 'json' });
-    const arr = Array.isArray(raw) ? raw : [];
-    arr.unshift(entry);
-    if (arr.length > FEED_CAP) arr.length = FEED_CAP;
-    await env.LOADOUT_BOLTS.put(FEED_KEY, JSON.stringify(arr));
-    // Fire-and-forget Discord post into the guild's bound activity-
-    // feed channel (if configured). Failure must not roll back the
-    // KV write, the website feed is the authoritative surface; the
-    // Discord post is a nice-to-have nudge for in-server visibility.
-    if (event.guildId) {
-      postActivityToDiscord(env, event.guildId, entry).catch(() => {});
-    }
-    return { ok: true, entry };
+    });
   } catch (e) {
     console.warn('[activity-feed] append failed:', e && e.message);
     return { ok: false, error: String(e && e.message) };
   }
+}
+
+// ── Direct producer API (community roadmap item 10, 2026-07-09) ───
+//
+// appendFeedEvent bypasses the noteworthy-kind filter: the CALLER
+// decides the moment is feed-worthy (check-in continuations, quest
+// claims, challenge quarter-marks, Twitch subs/gifts/cheers/raids/
+// hype-train completions). Producers are inline side-effects wrapped
+// in try/catch at every call site so a feed failure can never break
+// the host path.
+//
+// Shape rules (matches what the site's ActivityFeed.tsx / PlayerEvent
+// type expects): `username` is REQUIRED on the rendered entry; userId
+// is optional (Twitch-side events have no Discord id). When only a
+// userId is given we resolve the username from pprofile like the bus
+// path does. Unknown kinds render via the site's generic fallback, so
+// adding a kind here can't break the page.
+//
+// Producer kinds added in this slate (meta contract, for the site
+// renderer):
+//   community.checkin     { streak }
+//   streak.milestone      { days }                    (already site-rendered)
+//   quest.claimed         { questId }
+//   challenge.progress    { challengeId, name, pct, progress, target }
+//   challenge.completed   { challengeId, name, pct, progress, target }
+//   twitch.sub            { tier }
+//   twitch.resub          { tier, months }
+//   twitch.gift           { total, tier }
+//   twitch.cheer          { bits }                    (only >= 100 bits)
+//   twitch.raid           { viewers }
+//   twitch.hypetrain      { level, total }
+export async function appendFeedEvent(env, { kind, userId = null, username = null, guildId = null, meta = {}, utc = null } = {}) {
+  try {
+    if (!kind) return { ok: false, error: 'no-kind' };
+    let name = username ? String(username).slice(0, 80) : null;
+    if (!name && userId) name = await usernameFor(env, userId);
+    if (!name) name = 'Someone';
+    return await writeFeedEntry(env, {
+      kind: String(kind),
+      userId: userId ? String(userId) : null,
+      username: name,
+      guildId: guildId || null,
+      meta: meta || {},
+      utc: utc || Date.now(),
+    });
+  } catch (e) {
+    console.warn('[activity-feed] appendFeedEvent failed:', e && e.message);
+    return { ok: false, error: String(e && e.message) };
+  }
+}
+
+// Shared ring write + best-effort Discord echo. `fields` is already
+// normalised by the two public entry points above.
+async function writeFeedEntry(env, fields) {
+  const entry = { id: newEntryId(), ...fields };
+  const raw = await env.LOADOUT_BOLTS.get(FEED_KEY, { type: 'json' });
+  const arr = Array.isArray(raw) ? raw : [];
+  arr.unshift(entry);
+  if (arr.length > FEED_CAP) arr.length = FEED_CAP;
+  await env.LOADOUT_BOLTS.put(FEED_KEY, JSON.stringify(arr));
+  // Fire-and-forget Discord post into the guild's bound activity-
+  // feed channel (if configured). Failure must not roll back the
+  // KV write, the website feed is the authoritative surface; the
+  // Discord post is a nice-to-have nudge for in-server visibility.
+  if (entry.guildId) {
+    postActivityToDiscord(env, entry.guildId, entry).catch(() => {});
+  }
+  return { ok: true, entry };
 }
 
 // ── Discord-side push ─────────────────────────────────────────────
@@ -130,6 +184,19 @@ const KIND_FORMAT = {
   'badge.earned':         (u, m) => `🎖️  **${u}** earned the **${m.name || m.id || 'mystery'}** badge!`,
   'clash.war.won':        (u, m) => `🛡️  **${u}**'s guild won a Clash war!`,
   'season.tier.reached':  (u, m) => `🎖️  **${u}** climbed to **Season tier ${m.tier}**!`,
+  // Producer kinds added 2026-07-09 (community roadmap item 10).
+  'community.checkin':    (u, m) => `📅  **${u}** checked in${m.streak > 1 ? `, **${m.streak}-day** streak` : ''}!`,
+  'quest.claimed':        (u, m) => `🗺️  **${u}** completed a daily quest${m.questId ? ` (*${String(m.questId).replace(/[_.-]/g, ' ')}*)` : ''}!`,
+  'challenge.progress':   (u, m) => `🎯  **${u}** pushed the **${m.name || 'community challenge'}** past **${m.pct || '?'}%** (${(m.progress || 0).toLocaleString()} / ${(m.target || 0).toLocaleString()})`,
+  'challenge.completed':  (u, m) => `🎉  **${u}** landed the finishing blow: **${m.name || 'the community challenge'}** is COMPLETE!`,
+  'twitch.sub':           (u, m) => `💜  **${u}** subscribed on Twitch!`,
+  'twitch.resub':         (u, m) => `💜  **${u}** resubscribed${m.months ? `, **${m.months} months**` : ''}!`,
+  'twitch.gift':          (u, m) => (Number(m.total) || 1) > 1
+                                    ? `🎁  **${u}** gifted **${m.total}** subs!`
+                                    : `🎁  **${u}** gifted a sub!`,
+  'twitch.cheer':         (u, m) => `💎  **${u}** cheered **${(Number(m.bits) || 0).toLocaleString()}** bits!`,
+  'twitch.raid':          (u, m) => `🚀  **${u}** raided with **${(Number(m.viewers) || 0).toLocaleString()}** viewers!`,
+  'twitch.hypetrain':     (u, m) => `🚂  Hype train reached **Level ${m.level || 1}**!`,
 };
 
 async function postActivityToDiscord(env, guildId, entry) {

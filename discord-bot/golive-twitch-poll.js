@@ -85,7 +85,13 @@ export async function pollTwitchGoLive(env) {
       live:         true,
     };
   }
-  await env.LOADOUT_BOLTS.put(TW_LIVEMAP_KEY, JSON.stringify(liveMap)).catch(() => {});
+  // Write only on change (per-minute cron): overnight the map is a
+  // stable '{}', and skipping identical writes keeps this poller off
+  // the KV write budget. When someone IS live, lastSeen moves every
+  // tick so the write happens anyway — that's the useful case.
+  const nextRaw = JSON.stringify(liveMap);
+  const prevRaw = await env.LOADOUT_BOLTS.get(TW_LIVEMAP_KEY).catch(() => null);
+  if (prevRaw !== nextRaw) await env.LOADOUT_BOLTS.put(TW_LIVEMAP_KEY, nextRaw).catch(() => {});
 
   return { ok: true, linked: ids.length, live: liveById.size, posted, cleared };
 }

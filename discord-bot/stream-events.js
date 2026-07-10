@@ -120,6 +120,29 @@ export async function syncStreamEvents(env, guildId, { horizonDays = 7 } = {}) {
   for (const k of Object.keys(synced)) {
     if ((synced[k].startsAt || 0) < cutoff) delete synced[k];
   }
+
+  // Cancel FUTURE Discord events for days the schedule no longer streams
+  // (e.g. Tue/Thu became rest days 2026-07-09). Without this, an event
+  // synced under the old cadence would keep advertising a stream that
+  // will never start. Only future keys are candidates; past ones were
+  // pruned above.
+  const wanted = new Set(streams.map((s) => s.dateKey));
+  for (const k of Object.keys(synced)) {
+    if (wanted.has(k)) continue;
+    if ((synced[k].startsAt || 0) <= Date.now()) continue;
+    try {
+      const del = await fetch(
+        `https://discord.com/api/v10/guilds/${g}/scheduled-events/${synced[k].eventId}`,
+        { method: 'DELETE', headers: auth },
+      );
+      // 404 = someone already deleted it in the Discord UI — fine either way.
+      if (del.ok || del.status === 404) {
+        out.cancelled = out.cancelled || [];
+        out.cancelled.push(k);
+        delete synced[k];
+      }
+    } catch { /* keep the key; retried next cron tick */ }
+  }
   await env.LOADOUT_BOLTS.put(SYNC_KEY(g), JSON.stringify(synced));
 
   return { ok: true, total: streams.length, ...out };
@@ -135,10 +158,20 @@ export async function preStreamPings(env, guildId) {
   if (!g) return { ok: false, error: 'no-guild' };
 
   const synced = (await env.LOADOUT_BOLTS.get(SYNC_KEY(g), { type: 'json' })) || {};
-  const pinged = (await env.LOADOUT_BOLTS.get(PING_KEY(g), { type: 'json' })) || {};
   const now = Date.now();
-  const url = await twitchUrl(env);
+  const hasUpcoming = Object.values(synced).some((ev) => {
+    const mins = (((ev && ev.startsAt) || 0) - now) / 60000;
+    return mins <= 30 && mins > 0;
+  });
+  const pinged = (await env.LOADOUT_BOLTS.get(PING_KEY(g), { type: 'json' })) || {};
+  // Early-out for the overwhelmingly common per-minute tick: nothing
+  // starts within 30 min and there are no ping markers to prune —
+  // skip the twitchUrl (Helix) resolution and every KV write.
+  if (!hasUpcoming && Object.keys(pinged).length === 0) return { ok: true, sent: [] };
+  // Only the send loop needs the URL; a prune-only tick skips Helix.
+  const url = hasUpcoming ? await twitchUrl(env) : '';
   const sent = [];
+  let dirty = false;
 
   for (const [dateKey, ev] of Object.entries(synced)) {
     const mins = (ev.startsAt - now) / 60000;
@@ -153,15 +186,18 @@ export async function preStreamPings(env, guildId) {
         headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN, 'Content-Type': 'application/json' },
         body: JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] } }),
       });
-      if (r.ok) { pinged[dateKey] = now; sent.push(dateKey); }
+      if (r.ok) { pinged[dateKey] = now; dirty = true; sent.push(dateKey); }
     }
   }
 
   // Drop markers for events that have already started.
   for (const k of Object.keys(pinged)) {
-    if (!synced[k] || (synced[k].startsAt || 0) < now) delete pinged[k];
+    if (!synced[k] || (synced[k].startsAt || 0) < now) { delete pinged[k]; dirty = true; }
   }
-  await env.LOADOUT_BOLTS.put(PING_KEY(g), JSON.stringify(pinged));
+  // Write only on change — the unconditional put here used to burn
+  // ~1,440 no-op KV writes/day on the per-minute cron (the free-tier
+  // account cap is 1,000/day suite-wide).
+  if (dirty) await env.LOADOUT_BOLTS.put(PING_KEY(g), JSON.stringify(pinged));
 
   return { ok: true, sent };
 }

@@ -301,6 +301,19 @@ export async function handleAquiloHttp(req, env, ctx, url) {
   // is defined in loadout-discord/worker.js), so the fetch is a
   // same-Worker hop now, still fine, just internally routed.
   if (method === 'GET' && path === '/forward-channels') {
+    // The gateway shim polls this every ~5 min (aquilo_gateway.py
+    // _refresh_forward_channels_loop) — that poll is the dead-man
+    // switch's heartbeat, so quiet overnight hours (no messages, no
+    // reactions) don't read as an outage. Stamps the POLL key only
+    // (gateway:poll-seen): this route is public/unauthenticated, so it
+    // must never refresh gateway:last-seen — that stamp is exclusive
+    // to authenticated events (auth.js gatewayOk), letting the
+    // watchdog catch "shim polling but events rejected". Best-effort,
+    // throttled KV stamp; see gateway-watchdog.js.
+    try {
+      const { stampGatewayPollSeen } = await import('../gateway-watchdog.js');
+      await stampGatewayPollSeen(env);
+    } catch { /* heartbeat bookkeeping is never fatal */ }
     const channels = new Set();
     if (env.COUNTING_CHANNEL_ID) channels.add(String(env.COUNTING_CHANNEL_ID));
     if (env.CLIPS_CHANNEL_ID)    channels.add(String(env.CLIPS_CHANNEL_ID));

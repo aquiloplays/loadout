@@ -456,6 +456,31 @@ export async function claimQuest(env, userId, questId, opts = {}) {
       granted.xpError = e?.message || String(e);
     }
   }
+  // Community producers (roadmap items 9 + 10). They live HERE, in the
+  // single success path behind the atomic UPDATE...WHERE claimed=0
+  // guard, so every claim door (site /play/quests route AND the
+  // Boltbound web claim in cards-web.js) fires them exactly once per
+  // user/quest/day. Both best-effort: a feed/bus failure must never
+  // break the claim response.
+  //   • feed write so the claim shows on the site's activity feed
+  //   • progression emit (kind 'quest.claimed') so the Quest Crushers
+  //     weekly challenge ticks; the bus dedups on meta.id (one credit
+  //     per user/quest/day) and its feed consumer drops the kind (not
+  //     in NOTEWORTHY_KINDS) so there's no double feed entry.
+  try {
+    const { appendFeedEvent } = await import('./activity-feed.js');
+    await appendFeedEvent(env, {
+      kind: 'quest.claimed', userId, guildId: guildId || null,
+      meta: { questId: def.id },
+    });
+  } catch { /* non-fatal */ }
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    await emitProgressionEvent(env, {
+      kind: 'quest.claimed', userId, guildId: guildId || null,
+      meta: { id: 'dq:' + dayKey + ':' + def.id },
+    });
+  } catch { /* non-fatal */ }
   return { ok: true, granted, questId: def.id };
 }
 
@@ -509,28 +534,107 @@ async function _gateHmac(req, env) {
   return { ok: true, body };
 }
 
+// Site-shape adapter (aquilo.gg /play/quests, src/lib/quests.ts).
+// The page expects { userId, daily: Quest[], weekly: Quest[], resetUtc }
+// with Quest = { id, game, kind, title, description,
+// progress:{current,target}, reward, status } and status ∈
+// incomplete|complete|claimed. This engine is daily-only, so weekly is
+// always [] (the page's weekly rail simply doesn't render) and resetUtc
+// is the next UTC midnight (the real rotation rollover in todayUtcKey).
+function _nextUtcMidnightMs(nowMs) {
+  const d = new Date(nowMs || Date.now());
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+}
+
+function _siteQuest(q) {
+  const target = Math.max(1, Number(q.def.threshold) || 1);
+  const current = Math.max(0, Math.min(target, Number(q.progress) || 0));
+  return {
+    id:          q.def.id,
+    game:        q.def.game || 'all',
+    kind:        'daily',
+    title:       q.def.title,
+    description: q.def.description,
+    progress:    { current, target },
+    reward:      q.def.reward || {},
+    status:      q.claimed ? 'claimed' : (current >= target ? 'complete' : 'incomplete'),
+  };
+}
+
 export async function handleQuestsRoute(req, env, path) {
-  // GET /web/quests/today/<userId>[?game=<game>]
+  // GET /web/quests/today?userId=<id>[&game=<game>] — the aquilo.gg
+  // /play/quests page-load read (public, hit straight from the
+  // browser; identity is just a progress lookup key, nothing
+  // privileged is readable).
+  if (req.method === 'GET' && path === '/web/quests/today') {
+    const url = new URL(req.url);
+    const userId = String(url.searchParams.get('userId') || '').trim();
+    if (!userId) return _json({ error: 'userId required' }, 400);
+    const game = url.searchParams.get('game') || undefined;
+    // Browser-hit public route + no global catch in the worker fetch
+    // handler: a D1 hiccup here must degrade to a logged 503 (keeps
+    // the site's safeGet on its error-card path) instead of an
+    // uncaught 1101.
+    let quests;
+    try {
+      quests = await listTodaysQuests(env, userId, game);
+    } catch (e) {
+      console.warn('[quests] today read failed', e?.message || e);
+      const resetUtc = _nextUtcMidnightMs();
+      return _json({
+        userId, daily: [], weekly: [], resetUtc, weeklyResetUtc: resetUtc,
+        error: 'unavailable',
+      }, 503);
+    }
+    const resetUtc = _nextUtcMidnightMs();
+    return _json({
+      userId,
+      daily:  quests.map(_siteQuest),
+      weekly: [],
+      resetUtc,
+      weeklyResetUtc: resetUtc,
+    });
+  }
+  // GET /web/quests/today/<userId>[?game=<game>] — original path-param
+  // form, kept for API compatibility; returns the raw engine shape.
   if (req.method === 'GET' && path.startsWith('/web/quests/today/')) {
     const userId = path.slice('/web/quests/today/'.length).split('/')[0];
     if (!userId) return _json({ error: 'userId required' }, 400);
     const url = new URL(req.url);
     const game = url.searchParams.get('game') || undefined;
-    const quests = await listTodaysQuests(env, userId, game);
+    // Same 1101 shield as the query-param branch above.
+    let quests;
+    try {
+      quests = await listTodaysQuests(env, userId, game);
+    } catch (e) {
+      console.warn('[quests] today read failed', e?.message || e);
+      return _json({ error: 'unavailable' }, 503);
+    }
     return _json({ userId, dayKey: todayUtcKey(), quests });
   }
-  // All writes require HMAC.
+  // All writes require HMAC. The site's play dispatcher
+  // (functions/api/web/play/[[route]].js) server-stamps identity as
+  // `discordId` (+ guildId); the original contract used `userId` —
+  // accept either.
   const gate = await _gateHmac(req, env);
   if (!gate.ok) return _json({ error: gate.error }, gate.status);
   const b = gate.body || {};
-  const userId = String(b.userId || '').trim();
+  const userId = String(b.userId || b.discordId || '').trim();
   if (!userId) return _json({ error: 'userId required' }, 400);
 
   if (req.method === 'POST' && path === '/web/quests/claim') {
     const questId = String(b.questId || '').trim();
     if (!questId) return _json({ error: 'questId required' }, 400);
-    const r = await claimQuest(env, userId, questId);
-    return _json(r, r.ok ? 200 : 400);
+    const r = await claimQuest(env, userId, questId, { guildId: b.guildId });
+    if (!r.ok) {
+      // Site QuestClaimResult reads `error`; keep `reason` for older
+      // callers of the raw engine shape.
+      return _json({ ok: false, error: r.reason || 'claim-failed', ...r }, 400);
+    }
+    // (Community feed + progression producers fire inside claimQuest's
+    // success path — shared with the Boltbound web claim door — so no
+    // route-side copy here; a duplicate would double-post the feed.)
+    return _json({ ok: true, questId: r.questId, awarded: r.granted });
   }
   if (req.method === 'POST' && path === '/web/quests/increment') {
     const questId = String(b.questId || '').trim();
