@@ -55,11 +55,35 @@ function resolveLoadoutUserId(twId) {
   return 'tw:' + twId;
 }
 
+// Per-channel economy namespace (the `guildId` component of every wallet /
+// check-in / recap / leaderboard KV key). Clay's channel keeps his existing
+// Discord-guild namespace so his LIVE cross-product wallet (DLL sync, Vault
+// deltas, stocks/bets) is untouched — zero migration. Every other installed
+// channel gets an isolated synthetic namespace `ch:<channelId>`, so their
+// wallets/games/leaderboards can never bleed into another channel's (the
+// list({prefix}) scans in wallet.js/checkin.js are naturally scoped by it).
+function nsFor(env, channelId) {
+  const clay = env.CLAY_TWITCH_CHANNEL_ID;
+  if (clay && String(channelId) === String(clay)) {
+    return env.AQUILO_VAULT_GUILD_ID || ('ch:' + channelId);
+  }
+  return channelId ? 'ch:' + channelId : '';
+}
+
 export async function handleExt(req, env, ctx) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
   const url = new URL(req.url);
   const route = url.pathname.replace(/^\/ext\//, '').replace(/\/+$/, '');
+
+  // --- public game-event feed (NO JWT) ---
+  // Hosted OBS overlays poll this; they're standalone pages with no Twitch
+  // ext token, so it must run before JWT verification. Read-only, keyed by
+  // the dock pair token or channel login.
+  if (route === 'events') {
+    const { handleGameEvents } = await import('./ext-events.js');
+    return await handleGameEvents(req, env);
+  }
 
   // --- auth: Twitch extension JWT ---
   const authHeader = req.headers.get('Authorization') || '';
@@ -76,19 +100,89 @@ export async function handleExt(req, env, ctx) {
     return await handleExtConfig(env, payload, req);
   }
 
-  // --- channel gate: Clay's channel only (economy / games / rotation) ---
+  // --- per-channel identity + namespace (multi-tenant) ---
+  // The economy/games/rotation/chat surface now works for ANY channel that
+  // installs the extension. Clay's channel resolves to his existing
+  // Discord-guild namespace (back-compat); every other channel gets its own
+  // isolated `ch:<channelId>` namespace via nsFor().
+  const channelId = String(payload.channel_id || '');
   const clayChannel = env.CLAY_TWITCH_CHANNEL_ID;
-  if (!clayChannel || String(payload.channel_id) !== String(clayChannel)) {
-    return json({ error: 'forbidden' }, 403);
-  }
-
-  const guildId = env.AQUILO_VAULT_GUILD_ID;
+  const isClay = !!clayChannel && channelId === String(clayChannel);
+  const guildId = nsFor(env, channelId);
   if (!guildId) return json({ error: 'not-configured' }, 503);
   const twId = String(payload.user_id || payload.opaque_user_id || '');
   if (!twId) return json({ error: 'no-identity' }, 400);
   const userId = resolveLoadoutUserId(twId);
 
+  // A few routes read Clay's Discord-guild data (schedule, queues, VODs/
+  // goals, Patreon corner, the mod console) and have no meaning for other
+  // channels — keep those Clay-only. Everything else is multi-tenant.
+  const clayOnly =
+    route === 'schedule' || route === 'queues' || route === 'vods' ||
+    route === 'goals' || route === 'patron-corner' ||
+    route === 'patreon/link-start' || route.indexOf('mod/') === 0;
+  if (clayOnly && !isClay) return json({ error: 'forbidden' }, 403);
+
+  // The viewer's display name (for game leaderboards / player lists) rides in
+  // the POST body. Peek it off a CLONE so the game handler still receives an
+  // unconsumed request body to parse itself.
+  let viewerName = null;
+  if (req.method === 'POST') {
+    try {
+      const b = await req.clone().json();
+      if (b && b.name) viewerName = String(b.name).slice(0, 40);
+    } catch { /* no / bad body — fine */ }
+  }
+  const gameMeta = { twId, isClay, name: viewerName, channelId };
+
   try {
+    // ── In-panel games (multi-tenant) ──────────────────────────────────
+    // All keyed on the per-channel `guildId` from nsFor(), so every channel
+    // has its own isolated wallet / leaderboard / game state. Casino also
+    // serves the shared GET /ext/wallet.
+    if (route === 'wallet' || route.indexOf('casino/') === 0) {
+      const { handleCasino } = await import('./ext-casino.js');
+      const sub = route === 'wallet' ? 'wallet' : route.slice('casino/'.length);
+      return await handleCasino(env, guildId, userId, sub, req, gameMeta);
+    }
+    if (route === 'hangman' || route.indexOf('hangman/') === 0) {
+      const { handleHangman } = await import('./ext-hangman.js');
+      const sub = route === 'hangman' ? 'state' : route.slice('hangman/'.length);
+      return await handleHangman(env, guildId, userId, sub, req, gameMeta);
+    }
+    if (route === 'blackjack' || route.indexOf('blackjack/') === 0) {
+      const { handleBlackjack } = await import('./ext-blackjack.js');
+      const sub = route === 'blackjack' ? 'state' : route.slice('blackjack/'.length);
+      return await handleBlackjack(env, guildId, userId, sub, req, gameMeta);
+    }
+    if (route === 'tanks' || route.indexOf('tanks/') === 0) {
+      const { handleTanks } = await import('./ext-tanks.js');
+      const sub = route === 'tanks' ? 'state' : route.slice('tanks/'.length);
+      return await handleTanks(env, guildId, userId, sub, req, gameMeta);
+    }
+    if (route === 'scratch' || route.indexOf('scratch/') === 0) {
+      const { handlePanelScratch } = await import('./ext-scratch.js');
+      const sub = route === 'scratch' ? 'state' : route.slice('scratch/'.length);
+      return await handlePanelScratch(env, guildId, userId, sub, req, gameMeta);
+    }
+    if (route === 'powerdeck' || route.indexOf('powerdeck/') === 0) {
+      const { handlePanelPowerdeck } = await import('./ext-powerdeck.js');
+      const sub = route === 'powerdeck' ? 'state' : route.slice('powerdeck/'.length);
+      return await handlePanelPowerdeck(env, guildId, userId, sub, req, gameMeta);
+    }
+    // Bolts earn engine: watch-time heartbeat + follow/sub bonuses.
+    if (route === 'earn' || route.indexOf('earn/') === 0) {
+      const { handleEarn } = await import('./ext-earn.js');
+      const sub = route === 'earn' ? 'state' : route.slice('earn/'.length);
+      return await handleEarn(env, guildId, userId, sub, req, gameMeta);
+    }
+    // Optional Bits → Bolts top-up (only used when the streamer configured a
+    // bolts_* Bits Product; gameplay is always free).
+    if (route === 'topup' && req.method === 'POST') {
+      const { handleTopup } = await import('./ext-topup.js');
+      return await handleTopup(env, guildId, userId, req);
+    }
+
     // (Bolts economy sunset: the hero / wallet / daily / leaderboard /
     // dungeon / minigame / duel / lootbox / quick / bets / boltbound
     // panel routes were removed.)
@@ -198,7 +292,7 @@ export async function handleRelay(req, env) {
 // songBits.enabled → song requests always cost Bits (see rotation.js);
 // tabs.<name>=0 hides that tab in the panel.
 const EXTCFG_KEY = (ch) => 'extcfg:' + ch;
-const EXTCFG_TABS = ['hangman', 'casino', 'blackjack', 'tanks', 'streaks', 'chat', 'mycard', 'doodle', 'songs', 'links'];
+const EXTCFG_TABS = ['hangman', 'casino', 'blackjack', 'tanks', 'scratch', 'powerdeck', 'streaks', 'chat', 'mycard', 'doodle', 'songs', 'links'];
 const DEFAULT_EXTCFG_TABS = EXTCFG_TABS.reduce((o, t) => { o[t] = 1; return o; }, {});
 
 async function readExtConfig(env, channelId) {
@@ -211,6 +305,8 @@ async function readExtConfig(env, channelId) {
   return {
     // Default: song requests cost Bits (the panel's requested behavior).
     songBits: { enabled: saved && saved.songBits ? saved.songBits.enabled !== false : true },
+    // Default: announce big game wins in chat (streamer can turn off).
+    chatWins: saved && typeof saved.chatWins === 'boolean' ? saved.chatWins : true,
     tabs,
     updatedAt: (saved && saved.updatedAt) || 0,
   };
@@ -229,6 +325,7 @@ async function handleExtConfig(env, payload, req) {
     const cur = await readExtConfig(env, channelId);
     const next = {
       songBits: { enabled: body.songBits && typeof body.songBits.enabled === 'boolean' ? body.songBits.enabled : cur.songBits.enabled },
+      chatWins: typeof body.chatWins === 'boolean' ? body.chatWins : cur.chatWins,
       tabs: {},
       updatedAt: Date.now(),
     };

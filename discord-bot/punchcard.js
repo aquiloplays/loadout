@@ -620,6 +620,8 @@ export async function handlePunchcardOauthCallback(req, env) {
         rt: tok.refresh_token,
         at: tok.access_token,
         atExp: Date.now() + Math.max(60, Number(tok.expires_in || 0) - 120) * 1000,
+        scopes: Array.isArray(tok.scope) ? tok.scope : undefined,   // granted scopes, for the connection-status panel
+        scopesTs: Date.now(),
       },
     };
     await kvPut(env, KEY.chan(login), chan);
@@ -823,7 +825,7 @@ async function handleCheckin(env, body) {
       posted = true;
     } else if (crown && cfg.announceFirst) {
       await sendChat(env, ch, chan,
-        `👑 ${display} is FIRST in today, day ${next.s} of the streak! aquilo.gg/punchcard/card/?ch=${ch}`);
+        `👑 ${display} is FIRST in today: day ${next.s} of the streak! aquilo.gg/punchcard/card/?ch=${ch}`);
       posted = true;
     } else if (!next.dup && next.t === 1 && cfg.announceWelcome) {
       await sendChat(env, ch, chan,
@@ -841,7 +843,7 @@ async function handleCheckin(env, body) {
     }
     if (!posted && !next.dup && cfg.checkinReply) {
       await sendChat(env, ch, chan, fillTemplate(
-        cfg.checkinReplyMsg || '🔥 {name} checked in, day {streak}!',
+        cfg.checkinReplyMsg || '🔥 {name} checked in: day {streak}!',
         { name: display, streak: next.s, total: next.t, best: next.b }));
     }
   } catch { /* best effort */ }
@@ -1292,6 +1294,66 @@ async function handleMeta(env, url) {
   });
 }
 
+// Real connection health for the customizer: validate the channel's stored
+// token against Twitch to read the scopes it ACTUALLY has, so the UI can show
+// "permissions granted" truthfully instead of a static "reconnect" nag. Result
+// is cached on the record for an hour so this isn't hit on every panel render.
+async function handleConnStatus(env, url) {
+  const ch = chanName(url.searchParams.get('ch'));
+  const chan = ch ? await loadChan(env, ch) : null;
+  if (!chan || !chan.tw || !chan.tw.rt) return json({ ok: true, connected: false });
+  let scopes = (chan.tw && Array.isArray(chan.tw.scopes)) ? chan.tw.scopes : null;
+  const fresh = chan.tw && chan.tw.scopesTs && (Date.now() - chan.tw.scopesTs < 3600000);
+  const diag = {};
+  if (!scopes || !fresh) {
+    const validate = async (at) => {
+      if (!at) return null;
+      try {
+        const r = await fetch('https://id.twitch.tv/oauth2/validate', { headers: { Authorization: 'OAuth ' + at } });
+        diag.validateStatus = r.status;
+        if (!r.ok) return null;                 // 401 (bad token) or transient → try a refresh
+        const v = await r.json();
+        return Array.isArray(v.scopes) ? v.scopes : [];
+      } catch (e) { diag.validateErr = String(e && e.message || e); return null; }
+    };
+    let got = await validate(chan.tw.at);
+    if (!got) {                                 // no valid access token → refresh via the stored RT (inline, to capture WHY it fails)
+      try {
+        const rp = await fetch('https://id.twitch.tv/oauth2/token', {
+          method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ client_id: env.TWITCH_CLIENT_ID, client_secret: env.TWITCH_CLIENT_SECRET, grant_type: 'refresh_token', refresh_token: chan.tw.rt }).toString(),
+        });
+        diag.refreshStatus = rp.status;
+        const rj = await rp.json().catch(() => ({}));
+        if (rp.ok && rj.access_token) {
+          chan.tw.at = rj.access_token;
+          chan.tw.atExp = Date.now() + Math.max(60, Number(rj.expires_in || 0) - 120) * 1000;
+          if (rj.refresh_token) chan.tw.rt = rj.refresh_token;
+          try { await kvPut(env, KEY.chan(ch), chan); } catch { /* best effort */ }
+          got = await validate(rj.access_token);
+        } else {
+          diag.refreshErr = String(rj.message || rj.error || '').slice(0, 80);
+        }
+      } catch (e) { diag.refreshErr = String(e && e.message || e).slice(0, 80); }
+    }
+    if (Array.isArray(got)) {
+      scopes = got;
+      chan.tw.scopes = got; chan.tw.scopesTs = Date.now();
+      try { await kvPut(env, KEY.chan(ch), chan); } catch { /* best effort */ }
+    }
+  }
+  const has = (s) => Array.isArray(scopes) && scopes.includes(s);
+  return json({
+    ok: true, connected: true, tokenValid: Array.isArray(scopes), diag,
+    perms: Array.isArray(scopes) ? {
+      redemptions: has('channel:read:redemptions') && has('channel:manage:redemptions'),
+      subs: has('channel:read:subscriptions'),
+      chat: has('user:write:chat'),
+      bits: has('bits:read'),
+    } : null,
+  });
+}
+
 async function handleLeaderboard(env, url) {
   const ch = chanName(url.searchParams.get('ch'));
   if (!ch) return json({ ok: false, error: 'bad-channel' }, 400);
@@ -1727,7 +1789,7 @@ async function handleDiscordBoard(env, body) {
   const top = (lb.top || []).slice(0, 10);
   if (!top.length) return json({ ok: false, error: 'empty' }, 400);
   const medal = ['🥇', '🥈', '🥉'];
-  const lines = top.map((e, i) => `${medal[i] || (i + 1) + '.'} **${cleanDisplay(e.display || e.v)}**, ${e.s}-day streak`);
+  const lines = top.map((e, i) => `${medal[i] || (i + 1) + '.'} **${cleanDisplay(e.display || e.v)}**: ${e.s}-day streak`);
   const ok = await postDiscord(chan.cfg.discordWebhook, `**🏆 ${cleanDisplay(chan.display || ch)} check-in leaderboard**\n` + lines.join('\n'));
   return json({ ok });
 }
@@ -1750,6 +1812,7 @@ async function dispatch(req, env, path) {
   if (req.method === 'GET') {
     if (route === 'oauth/start') return handleOauthStart(env, url);
     if (route === 'meta') return handleMeta(env, url);
+    if (route === 'connstatus') return handleConnStatus(env, url);
     if (route === 'token') return handleToken(env, url);
     if (route === 'rewards') return handleRewards(env, url);
     if (route === 'recent') return handleRecent(env, url);
