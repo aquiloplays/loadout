@@ -89,6 +89,92 @@ async function reactTo(env, channelId, messageId, emoji) {
 //   clips:posted-meta:<broadcasterId>:<clipId> →
 //     { channelId, messageId, postedAt, creatorName, creatorId, url, title }
 
+// GET /community/clips — public read for the site's /clips gallery
+// (proxied by functions/api/community/clips.js). Top clips of the last
+// 30 days, view-sorted, trimmed to the fields the page renders. KV-cached
+// 30 min so page traffic never hits Helix directly. Always { ok, clips };
+// empty array when Twitch is unconfigured or Helix fails.
+const SITE_CLIPS_CACHE_KEY = (b) => `clips:site-cache:${b}`;
+const SITE_CLIPS_CACHE_MS = 30 * 60 * 1000;
+const SITE_CLIPS_MAX = 24;
+
+export async function handleCommunityClips(req, env) {
+  if (req.method !== 'GET') {
+    return new Response(JSON.stringify({ ok: false, error: 'method' }), {
+      status: 405, headers: { 'content-type': 'application/json' },
+    });
+  }
+  const respond = (clips) => new Response(JSON.stringify({ ok: true, clips }), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'public, max-age=300',
+      'access-control-allow-origin': '*',
+    },
+  });
+
+  const broadcasterId = String(env.CLAY_TWITCH_CHANNEL_ID || '').trim();
+  if (!broadcasterId || !isTwitchConfigured(env)) return respond([]);
+
+  let cached = null;
+  try {
+    cached = await env.LOADOUT_BOLTS.get(SITE_CLIPS_CACHE_KEY(broadcasterId), { type: 'json' });
+  } catch { /* fall through to Helix */ }
+  if (cached && Array.isArray(cached.clips) && (Date.now() - (cached.at || 0)) < SITE_CLIPS_CACHE_MS) {
+    return respond(cached.clips);
+  }
+
+  let clips = [];
+  try {
+    // Helix returns the window's clips view-sorted already; re-sort
+    // defensively and trim to the render fields. ended_at is REQUIRED
+    // here: a bare started_at means "one week from start", so a 30-day
+    // lookback without it returns only days 30-23.
+    const raw = await getRecentClips(
+      env, broadcasterId,
+      startedAtIsoForWindow(30), new Date().toISOString(),
+    );
+    clips = (Array.isArray(raw) ? raw : [])
+      .filter((c) => c && c.id && c.url)
+      .sort((a, b) => (Number(b.view_count) || 0) - (Number(a.view_count) || 0))
+      .slice(0, SITE_CLIPS_MAX)
+      .map((c) => ({
+        id:        String(c.id),
+        url:       String(c.url),
+        embedUrl:  String(c.embed_url || ''),
+        title:     String(c.title || ''),
+        thumbnail: String(c.thumbnail_url || ''),
+        views:     Number(c.view_count) || 0,
+        createdAt: String(c.created_at || ''),
+        creator:   String(c.creator_name || ''),
+        duration:  Number.isFinite(Number(c.duration)) ? Number(c.duration) : null,
+      }));
+  } catch (e) {
+    console.warn('[twitch-clips] site clips fetch failed:', e?.message || e);
+  }
+
+  // ⚠ Only cache a NON-EMPTY result. helixFetch maps every non-2xx
+  // (429/5xx/auth blip) to null WITHOUT throwing, so an empty `clips`
+  // here usually means "Helix failed", not "no clips exist" - caching
+  // it would poison the gallery for 30 min and clobber a good cache.
+  // On empty/failure, serve the stale cache (up to 24h old) instead.
+  if (clips.length > 0) {
+    try {
+      await env.LOADOUT_BOLTS.put(
+        SITE_CLIPS_CACHE_KEY(broadcasterId),
+        JSON.stringify({ at: Date.now(), clips }),
+        { expirationTtl: 24 * 60 * 60 },
+      );
+    } catch { /* serve uncached */ }
+    return respond(clips);
+  }
+  if (cached && Array.isArray(cached.clips) && cached.clips.length > 0 &&
+      (Date.now() - (cached.at || 0)) < 24 * 60 * 60 * 1000) {
+    return respond(cached.clips);
+  }
+  return respond([]);
+}
+
 export async function pollNewClipsCron(env) {
   if (!isTwitchConfigured(env)) {
     console.warn('[twitch-clips] twitch not configured, skip');

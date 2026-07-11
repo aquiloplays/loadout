@@ -1357,6 +1357,11 @@ export default {
       const { handleRecapArchive } = await import('./twitch-eventsub.js');
       return handleRecapArchive(req, env);
     }
+    // Top Twitch clips (30-day window) for the site's /clips gallery.
+    if (method === 'GET' && path === '/community/clips') {
+      const { handleCommunityClips } = await import('./twitch-clips.js');
+      return handleCommunityClips(req, env);
+    }
 
     // StreamFusion community-night queue manager, see sf-queue.js.
     //   POST /sf/queue          full queue + per-joiner links for the panel

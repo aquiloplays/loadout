@@ -248,12 +248,19 @@ export async function getUserById(env, userId) {
 // Returns clips created since `startedAtIso` (ISO 8601 string).
 // Pagination ignored, for a 10-min polling window we'll never get
 // more than a handful of clips.
-export async function getRecentClips(env, broadcasterId, startedAtIso) {
-  const j = await helixFetch(env, '/clips', {
+// ⚠ Helix quirk: started_at WITHOUT ended_at means a window of
+// started_at + ONE WEEK, not started_at → now. Short-window callers
+// (clip poll, recap top-clip, both <=24h) never noticed; any window
+// longer than 7 days MUST pass `endedAtIso` (the /clips gallery's
+// 30-day read silently returned only days 30→23 without it).
+export async function getRecentClips(env, broadcasterId, startedAtIso, endedAtIso) {
+  const params = {
     broadcaster_id: broadcasterId,
     started_at:     startedAtIso,
     first:          50,
-  });
+  };
+  if (endedAtIso) params.ended_at = endedAtIso;
+  const j = await helixFetch(env, '/clips', params);
   if (!j || !Array.isArray(j.data)) return [];
   return j.data;
 }
