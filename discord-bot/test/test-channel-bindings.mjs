@@ -66,13 +66,14 @@ console.log('- catalog sanity');
 {
   eq(_BINDING_KEYS_FOR_TEST,
     ['queue', 'live', 'recap', 'clips', 'lfg', 'schedule', 'poll',
+     'stream-events',
      'welcome',
      'games-list', 'checkin', 'checkin-results',
      'character', 'bolts', 'play', 'achievements', 'vote',
      'stream-notifications', 'live-now', 'redemptions-feed',
      'twitch-rewards-feed', 'spire-clears', 'live-status-embed',
      'anniversary', 'game-updates'],
-    'binding keys (vault-events/vault-actions/stream-squad archived; + game-updates for Boltbound expansion launches)');
+    'binding keys (vault-events/vault-actions/stream-squad archived; + game-updates for Boltbound launches; + stream-events for the 30-min ping channel 2026-07-11)');
   // Every binding has an env-fallback ENTRY in the table (value
   // may be null for hub-channel bindings that are KV-only).
   for (const k of _BINDING_KEYS_FOR_TEST) {
@@ -160,7 +161,7 @@ console.log('- setChannelBinding');
   const r3 = await setChannelBinding(env, GUILD, 'garbage', '1500000000000000222');
   eq(r3.ok, false, 'unknown binding refused');
   eq(r3.error, 'unknown-binding', 'error code');
-  assert(Array.isArray(r3.allowed) && r3.allowed.length === 24, 'lists allowed (24 keys)');
+  assert(Array.isArray(r3.allowed) && r3.allowed.length === 25, 'lists allowed (25 keys)');
   // No guild.
   const r4 = await setChannelBinding(env, '', 'queue', '1500000000000000222');
   eq(r4.error, 'no-guild-id', 'no-guild-id');
@@ -185,9 +186,9 @@ console.log('- listChannelBindings');
     ['achievements', 'anniversary', 'bolts', 'character', 'checkin', 'checkin-results',
      'clips', 'game-updates', 'games-list', 'lfg', 'live', 'live-now', 'live-status-embed',
      'play', 'poll', 'queue', 'recap', 'redemptions-feed', 'schedule',
-     'spire-clears', 'stream-notifications', 'twitch-rewards-feed',
+     'spire-clears', 'stream-events', 'stream-notifications', 'twitch-rewards-feed',
      'vote', 'welcome'].sort(),
-    '24 keys');
+    '25 keys');
   // queue: KV override; resolved = KV.
   eq(list.queue.kv, '1500000000000000222', 'queue kv');
   eq(list.queue.env, '1500000000000000111', 'queue env');

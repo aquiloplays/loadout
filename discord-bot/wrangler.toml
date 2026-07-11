@@ -178,7 +178,7 @@ TEMP_VC_PARENT_ID = "1507973944026595388"      # ➕│join to create
 # every thermal-printed receipt PNG. Override per-call by passing
 # channel_id in the relay's multipart body. Defaults inside
 # printerbot-relay.js if both this var and the body field are empty.
-PRINTERBOT_DISCORD_CHANNEL_ID = "1508871768817795082"
+PRINTERBOT_DISCORD_CHANNEL_ID = "1525558304158515310"
 
 [[kv_namespaces]]
 binding = "LOADOUT_BOLTS"

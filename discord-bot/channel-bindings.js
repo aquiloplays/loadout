@@ -16,6 +16,10 @@
 
 const BINDING_KEYS = Object.freeze([
   'queue', 'live', 'recap', 'clips', 'lfg', 'schedule', 'poll',
+  // 30-min pre-stream ping embeds (stream-events.js preStreamPings).
+  // Falls back to the legacy STREAM_PING_CHANNEL env var so the pings
+  // keep landing in 🔴live-now until/unless rebound.
+  'stream-events',
   // Front-door welcome embed (welcome.js handleMemberJoined). KV-only.
   // Takes precedence over the legacy guild:welcome-cfg.channelId and
   // guild:cfg.ids.ch_introductions so future rebinds land without a
@@ -82,6 +86,7 @@ const BINDING_ENV_FALLBACK = Object.freeze({
   lfg:          'LFG_CHANNEL_ID',
   schedule:     'SCHEDULE_CHANNEL_ID',
   poll:         'POLL_CHANNEL_ID',
+  'stream-events': 'STREAM_PING_CHANNEL',
   welcome:           null,
   'games-list':      null,
   checkin:           'CHECKIN_CHANNEL_ID',

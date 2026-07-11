@@ -252,6 +252,12 @@ export default {
     if (method === 'GET' && path.startsWith('/admin/printerbot/webhook-url/')) {
       return handlePrinterBotWebhookUrl(req, env, path);
     }
+    // One-shot channel creation (or raw channel list) for CLI-driven
+    // setup, same trust model as printerbot/setup: site HMAC or an
+    // operator-armed self-burning KV token (channels-create-token).
+    if (method === 'POST' && path.startsWith('/admin/channels/create/')) {
+      return handleChannelsCreate(req, env, path);
+    }
     // Streamer.bot PrinterBot pipeline mirror. The SB print action
     // calls this with the rendered receipt PNG + caption; we re-post
     // the image into a fixed Discord channel using the bot token so
@@ -4366,6 +4372,78 @@ async function handlePrinterBotWebhookUrl(req, env, path) {
   const rec = await readPrinterBotWebhook(env, guildId);
   if (!rec) return jsonResp({ ok: false, error: 'not-set', via: auth.via }, 404);
   return jsonResp({ ok: true, ...rec, via: auth.via }, 200);
+}
+
+// ── /admin/channels/create/:guildId (HMAC or one-shot token) ──────
+//
+// Body { name, topic?, parentId? } → creates ONE text channel and
+// returns { id, name }. Body { list: true } → returns the guild's raw
+// channel list (id/name/type/parent_id) so an operator can pick the
+// right category before creating. Auth mirrors /admin/printerbot/setup:
+// site HMAC, or a one-shot KV token `channels-create-token` that
+// self-burns on use (arm it per call via wrangler).
+async function handleChannelsCreate(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','channels','create',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  let via = '';
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (auth.ok) {
+    via = auth.via;
+  } else {
+    const tok = new URL(req.url).searchParams.get('token') || '';
+    const expected = await env.LOADOUT_BOLTS.get('channels-create-token');
+    if (expected && tok && tok === expected) {
+      await env.LOADOUT_BOLTS.delete('channels-create-token');
+      via = 'one-shot-token';
+    } else {
+      return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+    }
+  }
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token', via }, 503);
+
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json', via }, 400); }
+  }
+  const authHdr = { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN, 'Content-Type': 'application/json' };
+
+  if (opts.list === true) {
+    const r = await fetch(`https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`, { headers: authHdr });
+    const chans = await r.json().catch(() => null);
+    if (!r.ok || !Array.isArray(chans)) return jsonResp({ ok: false, error: 'list-failed', status: r.status, via }, 502);
+    return jsonResp({
+      ok: true, via,
+      channels: chans.map((c) => ({ id: c.id, name: c.name, type: c.type, parent_id: c.parent_id || null, position: c.position })),
+    }, 200);
+  }
+
+  // Rename an existing channel (shell-mangled unicode names get fixed
+  // by re-sending the name from a UTF-8 JSON body).
+  if (typeof opts.renameId === 'string' && /^\d{5,25}$/.test(opts.renameId)) {
+    const newName = typeof opts.name === 'string' ? opts.name.trim() : '';
+    if (!newName) return jsonResp({ ok: false, error: 'name required', via }, 400);
+    const r = await fetch(`https://discord.com/api/v10/channels/${opts.renameId}`, {
+      method: 'PATCH', headers: authHdr, body: JSON.stringify({ name: newName }),
+    });
+    const ch = await r.json().catch(() => null);
+    if (!r.ok || !ch?.id) return jsonResp({ ok: false, error: 'rename-failed', status: r.status, detail: ch, via }, 502);
+    return jsonResp({ ok: true, id: ch.id, name: ch.name, via }, 200);
+  }
+
+  const name = typeof opts.name === 'string' ? opts.name.trim() : '';
+  if (!name) return jsonResp({ ok: false, error: 'name required', via }, 400);
+  const payload = { name, type: 0 };
+  if (typeof opts.topic === 'string' && opts.topic.trim()) payload.topic = opts.topic.trim().slice(0, 1024);
+  if (typeof opts.parentId === 'string' && /^\d{5,25}$/.test(opts.parentId)) payload.parent_id = opts.parentId;
+  const r = await fetch(`https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`, {
+    method: 'POST', headers: authHdr, body: JSON.stringify(payload),
+  });
+  const ch = await r.json().catch(() => null);
+  if (!r.ok || !ch?.id) return jsonResp({ ok: false, error: 'create-failed', status: r.status, detail: ch, via }, 502);
+  return jsonResp({ ok: true, id: ch.id, name: ch.name, parent_id: ch.parent_id || null, via }, 200);
 }
 
 // ── /admin/reset-user-data/:guildId (HMAC, DESTRUCTIVE) ───────────

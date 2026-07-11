@@ -171,14 +171,17 @@ export async function syncStreamEvents(env, guildId, { horizonDays = 7 } = {}) {
   return { ok: true, total: streams.length, ...out };
 }
 
-// 30-minute pre-stream ping. Opt-in: only fires when STREAM_PING_CHANNEL
-// is configured. Safe to call every minute, a per-event KV marker
-// guarantees exactly one ping per stream.
+// 30-minute pre-stream ping. Opt-in: only fires when the
+// `stream-events` channel binding (KV, falls back to the legacy
+// STREAM_PING_CHANNEL env var) resolves. Safe to call every minute,
+// a per-event KV marker guarantees exactly one ping per stream.
 export async function preStreamPings(env, guildId) {
-  const channelId = String(env.STREAM_PING_CHANNEL || '').trim();
-  if (!channelId || !env.DISCORD_BOT_TOKEN) return { ok: true, skipped: 'not-configured' };
+  if (!env.DISCORD_BOT_TOKEN) return { ok: true, skipped: 'not-configured' };
   const g = gid(env, guildId);
   if (!g) return { ok: false, error: 'no-guild' };
+  const { getChannelBinding } = await import('./channel-bindings.js');
+  const channelId = String((await getChannelBinding(env, g, 'stream-events')) || '').trim();
+  if (!channelId) return { ok: true, skipped: 'not-configured' };
 
   const synced = (await env.LOADOUT_BOLTS.get(SYNC_KEY(g), { type: 'json' })) || {};
   const now = Date.now();
