@@ -329,8 +329,14 @@ export async function handleVoteClick(env, data) {
 // internal time check makes this DST-safe. ctx is forwarded so the close
 // path can use ctx.waitUntil for the eligible-patron DM batch.
 export async function runScheduledPoll(env, weekday, hour, ctx) {
-  // Schedule rev 2026-05-14: Saturday is the only Community Night.
-  // Stream nights are Sun/Mon/Wed/Fri/Sat at 10:30 PM-12:30 AM ET, off Tue/Thu.
+  // Schedule v8 (2026-07-11): Saturday Community Night is back, but its game
+  // is the deterministic weekly AUTO-PICK (aq-schedule weeklyCommunityPick) —
+  // the D1 poll model is RETIRED. This cron entry is hard-disabled so a
+  // revived bot token can't resurrect a 6 PM poll that fights the auto-pick
+  // (poll winners write cn_winners, which v7+ resolution ignores). Bringing
+  // votes back is a deliberate rebuild, not a re-enable.
+  return;
+  // eslint-disable-next-line no-unreachable -- kept for the manual/admin path shape
   if (weekday !== 'saturday') return;
   if (hour === 18) {
     try { await postCnPoll(env, weekday); }

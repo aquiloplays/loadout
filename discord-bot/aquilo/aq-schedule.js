@@ -1,22 +1,24 @@
-// Stream schedule v7 (rev 2026-07-09): SOLO CROWD CONTROL five nights.
-//   Sun/Mon/Wed/Fri/Sat -> Crowd Control playthrough ("Triple-C"). The
+// Stream schedule v8 (rev 2026-07-11): CROWD CONTROL + SATURDAY COMMUNITY NIGHT.
+//   Sun/Mon/Wed/Fri -> Crowd Control playthrough ("Triple-C"). The
 //                   current campaign game is admin-selectable on
 //                   aquilo.gg/admin (KV triple-c:current:<g>); defaults to
 //                   Fallout 4. One game at a time, swapped when Clay
 //                   finishes it.
 //   Tue/Thu -> OFF (rest days, added 2026-07-09 per Clay). kind 'off'
 //                   renders a muted rest-day embed + slot 'off' publicly.
-//                   NOTE: the site's KV cadence (schedule:v1) got its
-//                   matching startLocal:null Tue/Thu days via a ONE-TIME
-//                   manual KV write (2026-07-09, already live) — nothing
-//                   in code syncs the two; schedule.js DEFAULT_SCHEDULE
-//                   carries the same v7 shape as the wipe fallback.
-// Community Night was dropped 2026-06-26 (was Tue/Thu/Sat random picks); the
-// `community` kind + weeklyCommunityPick + cn-change-vote stay in the code
-// but are DORMANT (no `community` day in WEEKLY, cnvote disabled). Per-day
-// games resolve DYNAMICALLY so the embed + site never drift. A one-shot
-// per-date override (schedule:override:<ISO>, admin-set on aquilo.gg) wins
-// over the show default for any single night, so any night can still be pinned.
+//   Sat -> COMMUNITY NIGHT (restored 2026-07-11 per Clay): the game is a
+//                   weekly ROTATING pick, auto-resolved by weeklyCommunityPick
+//                   from the aquilo.gg-managed community pool (games:v1) —
+//                   deterministic per ET week, re-rolls every Sunday. NO vote:
+//                   cnvote + the D1 poll + vote-hub stay disabled; the pick is
+//                   automatic, overridable per-date on aquilo.gg/admin.
+// NOTE: the site's KV cadence (schedule:v1) mirrors this via ONE-TIME manual
+// KV writes (v7 rest days 2026-07-09; v8 Saturday community 2026-07-11) —
+// nothing in code syncs the two; schedule.js DEFAULT_SCHEDULE carries the
+// same v8 shape as the wipe fallback. Per-day games resolve DYNAMICALLY so
+// the embed + site never drift. A one-shot per-date override
+// (schedule:override:<ISO>, admin-set on aquilo.gg) wins over the show
+// default for any single night, so any night can still be pinned.
 
 import {
   postChannelMessage, editChannelMessage, discordFetch, COLOR_SCHEDULE, cap, getETInfo
@@ -26,14 +28,15 @@ import { gameSlug } from './today-game.js';
 
 // Fixed weekly cadence, Sun -> Sat. `dow` drives per-day override +
 // date resolution; `kind` drives the public slot enum + game source.
-const WEEKLY = [
+// Exported for today-game.js (follow-overlay theme) + stream-events.js.
+export const WEEKLY = [
   { day: 'sunday',    dow: 0, kind: 'fo4cc' },
   { day: 'monday',    dow: 1, kind: 'fo4cc' },
   { day: 'tuesday',   dow: 2, kind: 'off' },
   { day: 'wednesday', dow: 3, kind: 'fo4cc' },
   { day: 'thursday',  dow: 4, kind: 'off' },
   { day: 'friday',    dow: 5, kind: 'fo4cc' },
-  { day: 'saturday',  dow: 6, kind: 'fo4cc' },
+  { day: 'saturday',  dow: 6, kind: 'community' },
 ];
 
 // kind -> the public `slot` enum the site + Discord embed consume.
@@ -89,6 +92,17 @@ function weekSeedET() {
   const d = new Date(Date.UTC(et.year, et.month - 1, et.day, 12) - curDow * 86400000);
   return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
 }
+// Same seed, but for the ET week CONTAINING the given ET date (YYYY-MM-DD).
+// Needed by consumers that resolve a FUTURE night (stream-events creates
+// next Saturday's Discord event up to 7 days out — seeding that from the
+// current week would title it with the outgoing week's pick).
+function weekSeedForIso(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (!m) return weekSeedET();
+  const noon = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+  const d = new Date(noon.getTime() - noon.getUTCDay() * 86400000);
+  return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+}
 
 // Calendar date of `dow` (0=Sun..6=Sat) in the CURRENT ET week (anchored to
 // this week's Sunday) as a short "Mon D" label. The week + the random
@@ -110,7 +124,9 @@ function weekDateLabel(dow) {
 // game by its position in the week. Returns { gameId, name, artUrl, store }
 // or null when the pool is empty. Exported so the community change-vote
 // (cn-change-vote.js) can show + offer "keep the random pick".
-export async function weeklyCommunityPick(env, guildId, dow) {
+// Optional `forIso` (YYYY-MM-DD, ET) seeds from THAT date's week instead of
+// the current one — pass it when resolving a night beyond this ET week.
+export async function weeklyCommunityPick(env, guildId, dow, forIso) {
   let cat = null;
   try { cat = await env.LOADOUT_BOLTS.get(`games:v1:${guildId}`, { type: 'json' }); }
   catch { /* fall through */ }
@@ -119,7 +135,7 @@ export async function weeklyCommunityPick(env, guildId, dow) {
   if (pool.length === 0) return null;
   const communityDows = WEEKLY.filter((s) => s.kind === 'community').map((s) => s.dow);
   const idx = communityDows.indexOf(dow);
-  const shuffled = seededShuffle(pool, weekSeedET());
+  const shuffled = seededShuffle(pool, forIso ? weekSeedForIso(forIso) : weekSeedET());
   const g = shuffled[(idx < 0 ? 0 : idx) % shuffled.length];
   const art = g.headerUrl || g.capsuleUrl || null;
   return { gameId: g.id, name: g.name, artUrl: art, store: g.storeUrl || storeFromArtUrl(art) };
@@ -127,8 +143,9 @@ export async function weeklyCommunityPick(env, guildId, dow) {
 
 // Resolve a day's game from the authoritative source for its kind.
 // Order: per-date one-shot override -> show default. Returns
-// { name, artUrl, store, override? } or null.
-async function resolveSlotGame(env, guildId, kind, sched, dow, dayName) {
+// { name, artUrl, store, override? } or null. Exported so today-game.js
+// (overlay theme endpoint) resolves tonight from the SAME source.
+export async function resolveSlotGame(env, guildId, kind, sched, dow, dayName) {
   // 1. One-shot per-date override (any night, admin-set on aquilo.gg).
   try {
     const { getDateOverride } = await import('../schedule-rotation.js');
@@ -204,7 +221,9 @@ async function buildSchedulePayload(env, guildId, sched) {
     title: `📅 Aquilo · Weekly Stream Schedule`,
     description:
       `🗓️ **Week of ${weekDateLabel(0)} – ${weekDateLabel(6)}** · refreshes every Sunday\n` +
-      'Solo **Crowd Control**: chat controls the chaos. Live Sun · Mon · Wed · Fri · Sat, **' + TIME_LABEL + '**. Tue + Thu are rest days.',
+      'Solo **Crowd Control** Sun · Mon · Wed · Fri: chat controls the chaos. ' +
+      'Saturday is **Community Night**: a rotating game from the community pool, picked fresh each week. ' +
+      'Live **' + TIME_LABEL + '**. Tue + Thu are rest days.',
     color: COLOR_SCHEDULE,
   };
 

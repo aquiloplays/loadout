@@ -382,6 +382,28 @@ export async function postVoteHubForGuild(env, guildId, opts = {}) {
 // ── Cron transitions ────────────────────────────────────────────
 
 export async function tickPhaseTransition(env, guildId) {
+  // Schedule v8 (2026-07-11): the Wed-noon -> Fri-noon Community Night vote
+  // is RETIRED — Saturday's game is auto-picked weekly (weeklyCommunityPick).
+  // Hard-disabled so the hourly cron can't flip phases, tally stray ballots,
+  // or announce a "Community Night winner" once the bot token is reset.
+  // (vote-hub:winner:* writes would also mislead stream-events.js variety
+  // resolution.) Reviving votes is a deliberate rebuild.
+  //
+  // This tick was ALSO the only writer that ever returns the persisted
+  // phase to CLOSED, and castWebVote/getVotePublic still key off it — so
+  // normalize any stale CN_OPEN left in KV (phase writes kept landing while
+  // the bot token was dead, since putState precedes the Discord edit).
+  // Writes only when non-CLOSED, so this is a one-time KV touch.
+  try {
+    const state = await getState(env, guildId);
+    if (state && state.phase !== PHASE.CLOSED) {
+      state.phase = PHASE.CLOSED;
+      state.lastTransitionUtc = Date.now();
+      await putState(env, guildId, state);
+    }
+  } catch { /* best-effort */ }
+  return { phase: PHASE.CLOSED, transitioned: false };
+  // eslint-disable-next-line no-unreachable
   const config = await getConfig(env, guildId);
   const state  = await getState(env, guildId);
   const et = getETInfo(new Date());

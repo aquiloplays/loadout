@@ -32,20 +32,22 @@ const DEFAULT_SCHEDULE = {
   tz: 'America/New_York',
   updatedAt: 0,
   updatedBy: null,
-  // Schedule v7 (2026-07-09, matches aquilo/aq-schedule.js WEEKLY):
-  // solo Crowd Control Sun/Mon/Wed/Fri/Sat, Tue/Thu OFF (rest days,
+  // Schedule v8 (2026-07-11, matches aquilo/aq-schedule.js WEEKLY):
+  // solo Crowd Control Sun/Mon/Wed/Fri, Tue/Thu OFF (rest days,
   // startLocal:null so every consumer — Discord scheduled events,
-  // pre-stream pings, the site schedule/countdown — skips them). The
-  // community-vote nights (v4) and the Rotation slot are retired; a
-  // KV wipe or unsaved guild must NOT resurrect either.
+  // pre-stream pings, the site schedule/countdown — skips them), and
+  // Saturday = COMMUNITY NIGHT: the game is auto-picked weekly from the
+  // games:v1 community pool (weeklyCommunityPick), NO vote — the v4
+  // vote-night model and the Rotation slot stay retired; a KV wipe or
+  // unsaved guild must resurrect the auto-pick Saturday, not a vote.
   days: [
-    { dow: 0, label: 'Crowd Control',        kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
-    { dow: 1, label: 'Crowd Control',        kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
-    { dow: 2, label: 'No stream (rest day)', kind: 'fo4cc', startLocal: null,    endLocal: null },
-    { dow: 3, label: 'Crowd Control',        kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
-    { dow: 4, label: 'No stream (rest day)', kind: 'fo4cc', startLocal: null,    endLocal: null },
-    { dow: 5, label: 'Crowd Control',        kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
-    { dow: 6, label: 'Crowd Control',        kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
+    { dow: 0, label: 'Crowd Control',        kind: 'fo4cc',     startLocal: '22:30', endLocal: '00:30' },
+    { dow: 1, label: 'Crowd Control',        kind: 'fo4cc',     startLocal: '22:30', endLocal: '00:30' },
+    { dow: 2, label: 'No stream (rest day)', kind: 'fo4cc',     startLocal: null,    endLocal: null },
+    { dow: 3, label: 'Crowd Control',        kind: 'fo4cc',     startLocal: '22:30', endLocal: '00:30' },
+    { dow: 4, label: 'No stream (rest day)', kind: 'fo4cc',     startLocal: null,    endLocal: null },
+    { dow: 5, label: 'Crowd Control',        kind: 'fo4cc',     startLocal: '22:30', endLocal: '00:30' },
+    { dow: 6, label: 'Community Night',      kind: 'community', startLocal: '22:30', endLocal: '00:30' },
   ],
 };
 
@@ -268,6 +270,13 @@ function voteActiveAt(schedule, now = Date.now()) {
   // when the day's kind is community/variety.
   if (!day.startLocal) return { active: false, kind: day.kind, dow: day.dow };
   if (day.kind !== 'variety' && day.kind !== 'community') {
+    return { active: false, kind: day.kind, dow: day.dow };
+  }
+  // v8: 'community' never opens a vote window — Saturday's game is
+  // auto-picked weekly (weeklyCommunityPick); the 6-9 PM vote model is
+  // retired, so the public payload (site /schedule/public, Twitch-ext
+  // /ext/schedule) must not advertise a vote that never opens.
+  if (day.kind === 'community') {
     return { active: false, kind: day.kind, dow: day.dow };
   }
   const minutes = t.hour * 60 + t.minute;

@@ -76,11 +76,11 @@ async function buildVotingIdlePayloads(env, guildId) {
     : '_no active games, use ➕ Add Game on the hub_';
   const playedList = (played || []).length
     ? played.map(p => '• **' + p.name + '** (' + cap(p.day_of_week) + ')').join('\n')
-    : '_none yet, vote at 6 PM ET on stream day_';
+    : '_none yet_';
 
   const headerEmbed = {
     title: '📊 Community Night · Game Pool',
-    description: 'Voting opens at **6 PM ET** on **Wed / Fri / Sat** in this channel and closes at **9 PM ET**.\n\nA game that won earlier this week is excluded until the next week.',
+    description: "Saturday's Community Night game is picked automatically from the community pool each week — a rotating pick that re-rolls every Sunday.",
     color: COLOR_POLL,
     fields: [
       { name: '🎮 In rotation (' + (active?.length || 0) + ')', value: inRotation.slice(0, 1024), inline: false },
@@ -167,7 +167,7 @@ function buildQueueIdlePayload(env) {
     title: '🎮 Community Night Queue',
     description:
       'The queue is **closed** right now.\n\n' +
-      'It opens automatically at **9 PM ET** on **Wed / Fri / Sat** for these roles:\n' +
+      'It opens automatically at **9 PM ET** on **Saturday** (Community Night) for these roles:\n' +
       '🥇 **Patrons** (priority by tier)\n' +
       '⭐ **Server Boosters**\n\n' +
       'Become a patron or boost the server to play with us on community nights, see you in the queue!',

@@ -33,20 +33,43 @@ function gid(env, guildId) {
   return guildId || String(env.AQUILO_VAULT_GUILD_ID || '').trim();
 }
 
-// Resolve the game (name + art) showing on a given schedule day.
-//   fixed     → the locked-in Triple-C campaign game
-//   variety   → the stored variety-vote winner
-//   community → the stored community-vote winner
-async function gameForDay(env, guildId, kind) {
+// Resolve the game (name + art) showing on a given schedule day, from
+// the SAME sources aquilo/aq-schedule.js uses so the Discord event
+// title never drifts from the embed/site.
+//   any        → the one-shot per-date override wins first
+//   fixed/fo4cc → the locked-in Triple-C campaign game
+//   community  → the deterministic weekly community pick (v8 — the
+//                stored community-vote winner model is retired)
+//   variety    → the stored variety-vote winner (dormant kind)
+async function gameForDay(env, guildId, kind, dateKey, dow) {
   try {
-    if (kind === 'fixed') {
+    if (dateKey) {
+      try {
+        const { getDateOverride } = await import('./schedule-rotation.js');
+        const ov = await getDateOverride(env, guildId, dateKey);
+        if (ov && ov.name) return { name: ov.name, art: ov.artUrl || null };
+      } catch { /* optional */ }
+    }
+    if (kind === 'fixed' || kind === 'fo4cc') {
       const { getCurrentTripleC } = await import('./triple-c.js');
       const c = await getCurrentTripleC(env, guildId);
       return { name: c?.name || null, art: c?.artUrl || null };
     }
-    const winnerKind = kind === 'variety' ? 'variety' : 'cn';
-    const w = await env.LOADOUT_BOLTS.get(`vote-hub:winner:${guildId}:${winnerKind}`, { type: 'json' });
-    return { name: w?.name || null, art: w?.art_url || null };
+    if (kind === 'community') {
+      // Pass the target date: this sync creates NEXT Saturday's event while
+      // it is still the current Saturday (inclusive 7-day horizon), and the
+      // pick re-rolls at the week boundary — seeding from `dateKey`'s week
+      // titles the event with the week-of-the-event pick, not the outgoing
+      // week's.
+      const { weeklyCommunityPick } = await import('./aquilo/aq-schedule.js');
+      const p = await weeklyCommunityPick(env, guildId, typeof dow === 'number' ? dow : 6, dateKey);
+      return { name: p?.name || null, art: p?.artUrl || null };
+    }
+    if (kind === 'variety') {
+      const w = await env.LOADOUT_BOLTS.get(`vote-hub:winner:${guildId}:variety`, { type: 'json' });
+      return { name: w?.name || null, art: w?.art_url || null };
+    }
+    return { name: null, art: null };
   } catch {
     return { name: null, art: null };
   }
@@ -87,7 +110,7 @@ export async function syncStreamEvents(env, guildId, { horizonDays = 7 } = {}) {
   for (const s of streams) {
     if (synced[s.dateKey]?.eventId) { out.existing.push(s.dateKey); continue; }
 
-    const game = await gameForDay(env, g, s.kind);
+    const game = await gameForDay(env, g, s.kind, s.dateKey, s.dow);
     const name = (game.name ? `${s.label}: ${game.name}` : s.label).slice(0, 100);
     const startIso = new Date(s.startsAt).toISOString();
     const endIso = new Date(s.endsAt || (s.startsAt + 2 * 3600 * 1000)).toISOString();

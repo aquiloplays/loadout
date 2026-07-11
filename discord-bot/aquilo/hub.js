@@ -274,32 +274,31 @@ export async function handleHubButton(env, data, ctx) {
   }
 
   if (action === 'poll_post') {
-    // Schedule rev 2026-06-11: Sun/Tue/Thu/Sat are Community Votes
-    // Nights. If today is one, target today; otherwise target the
-    // next upcoming CVN so the streamer can preview without waiting.
-    const { weekday } = getETInfo();
-    const cnDays = ['sunday', 'tuesday', 'thursday', 'saturday'];
-    let target = cnDays.includes(weekday) ? weekday : null;
-    if (!target) {
-      const order = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
-      const idx = order.indexOf(weekday);
-      for (let off = 1; off <= 7; off++) {
-        const cand = order[(idx + off) % 7];
-        if (cnDays.includes(cand)) { target = cand; break; }
-      }
-    }
+    // Schedule v8 (2026-07-11): the D1 Saturday poll is RETIRED — Community
+    // Night's game is auto-picked weekly (aq-schedule weeklyCommunityPick),
+    // and with runScheduledPoll hard-disabled a posted poll would NEVER
+    // auto-close (live buttons forever + weekly reminder-DM blasts). Reply
+    // with tonight's/next Saturday's auto-pick instead of posting a vote.
     try {
-      const r = await postCnPoll(env, target);
-      if (r?.skipped) return ephemeral('Skipped: ' + r.skipped + (r.pollId ? ' (#' + r.pollId + ')' : ''));
-      return ephemeral('🗳️ Posted ' + cap(target) + ' poll #' + r.pollId + ' with ' + r.count + ' games to <#' + env.POLL_CHANNEL_ID + '>.');
+      const { weeklyCommunityPick } = await import('./aq-schedule.js');
+      const pick = await weeklyCommunityPick(env, guildId, 6);
+      return ephemeral(
+        '🗳️ The Community Night poll is retired — Saturday\'s game is auto-picked weekly.\n' +
+        (pick?.name
+          ? '🎲 This week\'s pick: **' + pick.name + '**. Pin a different game on aquilo.gg/admin → Stream Events.'
+          : '🎲 No pick yet (community pool is empty) — manage the pool on aquilo.gg/admin.'),
+      );
     } catch (e) { return ephemeral('Failed: ' + (e?.message || e)); }
   }
 
   if (action === 'poll_close') {
+    // Kept ONLY as a cleanup path for a stray still-open D1 poll from the
+    // retired vote era; new polls can no longer be posted. NOTE: the winner
+    // is written to cn_winners, which v8 resolution deliberately ignores.
     try {
       const r = await closeCnPoll(env, ctx);
       if (r?.skipped) return ephemeral('Skipped: ' + r.skipped);
-      return ephemeral('🔒 Closed poll #' + r.pollId + (r.winnerName ? ' · winner **' + r.winnerName + '** (' + r.voteCount + ' votes)' : ' · no winner') + '. Schedule + queue updated.');
+      return ephemeral('🔒 Closed stray poll #' + r.pollId + (r.winnerName ? ' · winner **' + r.winnerName + '** (' + r.voteCount + ' votes)' : ' · no winner') + '. (Winner does NOT change the schedule — Saturday\'s game is the weekly auto-pick.)');
     } catch (e) { return ephemeral('Failed: ' + (e?.message || e)); }
   }
 

@@ -1,7 +1,7 @@
 // Community-night "change the game" vote (2026-06-24).
 //
-// Community Night games (Tue/Thu/Sat) are auto-picked at random each week
-// (see aquilo/aq-schedule.js). This module lets the Discord community
+// Community Night's game (Saturday only, v8) is auto-picked at random each
+// week (see aquilo/aq-schedule.js). This module lets the Discord community
 // OPTIONALLY override a night's game via a two-phase, auto-posted vote:
 //
 //   1. NOMINATE (noon ET default) — post a 21-game dropdown; members pick
@@ -28,7 +28,7 @@
 import { getETInfo } from './aquilo/util.js';
 
 const DOW_INDEX = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
-const COMMUNITY_DOWS = [2, 4, 6]; // Tue/Thu/Sat — keep in lockstep with aq-schedule WEEKLY
+const COMMUNITY_DOWS = [6]; // Saturday (v8) — keep in lockstep with aq-schedule WEEKLY
 const KEEP = '__keep__';
 
 const CONFIG_KEY = (g) => `cnvote:config:${g}`;
@@ -119,6 +119,16 @@ async function resolveChannel(env, guildId) {
 
 // ── Cron entry ──────────────────────────────────────────────────
 export async function tickCnVote(env) {
+  // Schedule v8 (2026-07-11): HARD-disabled alongside the other two vote
+  // machines (poll.js runScheduledPoll, vote-hub.js tickPhaseTransition).
+  // The KV flag (cnvote:config.enabled) alone is not a safe gate for the
+  // dead-token wake-up: a stale enabled:true from the feature's live window
+  // would auto-post a Saturday nominate/vote cycle the moment the bot token
+  // is reset. This module was DESIGNED for the auto-pick model, so if Clay
+  // wants the override vote back it's a deliberate re-enable: delete this
+  // return AND set cnvote:config.enabled=true.
+  return;
+  // eslint-disable-next-line no-unreachable
   const guildId = gid(env);
   if (!guildId || !env.LOADOUT_BOLTS || !env.DISCORD_BOT_TOKEN) return;
   const cfg = await getConfig(env, guildId);

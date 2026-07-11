@@ -486,15 +486,12 @@ async function handleScheduled(event, env, ctx) {
     catch (e) { console.error('[cron spotlight]', e?.message || e); }
   }
 
-  // Saturday 8 PM ET: vote-reminder DMs (1h before CN poll closes).
-  // Schedule rev 2026-05-14: Saturday is the only Community Night.
-  if (hour === 20 && weekday === 'saturday') {
-    try {
-      const guildId = await ensureBootstrap(env);
-      await notifyUnvotedEligibles(env, guildId);
-    }
-    catch (e) { console.error('[cron vote-remind]', e?.message || e); }
-  }
+  // Saturday 8 PM ET vote-reminder DMs: RETIRED with the vote model
+  // (schedule v8, 2026-07-11 — Saturday's game is the weekly auto-pick).
+  // Deliberately not called: a stray still-open D1 poll would otherwise
+  // re-trigger the DM blast every Saturday (the dedup key has a 7-day TTL
+  // and nothing auto-closes polls anymore).
+  // if (hour === 20 && weekday === 'saturday') { await notifyUnvotedEligibles(...) }
 
   // Sunday 10 AM ET, weekly community-night recap.
   if (weekday === 'sunday' && hour === 10) {
