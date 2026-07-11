@@ -144,11 +144,80 @@ export async function persistLatestRecap(env, broadcasterId, preRec = null) {
       topClip,
     };
     await env.LOADOUT_BOLTS.put(RECAP_LATEST_KEY, JSON.stringify(recap));
+    await appendRecapArchive(env, recap);
     return { ok: true, recap };
   } catch (e) {
     console.warn('[recap-latest] persist failed:', e?.message || e);
     return { ok: false, error: String(e?.message || e) };
   }
+}
+
+// Rolling per-stream recap history (added 2026-07-11 for the site's
+// /recaps archive page). ONE key holding a newest-first array of the
+// same objects persistLatestRecap writes, so the site reads history
+// with a single get. Capped so the value stays far under KV's 25 MB.
+//   recap:archive = [ recap, recap, ... ]  (newest first, max 60)
+// Guards: factless husks (no game AND no startedAt) are never archived,
+// and a re-fire for the same session (missed-offline detection double
+// tap) REPLACES the newest entry instead of duplicating it (matched by
+// startedAt, falling back to a 30-min endedAt window when startedAt is
+// null on both).
+const RECAP_ARCHIVE_KEY = 'recap:archive';
+const RECAP_ARCHIVE_MAX = 60;
+
+async function appendRecapArchive(env, recap) {
+  try {
+    if (!recap || (!recap.game && !recap.startedAt)) return;
+    let arr = [];
+    try {
+      const raw = await env.LOADOUT_BOLTS.get(RECAP_ARCHIVE_KEY, { type: 'json' });
+      if (Array.isArray(raw)) arr = raw;
+      // Missing key or non-array value -> genuinely fresh start.
+    } catch (e) {
+      // A TRANSIENT read failure must not wipe history: proceeding with
+      // arr=[] here would truncate up to 60 recaps to 1 on the next put.
+      // Skip the append instead - this entry stays recoverable from
+      // recap:latest, and the next stream's append picks history back up.
+      console.warn('[recap-archive] read failed, skipping append:', e?.message || e);
+      return;
+    }
+    const head = arr[0];
+    const sameSession = head && (
+      (head.startedAt && recap.startedAt && head.startedAt === recap.startedAt) ||
+      (!head.startedAt && !recap.startedAt &&
+        Math.abs((head.endedAt || 0) - (recap.endedAt || 0)) < 30 * 60 * 1000)
+    );
+    if (sameSession) arr[0] = recap;
+    else arr.unshift(recap);
+    await env.LOADOUT_BOLTS.put(RECAP_ARCHIVE_KEY, JSON.stringify(arr.slice(0, RECAP_ARCHIVE_MAX)));
+  } catch (e) {
+    console.warn('[recap-archive] append failed:', e?.message || e);
+  }
+}
+
+// GET /community/recap-archive — public read for the site's /recaps
+// page (proxied by functions/api/community/recaps.js). Always
+// { ok, recaps: [...] } newest first; empty array until the first
+// stream.offline after this deploy.
+export async function handleRecapArchive(req, env) {
+  if (req.method !== 'GET') {
+    return new Response(JSON.stringify({ ok: false, error: 'method' }), {
+      status: 405, headers: { 'content-type': 'application/json' },
+    });
+  }
+  let recaps = [];
+  try {
+    const raw = await env.LOADOUT_BOLTS.get(RECAP_ARCHIVE_KEY, { type: 'json' });
+    if (Array.isArray(raw)) recaps = raw;
+  } catch { /* recaps stays empty */ }
+  return new Response(JSON.stringify({ ok: true, recaps }), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'public, max-age=60',
+      'access-control-allow-origin': '*',
+    },
+  });
 }
 
 // GET /community/recap-latest — public read for the site proxy

@@ -1352,6 +1352,11 @@ export default {
       const { handleRecapLatest } = await import('./twitch-eventsub.js');
       return handleRecapLatest(req, env);
     }
+    // Rolling per-stream recap history for the site's /recaps page.
+    if (method === 'GET' && path === '/community/recap-archive') {
+      const { handleRecapArchive } = await import('./twitch-eventsub.js');
+      return handleRecapArchive(req, env);
+    }
 
     // StreamFusion community-night queue manager, see sf-queue.js.
     //   POST /sf/queue          full queue + per-joiner links for the panel
