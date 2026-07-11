@@ -26,15 +26,17 @@ DEFAULTS = {
     "discordWebhookUrl": "",
     "tiktokLiveUrl": "",
     "discordPings": True,
-    # Aitum auto-push: writes the new key to aitum.json + does the OBS
-    # profile bounce + auto-starts Aitum's output on every Go Live. Off
-    # by default because the profile bounce was visually disruptive and
-    # interfered with normal OBS use during testing. Users who want
-    # one-click streaming can opt in from the dock; everyone else gets
-    # the old workflow (Go Live returns key, user manually pastes into
-    # Aitum). The tray menu "Push key to Aitum now" still works as a
-    # manual one-shot regardless of this setting.
-    "aitumAutoPush": False,
+    # YouTube integration -- user-provided Google Cloud OAuth Client ID
+    # (NOT a secret; the OAuth Desktop-app flow uses PKCE). Empty disables
+    # the entire YouTube path.
+    "googleClientId": "",
+    # Per-stream YouTube metadata persisted so next Go Live pre-fills the
+    # dock's fields with what worked last time.
+    "ytLastTitle": "",
+    "ytLastDescription": "",
+    "ytLastCategoryId": "",
+    "ytLastPrivacy": "public",
+    "ytLastMadeForKids": False,
 }
 
 
