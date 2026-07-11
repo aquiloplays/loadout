@@ -1067,6 +1067,29 @@ export default {
       });
     }
 
+    // Public read-only "biggest sports wins this week" board for /sports.
+    // No auth, names only; the biggest single winning payout per bettor in
+    // the current ISO week. Settlement-accumulated (bet.js flushBigWins), so
+    // this read is O(1); names resolve here (top N, cached). Edge-cached 60s.
+    if (method === 'GET' && path === '/public/sports-bigwins') {
+      const guildId = env.AQUILO_VAULT_GUILD_ID;
+      if (!env.LOADOUT_BOLTS || !guildId) {
+        return new Response(JSON.stringify({ ok: false, error: 'not-configured', top: [], week: null }), {
+          status: 503, headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
+        });
+      }
+      const { topBigWins } = await import('./bet.js');
+      const data = await topBigWins(env, guildId, 10);
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'cache-control': 'public, max-age=0, s-maxage=60',
+          'access-control-allow-origin': '*',
+        },
+      });
+    }
+
     // Public read-only schedule snapshot for aquilo.gg + (later) the
     // panel's Schedule tab. Composes schedule:v1 + games:v1 +
     // channel:vote:guild and computes nextStream + voteActive. See

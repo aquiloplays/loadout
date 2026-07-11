@@ -25,6 +25,7 @@
 
 import { json } from './ext-shared.js';
 import { spend, earn, getWallet } from './wallet.js';
+import { resolveActorName } from './actor-name.js';
 // hub-menu.js (the Discord "notify me when my team plays" feed) was removed
 // in the 2026-06 economy sunset. The betting core does not depend on it, so
 // these three hooks are local no-op stubs: the team-play Discord notifier
@@ -175,6 +176,117 @@ export function computeWinPayout(stake, americanOdds) {
   return Math.max(1, Math.floor(stake * m * (1 - HOUSE_EDGE)));
 }
 
+// ---- Biggest wins of the week ------------------------------------------
+//
+// Powers the public "biggest sports wins this week" board on /sports. We
+// track each bettor's LARGEST single winning payout for the current ISO
+// week, not a running net-profit total, for two reasons: (1) max() is
+// idempotent, so a cron retry that re-settles the same bet can never inflate
+// the number the way an additive total would; (2) "Dana won 4,200 on the
+// Lakers" is a better headline than a net figure.
+//
+// One KV entry per guild holds the whole board: { week, entries: { userId:
+// { biggest, wins, game, at } }, seen: [betId,...] }. Reads are O(1) (no KV
+// walk); the board self-resets when the ISO week rolls over. The `seen` list
+// is a betId de-dupe backstop so a re-applied win can't double-count the
+// (cosmetic, best-effort) `wins` tally; `biggest` is a max() and so is
+// inherently retry-safe.
+//
+// Concurrency: the board is ONE hot key mutated for several winners per tick.
+// Cloudflare KV has no read-your-writes guarantee, so we never read-modify-
+// write it once per win. Instead the settle loop collects wins in memory and
+// flushBigWins does a SINGLE read-modify-write per guild at the end of the
+// tick. Display names are resolved at READ time (top N only, cached), so the
+// settle cron never touches the Discord API.
+const BIGWINS_KEY = (guildId) => 'bets:bigwins:' + guildId;
+const BIGWINS_SEEN_CAP = 300;
+
+// ISO-week key. Copied verbatim from challenges.js:isoWeekKey (Thursday shift
+// included) so this board's "this week" is byte-identical to the weekly
+// community challenge's week and never drifts a day.
+function isoWeekKey(date = new Date()) {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const year = d.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return year + '-W' + String(week).padStart(2, '0');
+}
+
+// Apply one settled win to an IN-MEMORY board record (no KV). Idempotent via
+// the seen[] betId backstop; biggest uses max(). Only userId is stored, names
+// resolve at read time. Returns the (possibly re-initialised) record.
+function applyWinToBoard(rec, week, userId, payout, gameLabel, betId) {
+  const amount = Number(payout) || 0;
+  if (!userId || amount <= 0) return rec;
+  if (!rec || rec.week !== week || typeof rec.entries !== 'object' || !rec.entries) {
+    rec = { week, entries: {}, seen: [] };
+  }
+  if (!Array.isArray(rec.seen)) rec.seen = [];
+  if (betId) {
+    if (rec.seen.includes(betId)) return rec; // already counted this week
+    rec.seen.push(betId);
+    if (rec.seen.length > BIGWINS_SEEN_CAP) rec.seen = rec.seen.slice(-BIGWINS_SEEN_CAP);
+  }
+  const e = rec.entries[userId] || { biggest: 0, wins: 0 };
+  e.wins = (e.wins || 0) + 1;
+  if (amount > (e.biggest || 0)) {
+    e.biggest = amount;
+    e.game = gameLabel || e.game || null;
+    e.at = Date.now();
+  }
+  rec.entries[userId] = e;
+  return rec;
+}
+
+// Flush a tick's batch of wins for one guild with a SINGLE read-modify-write.
+// Best-effort; never throws into the settle loop.
+async function flushBigWins(env, guildId, wins) {
+  try {
+    if (!env || !env.LOADOUT_BOLTS || !guildId || !wins || !wins.length) return;
+    const week = isoWeekKey();
+    let rec = await env.LOADOUT_BOLTS.get(BIGWINS_KEY(guildId), { type: 'json' });
+    if (!rec || rec.week !== week || typeof rec.entries !== 'object' || !rec.entries) {
+      rec = { week, entries: {}, seen: [] };
+    }
+    for (const w of wins) rec = applyWinToBoard(rec, week, w.userId, w.payout, w.game, w.betId);
+    await env.LOADOUT_BOLTS.put(BIGWINS_KEY(guildId), JSON.stringify(rec));
+  } catch (err) {
+    console.warn('[bet] flushBigWins failed -', (err && err.message) || err);
+  }
+}
+
+// Public read: top single wins for the current week, display names resolved
+// here (top N only, resolveActorName is KV-cached, so the cron path stays
+// network-free). Returns an empty board once the week rolls over.
+export async function topBigWins(env, guildId, limit = 10) {
+  const week = isoWeekKey();
+  if (!env || !env.LOADOUT_BOLTS || !guildId) return { ok: true, week, top: [] };
+  let rec = null;
+  try { rec = await env.LOADOUT_BOLTS.get(BIGWINS_KEY(guildId), { type: 'json' }); } catch { /* offline */ }
+  if (!rec || rec.week !== week || !rec.entries) return { ok: true, week, top: [] };
+
+  const rows = Object.entries(rec.entries)
+    .map(([userId, e]) => ({
+      userId,
+      biggest: Number(e && e.biggest) || 0,
+      game: (e && e.game) || null,
+      wins: Number(e && e.wins) || 0,
+    }))
+    .filter((r) => r.biggest > 0)
+    .sort((a, b) => b.biggest - a.biggest || b.wins - a.wins || (a.userId < b.userId ? -1 : 1));
+
+  const cap = Math.max(1, Math.min(50, limit));
+  const slice = rows.slice(0, cap);
+  const top = [];
+  for (let i = 0; i < slice.length; i++) {
+    let name = null;
+    try { name = await resolveActorName(env, guildId, slice[i].userId, null); } catch { /* best-effort */ }
+    top.push({ rank: i + 1, name: name || 'A viewer', biggest: slice[i].biggest, game: slice[i].game, wins: slice[i].wins });
+  }
+  return { ok: true, week, top };
+}
+
 // ---- User-bet store ----------------------------------------------------
 
 async function getUserBets(env, guildId, userId) {
@@ -245,6 +357,16 @@ export async function betCronTick(env) {
   // Settle any open game that finished.
   const openIds = await listOpenBetGameIds(env);
   let settled = 0;
+  // Biggest-win board: collect this tick's wins in memory (keyed by guild)
+  // and flush once per guild at the end, so the single hot bets:bigwins key
+  // is never read-after-written mid-tick (Workers KV is eventually consistent).
+  const pendingBigWins = new Map();
+  const pushBigWin = (guildId, userId, payout, game, betId) => {
+    if (!guildId || !userId) return;
+    const arr = pendingBigWins.get(guildId) || [];
+    arr.push({ userId, payout, game, betId });
+    pendingBigWins.set(guildId, arr);
+  };
   for (const gid of openIds) {
     const g = gamesById[gid];
     if (!g) continue; // game not in current scoreboard window, leave for later
@@ -272,6 +394,7 @@ export async function betCronTick(env) {
         } else if (result.outcome === 'win') {
           await earn(env, bet.guildId, bet.userId, result.payout, 'bet-win:' + gid);
           await recordSettled(env, bet, 'win', result.payout);
+          pushBigWin(bet.guildId, bet.userId, result.payout, g.name, bet.betId);
         } else {
           // Loss, stake already debited at place time.
           await recordSettled(env, bet, 'loss', 0);
@@ -359,6 +482,12 @@ export async function betCronTick(env) {
       await recordSettledParlay(env, parlay);
       await removeOpenParlayId(env, pid);
 
+      // Biggest-win board: only a genuine parlay WIN counts (refunds carry
+      // payout === stake but are not wins). betId de-dupes on retry.
+      if (nextStatus === 'won') {
+        pushBigWin(parlay.guildId, parlay.userId, payout, 'Parlay, ' + remaining.length + ' legs', parlay.betId);
+      }
+
       // PROGRESSION (P1), parlay win XP. Non-fatal: a
       // progression-bus hiccup can't undo the parlay settlement.
       if (nextStatus === 'won') {
@@ -375,6 +504,11 @@ export async function betCronTick(env) {
     } catch (e) {
       console.warn('[bet] parlay settle failed for', pid, '-', (e && e.message) || e);
     }
+  }
+
+  // One read-modify-write per guild for the biggest-win board.
+  for (const [gid, wins] of pendingBigWins) {
+    await flushBigWins(env, gid, wins);
   }
 
   return { games: games.length, settled, parlaysSettled };
