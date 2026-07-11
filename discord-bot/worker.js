@@ -1292,6 +1292,15 @@ export default {
       return handleScratch(req, env, path);
     }
 
+    // Owner streamer-dashboard analytics (2026-07-11). Site HMAC-gated
+    // inside web-stats.js (same x-aquilo-web-{ts,sig} scheme as web.js);
+    // claimed BEFORE the generic /web/ dispatcher because these routes
+    // take an empty body (no discordId/guildId) and the site's
+    // /api/dash/* Pages Functions do the owner (sess.o === 1) gating.
+    if (path === '/web/stats/overview' || path === '/web/stats/youtube-videos') {
+      const { handleWebStats } = await import('./web-stats.js');
+      return handleWebStats(req, env, path);
+    }
 
     if (path.startsWith('/web/')) {
       const { handleWeb } = await import('./web.js');

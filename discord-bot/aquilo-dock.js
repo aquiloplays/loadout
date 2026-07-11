@@ -10,7 +10,7 @@
 //        → { ok, key, login }        one stable key per login (re-mint safe)
 //   GET  /api/aqdock/state?key=<key>
 //        → { ok, login, connections:{twitch,kick,youtube,spotify},
-//            rotationDockKey, multigoalRev, punchcardClaimed }
+//            rotationDockKey, multigoalRev, punchcardClaimed, punchcardKey }
 //
 // The key doubles as the overlay-test pair token: overlay URLs the dock
 // hands out carry `pair=<key>`, so its Test buttons can ping live sources
@@ -944,6 +944,11 @@ export async function handleAquiloDock(req, env, path) {
       rotationDockKey: null,
       multigoalRev: 0,
       punchcardClaimed: false,
+      // The PunchCard channel write key (pc:chan.k). Handing it to the
+      // resolved dock owner is the same trust move as rotationDockKey:
+      // the dock key already proves this is the streamer, and the panel
+      // uses it to call the existing /api/punchcard/cfg family directly.
+      punchcardKey: null,
     };
     // Platform-anchored docks: their own platform is connected by
     // construction (the vault record was written at pairing).
@@ -971,7 +976,16 @@ export async function handleAquiloDock(req, env, path) {
       const cfg = await env.LOADOUT_BOLTS.get('goals:cfg:' + login, { type: 'json' });
       if (cfg && cfg.rev) out.multigoalRev = cfg.rev;
     } catch { /* no */ }
-    try { out.punchcardClaimed = !!(await env.LOADOUT_BOLTS.get('pc:chan:' + login)); } catch { /* no */ }
+    try {
+      const pcChan = await env.LOADOUT_BOLTS.get('pc:chan:' + login, { type: 'json' });
+      out.punchcardClaimed = !!pcChan;
+      // ⚠ The WRITE key is Twitch-provider-only: pc:chan is keyed by
+      // TWITCH login, and Kick/YT dock logins are attacker-choosable
+      // slugs on their platforms - a colliding slug must never receive
+      // another channel's PunchCard credential (same trust boundary as
+      // rotationDockKey, which is gated behind twitchId above).
+      out.punchcardKey = (provider === 'twitch' && pcChan && pcChan.k) || null;
+    } catch { /* no */ }
     // Live-now strip: app-token Helix stream lookup (null when offline).
     out.live = null;
     if (twitchId) {
