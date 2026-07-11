@@ -1046,10 +1046,9 @@ async function routeCommunityCheckinStatus(env, guildId, discordId) {
 
 // Streak Freeze store. A viewer spends Bolts to bank a "discord" freeze that
 // community-checkin.js auto-consumes on a missed ET-day, so a single lapse
-// does not reset the streak. streak-freeze.js owns the per-type cap; the Bolts
-// debit lives here and is refunded if the cap add loses a race, so we never
-// take Bolts without granting a freeze. Identity is the same (guildId,
-// discordId) the community-checkin streak and the wallet are keyed under.
+// does not reset the streak. streak-freeze.js owns the per-type cap. Identity
+// is the same (guildId, discordId) the community-checkin streak and the wallet
+// are keyed under, so the shield a viewer buys is the one their streak consumes.
 async function routeFreezeStatus(env, guildId, discordId) {
   const { getFreezes, FREEZE_PRICE, MAX_FREEZES_PER_TYPE } = await import('./streak-freeze.js');
   const f = await getFreezes(env, guildId, discordId);
@@ -1065,35 +1064,69 @@ async function routeFreezeStatus(env, guildId, discordId) {
   });
 }
 
+// BANK-FIRST ordering (deliberate): grant the shield BEFORE debiting Bolts.
+// This is the safe failure direction for a currency path:
+//   - addFreeze enforces the cap, so nothing is debited when at cap.
+//   - if the debit then fails or throws, we reverse the grant (consumeFreeze),
+//     so we never keep a shield without payment.
+// The old spend-then-add order could, on an addFreeze throw, durably take Bolts
+// and grant nothing; and its cap-race refund went through earn(), which applies
+// the server-booster multiplier and could over-refund (a free shield). Neither
+// is possible here: there is no earn()-based refund at all.
+// Every response carries owned + max + balance + price so the client never
+// stores an undefined field.
+// Residual: spend and addFreeze are two independent KV read-modify-writes, so
+// two genuinely-concurrent buys (past the site inflight lock, inside KV's
+// consistency window) can still mis-account by ~one price. The cap bounds total
+// shields to MAX regardless, and the blast radius is a capped soft currency, so
+// a per-user Durable Object is deliberately not warranted here.
 async function routeFreezeBuy(env, guildId, discordId) {
-  const { getFreezes, addFreeze, FREEZE_PRICE, MAX_FREEZES_PER_TYPE } = await import('./streak-freeze.js');
-  const { spend, earn } = await import('./wallet.js');
+  const { getFreezes, addFreeze, consumeFreeze, FREEZE_PRICE, MAX_FREEZES_PER_TYPE } = await import('./streak-freeze.js');
+  const { spend } = await import('./wallet.js');
 
-  const f = await getFreezes(env, guildId, discordId);
-  if ((f.discord || 0) >= MAX_FREEZES_PER_TYPE) {
-    return json({ ok: false, error: 'at-cap', owned: f.discord, max: MAX_FREEZES_PER_TYPE, price: FREEZE_PRICE });
+  const wallet0 = await getWallet(env, guildId, discordId);
+  const base = { max: MAX_FREEZES_PER_TYPE, price: FREEZE_PRICE };
+
+  // Friendly early decline on an obviously-empty wallet: no state changes.
+  if (wallet0.balance < FREEZE_PRICE) {
+    const f = await getFreezes(env, guildId, discordId);
+    return json({ ok: false, error: 'insufficient', owned: f.discord, balance: wallet0.balance, ...base });
   }
-  const w = await getWallet(env, guildId, discordId);
-  if (w.balance < FREEZE_PRICE) {
-    return json({ ok: false, error: 'insufficient', balance: w.balance, price: FREEZE_PRICE });
+
+  // 1) Bank the shield first (cap-enforced). A throw here means nothing was
+  //    debited, so we can safely surface an error with no compensation.
+  let added;
+  try {
+    added = await addFreeze(env, guildId, discordId, 'discord');
+  } catch {
+    const f = await getFreezes(env, guildId, discordId).catch(() => ({ discord: 0 }));
+    return json({ ok: false, error: 'error', owned: f.discord, balance: wallet0.balance, ...base });
   }
-  const paid = await spend(env, guildId, discordId, FREEZE_PRICE, 'freeze:buy:discord');
-  if (!paid.ok) {
-    const balance = paid.balance != null ? paid.balance : w.balance;
-    return json({ ok: false, error: 'insufficient', balance, price: FREEZE_PRICE });
-  }
-  const added = await addFreeze(env, guildId, discordId, 'discord');
   if (!added.ok) {
-    // Cap race between the check above and the add: refund the debit.
-    await earn(env, guildId, discordId, FREEZE_PRICE, 'freeze:refund:cap');
-    return json({ ok: false, error: 'at-cap', owned: added.count, max: MAX_FREEZES_PER_TYPE, balance: w.balance, price: FREEZE_PRICE });
+    return json({ ok: false, error: 'at-cap', owned: added.count, balance: wallet0.balance, ...base });
   }
+
+  // 2) Debit AFTER the grant. If the debit fails or throws, reverse the grant
+  //    so a shield is never kept without payment.
+  let paid;
+  try {
+    paid = await spend(env, guildId, discordId, FREEZE_PRICE, 'freeze:buy:discord');
+  } catch {
+    await consumeFreeze(env, guildId, discordId, 'discord').catch(() => {});
+    return json({ ok: false, error: 'error', owned: Math.max(0, added.count - 1), balance: wallet0.balance, ...base });
+  }
+  if (!paid.ok) {
+    await consumeFreeze(env, guildId, discordId, 'discord').catch(() => {});
+    const balance = paid.balance != null ? paid.balance : wallet0.balance;
+    return json({ ok: false, error: 'insufficient', owned: Math.max(0, added.count - 1), balance, ...base });
+  }
+
   return json({
     ok: true,
     owned: added.count,
-    max: MAX_FREEZES_PER_TYPE,
     spent: FREEZE_PRICE,
-    balance: paid.wallet.balance,
+    balance: (paid.wallet && paid.wallet.balance != null) ? paid.wallet.balance : Math.max(0, wallet0.balance - FREEZE_PRICE),
+    ...base,
   });
 }
 
