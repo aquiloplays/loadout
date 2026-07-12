@@ -37,11 +37,26 @@ export function gameSlug(name) {
 
 export async function handleTodayGame(env, req) {
   try {
-    const { weekday } = getETInfo(new Date());
+    const et = getETInfo(new Date());
+    const weekday = et.weekday;
     // Dynamic import: aq-schedule.js statically imports gameSlug from this
     // module, so the reverse edge stays lazy to keep the cycle harmless.
     const { WEEKLY, resolveSlotGame } = await import('./aq-schedule.js');
     const slot = WEEKLY.find((s) => s.day === weekday);
+
+    // Vacation: the overlay shows its idle/offline theme regardless of
+    // the weekly cadence.
+    try {
+      const g0 = String(env.AQUILO_VAULT_GUILD_ID || '').trim();
+      if (g0) {
+        const { readVacation, vacationCoversIso } = await import('../schedule.js');
+        const vac = await readVacation(env, g0);
+        const todayIso = `${et.year}-${String(et.month).padStart(2, '0')}-${String(et.day).padStart(2, '0')}`;
+        if (vacationCoversIso(vac, todayIso)) {
+          return jsonResp({ weekday, is_cn: false, is_off: true, game: null, slug: null, note: 'vacation' });
+        }
+      }
+    } catch { /* fall through to the weekly cadence */ }
 
     // Rest day, overlay should show its idle/offline theme.
     if (!slot || slot.kind === 'off') {

@@ -114,12 +114,56 @@ function poolsFromChoice(raw) {
   }
 }
 
+// ── Vacation (date-range pause, added 2026-07-11) ────────────────
+//
+// KV `schedule:vacation:<guildId>` = { from:'YYYY-MM-DD', until:'YYYY-MM-DD',
+// note, updatedAt, updatedBy }. Inclusive ET calendar dates. While a date is
+// covered, EVERY consumer treats it as a no-stream day: nextStreamFrom and
+// upcomingStreams skip it (so Discord events, pre-stream pings, countdown,
+// and the site all agree), voteActiveAt reports inactive, the queue never
+// auto-opens, and the embed shows a vacation banner. Auto-resumes the day
+// after `until` with NO write required (date comparison, not TTL) - safe to
+// set right before an unattended stretch. Managed on aquilo.gg/admin
+// (POST /api/admin/vacation) or by writing the key directly.
+const VACATION_KEY = (g) => `schedule:vacation:${g}`;
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export async function readVacation(env, guildId) {
+  try {
+    const raw = await env.LOADOUT_BOLTS.get(VACATION_KEY(guildId), { type: 'json' });
+    if (raw && ISO_DATE_RE.test(raw.from || '') && ISO_DATE_RE.test(raw.until || '') &&
+        raw.from <= raw.until) {
+      return { from: raw.from, until: raw.until, note: raw.note || null };
+    }
+  } catch { /* no vacation */ }
+  return null;
+}
+
+// Inclusive range check; ISO YYYY-MM-DD strings compare correctly as strings.
+export function vacationCoversIso(vac, iso) {
+  return !!(vac && iso && vac.from <= iso && iso <= vac.until);
+}
+
+function isoOfParts(p) {
+  return `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`;
+}
+
 export async function readSchedule(env, guildId) {
+  let schedule = DEFAULT_SCHEDULE;
   try {
     const raw = await env.LOADOUT_BOLTS.get(SCHEDULE_KEY(guildId), { type: 'json' });
-    if (raw && Array.isArray(raw.days) && raw.days.length === 7) return raw;
+    if (raw && Array.isArray(raw.days) && raw.days.length === 7) schedule = raw;
   } catch { /* fall through */ }
-  return DEFAULT_SCHEDULE;
+  // Attach the vacation record so every readSchedule consumer (stream
+  // events, queue auto-open, /schedule/public, /ext/schedule) sees it
+  // without a second read. Read-side only; save paths build fresh
+  // objects and cleanSchedule strips unknown fields.
+  const vacation = await readVacation(env, guildId);
+  if (schedule === DEFAULT_SCHEDULE) {
+    return { ...DEFAULT_SCHEDULE, vacation };
+  }
+  schedule.vacation = vacation;
+  return schedule;
 }
 
 async function readGames(env, guildId) {
@@ -209,13 +253,17 @@ function nextStreamFrom(schedule, now = Date.now()) {
   if (!schedule || !Array.isArray(schedule.days)) return null;
   const tz = schedule.tz || 'America/New_York';
   const today = nowInZone(tz, now);
-  for (let offset = 0; offset <= 7; offset++) {
+  // Horizon extends past a multi-week vacation so the "next stream"
+  // is the actual return date rather than null (28 covers a month).
+  const horizon = schedule.vacation ? 28 : 7;
+  for (let offset = 0; offset <= horizon; offset++) {
     const dayIdx = (today.dow + offset) % 7;
     const day = schedule.days.find((dd) => dd.dow === dayIdx);
     if (!day || !day.startLocal) continue;
     const [h, mi] = day.startLocal.split(':').map(Number);
     if (!Number.isFinite(h) || !Number.isFinite(mi)) continue;
     const target = addDaysInZone(today.y, today.m, today.d, offset);
+    if (vacationCoversIso(schedule.vacation, isoOfParts(target))) continue;
     const startsAt = zonedTimeToEpoch(target.y, target.m, target.d, h, mi, tz);
     if (startsAt > now) {
       return {
@@ -245,6 +293,7 @@ export function upcomingStreams(schedule, horizonDays = 7, now = Date.now()) {
     const [h, mi] = day.startLocal.split(':').map(Number);
     if (!Number.isFinite(h) || !Number.isFinite(mi)) continue;
     const target = addDaysInZone(today.y, today.m, today.d, offset);
+    if (vacationCoversIso(schedule.vacation, isoOfParts(target))) continue;
     const startsAt = zonedTimeToEpoch(target.y, target.m, target.d, h, mi, tz);
     if (startsAt <= now) continue;
     out.push({
@@ -264,6 +313,10 @@ function voteActiveAt(schedule, now = Date.now()) {
   if (!schedule || !Array.isArray(schedule.days)) return { active: false };
   const tz = schedule.tz || 'America/New_York';
   const t = nowInZone(tz, now);
+  // Vacation: no stream tonight means no vote window either.
+  if (vacationCoversIso(schedule.vacation, isoOfParts(t))) {
+    return { active: false, vacation: true, dow: t.dow };
+  }
   const day = schedule.days.find((dd) => dd.dow === t.dow);
   if (!day) return { active: false };
   // Off day (startLocal:null): no stream means no vote window, even

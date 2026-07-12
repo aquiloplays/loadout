@@ -216,10 +216,33 @@ const SLOT_META = {
   'off':       { emoji: '😴', show: 'No Stream' },
 };
 
+// "Mon Jul 27" style label for an ISO date (vacation return copy).
+function isoDateLabel(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (!m) return iso || '';
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return `${DAYS[d.getUTCDay()]} ${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+function dayAfterIso(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (!m) return null;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12) + 86400000);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
 async function buildSchedulePayload(env, guildId, sched) {
+  const { readVacation, vacationCoversIso } = await import('../schedule.js');
+  const vacation = await readVacation(env, guildId);
+  const backOn = vacation ? dayAfterIso(vacation.until) : null;
+
   const headerEmbed = {
     title: `📅 Aquilo · Weekly Stream Schedule`,
     description:
+      (vacation && backOn
+        ? `🌴 **On vacation through ${isoDateLabel(vacation.until)}** · back live **${isoDateLabel(backOn)}**` +
+          (vacation.note ? ` · ${vacation.note}` : '') + '\n'
+        : '') +
       `🗓️ **Week of ${weekDateLabel(0)} – ${weekDateLabel(6)}** · refreshes every Sunday\n` +
       'Solo **Crowd Control** Sun · Mon · Wed · Fri: chat controls the chaos. ' +
       'Saturday is **Community Night**: a rotating game from the community pool, picked fresh each week. ' +
@@ -230,6 +253,15 @@ async function buildSchedulePayload(env, guildId, sched) {
   const dayEmbeds = [];
   for (const slot of WEEKLY) {
     const meta = SLOT_META[slot.kind] || { emoji: '📺', show: cap(slot.kind) };
+    // Vacation days: muted one-liner, no game resolution.
+    if (vacation && vacationCoversIso(vacation, isoForDow(slot.dow))) {
+      dayEmbeds.push({
+        title: `${cap(slot.day)} · ${weekDateLabel(slot.dow)}`,
+        description: `🌴 **No stream**: vacation.${backOn ? ` Back ${isoDateLabel(backOn)}.` : ''}`,
+        color: COLOR_SCHEDULE,
+      });
+      continue;
+    }
     // Rest days: muted one-liner, no game resolution, no thumbnail.
     if (slot.kind === 'off') {
       dayEmbeds.push({
@@ -260,8 +292,23 @@ async function buildSchedulePayload(env, guildId, sched) {
 
 export async function getPublicSchedule(env, guildId) {
   const sched = await loadSchedule(env, guildId);
+  const { readVacation, vacationCoversIso } = await import('../schedule.js');
+  const vacation = await readVacation(env, guildId);
   const days = [];
   for (const slot of WEEKLY) {
+    // Vacation days publish as slot 'off' + status 'vacation' so every
+    // consumer (site merge, overlay, panel) treats them as dark nights
+    // while still being able to say WHY.
+    if (vacation && vacationCoversIso(vacation, isoForDow(slot.dow))) {
+      days.push({
+        weekday: slot.day,
+        slot:    'off',
+        game:    null,
+        status:  'vacation',
+        times:   null,
+      });
+      continue;
+    }
     // Rest days publish as slot 'off' with no game/times so consumers
     // (site merge, overlay) can't mistake them for a scheduled night.
     if (slot.kind === 'off') {
@@ -289,6 +336,9 @@ export async function getPublicSchedule(env, guildId) {
     nowUtc: Date.now(),
     poll_channel_id: sched.poll_channel_id || null,
     schedule_channel_id: sched.channel_id || null,
+    vacation: vacation
+      ? { from: vacation.from, until: vacation.until, note: vacation.note, backOn: dayAfterIso(vacation.until) }
+      : null,
     days,
   };
 }

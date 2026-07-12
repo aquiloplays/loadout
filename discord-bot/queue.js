@@ -30,7 +30,7 @@
 //   - /web/queues/open|close|close-night         (HMAC, aquilo-site /admin)
 //   - autoOpenIfDue()                            (cron tick at 21:00 ET)
 
-import { readSchedule, nowInZone } from './schedule.js';
+import { readSchedule, nowInZone, vacationCoversIso } from './schedule.js';
 
 const FLAG_EPHEMERAL = 64;
 const RESP_CHAT = 4;
@@ -396,6 +396,11 @@ export async function autoOpenIfDue(env, guildId, now = Date.now()) {
   if (!schedule) return { fired: false, reason: 'no-schedule' };
   const tz = schedule.tz || SCHEDULE_TZ_DEFAULT;
   const t = nowInZone(tz, now);
+  // Vacation: no stream tonight, so the community queue stays closed.
+  const todayIso = `${t.y}-${String(t.m).padStart(2, '0')}-${String(t.d).padStart(2, '0')}`;
+  if (vacationCoversIso(schedule.vacation, todayIso)) {
+    return { fired: false, reason: 'vacation' };
+  }
   const day = schedule.days && schedule.days.find((d) => d.dow === t.dow);
   if (!day) return { fired: false, reason: 'no-day' };
   if (day.kind !== 'variety' && day.kind !== 'community') {

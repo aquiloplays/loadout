@@ -168,11 +168,29 @@ export async function refreshCountdown(env) {
   // Bail entirely only if all three surfaces are unconfigured.
   if (!env.COUNTDOWN_VC_ID && !env.COUNTDOWN_CHANNEL_ID) return { skipped: 'no_channel' };
 
+  // Vacation override: while the schedule vacation covers today, every
+  // surface says so instead of counting down to a night that is dark.
+  // (countdown's own weekly math is env-static; the vacation record is
+  // the KV date range readVacation serves - see schedule.js.)
+  let vac = null;
+  try {
+    const guildId = String(env.AQUILO_VAULT_GUILD_ID || '').trim();
+    if (guildId) {
+      const { readVacation, vacationCoversIso } = await import('../schedule.js');
+      const v = await readVacation(env, guildId);
+      const et = getETInfo();
+      const todayIso = `${et.year}-${String(et.month).padStart(2, '0')}-${String(et.day).padStart(2, '0')}`;
+      if (v && vacationCoversIso(v, todayIso)) vac = v;
+    }
+  } catch { /* no vacation override */ }
+  const vacBackLabel = vac ? vacationBackLabel(vac) : null;
+
   let vcOk = false, topicOk = false;
 
   if (env.COUNTDOWN_VC_ID) {
     try {
-      await setChannelName(env, env.COUNTDOWN_VC_ID, buildVcName(env));
+      await setChannelName(env, env.COUNTDOWN_VC_ID,
+        vac ? `🌴 Back ${vacBackLabel}` : buildVcName(env));
       vcOk = true;
     } catch (e) {
       console.warn('[countdown] VC name update (needs MANAGE_CHANNEL):', e?.message || e);
@@ -181,7 +199,8 @@ export async function refreshCountdown(env) {
 
   if (env.COUNTDOWN_CHANNEL_ID) {
     try {
-      await setChannelTopic(env, env.COUNTDOWN_CHANNEL_ID, buildTopicText(env));
+      await setChannelTopic(env, env.COUNTDOWN_CHANNEL_ID,
+        vac ? `🌴 On vacation · back live ${vacBackLabel}` : buildTopicText(env));
       topicOk = true;
     } catch (e) {
       console.warn('[countdown] topic update (needs MANAGE_CHANNEL):', e?.message || e);
@@ -190,7 +209,16 @@ export async function refreshCountdown(env) {
     const msgId = await env.STATE.get(KV_MSG);
     if (msgId) {
       try {
-        await editChannelMessage(env, env.COUNTDOWN_CHANNEL_ID, msgId, buildCountdownPayload(env));
+        const payload = vac
+          ? { embeds: [{
+              title: '📺 Aquilo Stream',
+              description: `🌴 **On vacation.** Back live **${vacBackLabel}**${vac.note ? `\n${vac.note}` : ''}`,
+              color: COLOR_SCHEDULE,
+              footer: { text: 'Auto-updated hourly · resumes automatically' },
+              timestamp: new Date().toISOString(),
+            }] }
+          : buildCountdownPayload(env);
+        await editChannelMessage(env, env.COUNTDOWN_CHANNEL_ID, msgId, payload);
       } catch (e) {
         if (String(e?.message || '').includes('404')) {
           await env.STATE.delete(KV_MSG);
@@ -200,6 +228,16 @@ export async function refreshCountdown(env) {
   }
 
   return { ok: true, vcUpdated: vcOk, topicUpdated: topicOk };
+}
+
+// "Mon Jul 27" for the day AFTER the vacation's inclusive end date.
+function vacationBackLabel(vac) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(vac.until || ''));
+  if (!m) return 'soon';
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12) + 86400000);
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MONS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${DAYS[d.getUTCDay()]} ${MONS[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }
 
 // Hub button: prime all configured surfaces (VC name, channel topic,
