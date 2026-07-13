@@ -1,17 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "Aquilo Kindle Vault Sync",
-  "version": "0.1.0",
-  "description": "Owner-only: sync your Kindle highlights into the Aquilo Knowledge Vault.",
+  "name": "Codex Kindle Sync",
+  "version": "0.2.0",
+  "description": "Owner-only: sync your Kindle highlights into Codex.",
   "permissions": ["alarms", "storage", "tabs", "scripting"],
   "host_permissions": [
     "https://read.amazon.com/*",
-    "https://aquilo.gg/*"
+    "https://kindle-sync.aquiloplays.workers.dev/*"
   ],
   "background": { "service_worker": "background.js" },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Aquilo Kindle Vault Sync",
+    "default_title": "Codex Kindle Sync",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",

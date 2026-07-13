@@ -48,8 +48,8 @@
   <div class="head">
     <div class="mark"></div>
     <div>
-      <div class="title">Kindle Vault Sync</div>
-      <div class="sub">Owner-only. Syncs to aquilo.gg/vault</div>
+      <div class="title">Codex Kindle Sync</div>
+      <div class="sub">Owner-only. Syncs to Codex</div>
     </div>
   </div>
 
@@ -60,18 +60,18 @@
   </div>
 
   <div class="card">
-    <label for="secret">Ingest secret <span class="saved hidden" id="secretSaved">saved</span></label>
-    <input id="secret" type="password" placeholder="Paste your VAULT_INGEST_SECRET" autocomplete="off" />
+    <label for="secret">Codex sync key <span class="saved hidden" id="secretSaved">saved</span></label>
+    <input id="secret" type="password" placeholder="Paste your Codex Kindle sync key" autocomplete="off" />
     <label for="hour" style="margin-top:9px;">Daily sync hour (local 0-23)</label>
     <input id="hour" type="number" min="0" max="23" placeholder="4" />
-    <div class="hint">The secret is the same hex set as the worker's VAULT_INGEST_SECRET. Stored only in this browser profile, never sent anywhere except signed ingest requests.</div>
+    <div class="hint">Use the same key you set in Codex → Kindle. Stored only in this browser profile; the daily sync scrapes read.amazon.com/notebook and uploads to your Codex sync Worker.</div>
   </div>
 
   <div class="actions">
     <button id="save">Save</button>
     <button id="sync" class="primary">Sync now</button>
   </div>
-  <div class="hint" style="text-align:center;"><a id="vault" href="#">Open Vault dashboard</a></div>
+  <div class="hint" style="text-align:center;"><a id="vault" href="#">Open Codex → Kindle</a></div>
 
   <script src="popup.js"></script>
 </body>

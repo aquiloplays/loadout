@@ -1,7 +1,6 @@
-// Popup UI logic. Reads sync status from chrome.storage.local, saves the
-// ingest secret + daily hour, and triggers a manual sync via the background
-// worker. The secret field is write-only in the UI (we never read it back
-// into the input); a "saved" pill confirms one is stored.
+// Popup UI logic. Reads sync status from chrome.storage.local, saves the Codex
+// sync key + daily hour, and triggers a manual sync via the background worker.
+// The key field is write-only in the UI; a "saved" pill confirms one is stored.
 
 const $ = (id) => document.getElementById(id);
 
@@ -19,21 +18,21 @@ function get(keys) { return new Promise((r) => chrome.storage.local.get(keys, r)
 function set(obj) { return new Promise((r) => chrome.storage.local.set(obj, r)); }
 
 async function refresh() {
-  const d = await get(["lastSyncMs", "lastCount", "status", "lastError", "secret", "syncHour"]);
+  const d = await get(["lastSyncMs", "lastCount", "status", "lastError", "key", "syncHour"]);
   $("lastSync").textContent = ago(d.lastSyncMs);
   $("count").textContent = String(d.lastCount || 0);
   const st = $("status");
   if (d.lastError) { st.textContent = d.lastError; st.classList.add("err"); }
   else { st.textContent = d.status || ""; st.classList.remove("err"); }
-  $("secretSaved").classList.toggle("hidden", !d.secret);
+  $("secretSaved").classList.toggle("hidden", !d.key);
   if (typeof d.syncHour === "number") $("hour").value = String(d.syncHour);
 }
 
 $("save").addEventListener("click", async () => {
-  const secret = $("secret").value.trim();
+  const key = $("secret").value.trim();
   const hourRaw = $("hour").value.trim();
   const patch = {};
-  if (secret) patch.secret = secret;
+  if (key) patch.key = key;
   if (hourRaw !== "" && /^\d+$/.test(hourRaw)) patch.syncHour = Math.min(23, Math.max(0, parseInt(hourRaw, 10)));
   await set(patch);
   $("secret").value = "";
@@ -53,7 +52,7 @@ $("sync").addEventListener("click", () => {
 
 $("vault").addEventListener("click", (e) => {
   e.preventDefault();
-  chrome.tabs.create({ url: "https://aquilo.gg/vault/" });
+  chrome.tabs.create({ url: "https://scriptorium-77m.pages.dev/#/kindle" });
 });
 
 // Live-ish status while a sync runs.
