@@ -1101,6 +1101,87 @@ async function handleRewardCreate(env, body) {
   return json({ ok: true, reward: res.reward, linked: res.status === 'linked' });
 }
 
+// ── Kick channel points (mirror of the Twitch reward, via the shared broker) ──
+// The customizer's "Create on Kick" button hits this. We create/reuse the Kick
+// reward through the broker (which holds the Kick token) and REGISTER it in the
+// shared cross-product dispatcher registry so the jukebox (the single Kick
+// webhook receiver) forwards its redeems to us. Kick has no per-redeem refund,
+// so a Kick check-in records + shouts but never fulfills/refunds points.
+async function handleKickReward(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  if (!env.VAULT_SERVICE_SECRET) return json({ ok: false, error: 'vault-not-configured' }, 500);
+  const title = cleanDisplay(body.title) || chan.kickRewardTitle || 'Daily Check-In';
+  const cost = Math.min(1000000, Math.max(1, Number(body.cost) || 100));
+  const kickId = await env.LOADOUT_BOLTS.get('link:tw2kick:' + chan.userId);
+  if (!kickId) return json({ ok: false, error: 'kick-not-linked' }, 409);
+  let res;
+  try {
+    res = await fetch('https://auth.aquilo.gg/kick/reward/ensure', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ service: env.VAULT_SERVICE_SECRET, twitchId: chan.userId, title, cost, userInput: true }),
+    });
+  } catch { return json({ ok: false, error: 'broker-unreachable' }, 502); }
+  const j = res.ok ? await res.json().catch(() => null) : null;
+  if (!j || !j.ok || !j.rewardId) return json({ ok: false, error: (j && j.error) || 'ensure-failed', status: res.status }, 502);
+  const tok = chan.kickRewardTok || genHex(16);
+  chan.kickRewardId = String(j.rewardId);
+  chan.kickRewardTitle = title;
+  chan.kickRewardTok = tok;
+  chan.kickId = String(kickId);
+  await kvPut(env, KEY.chan(ch), chan);
+  // Register in the shared registry the jukebox reads (raw LOADOUT_BOLTS so the
+  // cross-worker read is a plain JSON.parse — no per-module key wrapping).
+  const url = workerOrigin(env) + '/api/punchcard/kick-redeem';
+  await env.LOADOUT_BOLTS.put(`kickrw:${kickId}:${title.toLowerCase()}`,
+    JSON.stringify({ product: 'punchcard', url, ch, tok }));
+  return json({ ok: true, status: j.status, rewardId: chan.kickRewardId, title });
+}
+
+// Receiver — the jukebox forwards a Kick reward redemption here (validated by
+// the per-registration token) and we fire the check-in as platform 'kick'.
+async function handleKickRedeem(env, body) {
+  const kickId = String(body.kickId || '');
+  const title = String(body.title || '');
+  if (!kickId || !title) return json({ ok: false, error: 'bad-request' }, 400);
+  const raw = await env.LOADOUT_BOLTS.get(`kickrw:${kickId}:${title.toLowerCase()}`);
+  if (!raw) return json({ ok: false, error: 'not-registered' }, 404);
+  let reg; try { reg = JSON.parse(raw); } catch { reg = null; }
+  if (!reg || reg.product !== 'punchcard' || !reg.tok || reg.tok !== body.tok) {
+    return json({ ok: false, error: 'forbidden' }, 403);
+  }
+  const chan = await loadChan(env, reg.ch);
+  if (!chan) return json({ ok: false, error: 'unknown-channel' }, 404);
+  const viewer = String(body.viewer || 'viewer');
+  return handleCheckin(env, {
+    ch: reg.ch, k: chan.k,
+    platform: 'kick', source: 'points',
+    viewer, display: viewer, msg: String(body.input || ''),
+  });
+}
+
+// List the streamer's existing Kick rewards (via the broker) so the customizer
+// can offer "pick an existing reward" instead of creating one.
+async function handleKickRewards(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  if (!env.VAULT_SERVICE_SECRET) return json({ ok: false, error: 'vault-not-configured' }, 500);
+  const kickId = await env.LOADOUT_BOLTS.get('link:tw2kick:' + chan.userId);
+  if (!kickId) return json({ ok: false, error: 'kick-not-linked' }, 409);
+  let res;
+  try {
+    res = await fetch('https://auth.aquilo.gg/kick/reward/list', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ service: env.VAULT_SERVICE_SECRET, twitchId: chan.userId }),
+    });
+  } catch { return json({ ok: false, error: 'broker-unreachable' }, 502); }
+  const j = res.ok ? await res.json().catch(() => null) : null;
+  if (!j || !j.ok) return json({ ok: false, error: (j && j.error) || 'list-failed' }, 502);
+  return json({ ok: true, rewards: j.rewards || [] });
+}
+
 function validTz(tz) {
   try {
     new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(0);
@@ -1814,5 +1895,8 @@ async function dispatch(req, env, path) {
   if (route === 'sound-url') return handleSoundAdoptUrl(env, body);
   if (route === 'sound-remove') return handleSoundRemove(env, body);
   if (route === 'discord-board') return handleDiscordBoard(env, body);
+  if (route === 'kick-reward') return handleKickReward(env, body);
+  if (route === 'kick-rewards') return handleKickRewards(env, body);
+  if (route === 'kick-redeem') return handleKickRedeem(env, body);
   return json({ ok: false, error: 'not-found' }, 404);
 }

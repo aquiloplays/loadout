@@ -26,8 +26,8 @@ const DEFAULT_CHANNEL_ID = '1507973917350957067';
 const KEY = (g) => `live-status-embed:${g}`;
 // Role pinged once on go-live + channel the VOD drops in. Both fall back
 // to the live ids if the env vars aren't set (e.g. pre-redeploy).
-const STREAM_PING_ROLE_ID = (env) => String(env.STREAM_PING_ROLE_ID || '1507973871872114709').trim();
-const VOD_CHANNEL_ID      = (env) => String(env.VOD_CHANNEL_ID      || '1507973921851576462').trim();
+const STREAM_PING_ROLE_ID = (env) => String(env.STREAM_PING_ROLE_ID || '').trim();
+const VOD_CHANNEL_ID      = (env) => String(env.VOD_CHANNEL_ID      || '').trim();
 // VOD-drop lifecycle. On stream.offline we arm a pending record and the
 // per-minute cron retries getRecentVod until the recording is ready
 // (Twitch often isn't done processing the instant the stream ends) or

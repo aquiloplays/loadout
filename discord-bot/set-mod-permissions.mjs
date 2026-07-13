@@ -10,6 +10,9 @@
 //     node discord-bot/set-mod-permissions.mjs
 //
 // Flags:
+//   --list       Dump every guild role (id, name, position, managed) so
+//                you can confirm the mod role id + that the bot sits
+//                above it. No PATCH. MOD_ROLE_ID not required.
 //   --dry-run    Print the bitfield + intended PATCH body, do not call Discord.
 //   --verify     After PATCH, GET the role back and confirm the
 //                permissions field round-trips. (default: on)
@@ -25,6 +28,8 @@
 //   https://discord.com/developers/docs/topics/permissions
 const ALLOW = Object.freeze({
   KICK_MEMBERS:              1,
+  BAN_MEMBERS:               2, // permanent removal — granted to staff-lead mods
+  MANAGE_CHANNELS:           4, // create / edit channels
   ADD_REACTIONS:             6,
   VIEW_AUDIT_LOG:            7,
   VIEW_CHANNEL:             10,
@@ -38,6 +43,7 @@ const ALLOW = Object.freeze({
   DEAFEN_MEMBERS:           23,
   MOVE_MEMBERS:             24,
   MANAGE_NICKNAMES:         27,
+  MANAGE_ROLES:             28, // assign roles below their own position
   USE_APPLICATION_COMMANDS: 31, // "Use Slash Commands"
   MANAGE_EVENTS:            33,
   MANAGE_THREADS:           34,
@@ -47,14 +53,13 @@ const ALLOW = Object.freeze({
 
 // Flags that must stay OFF on any mod role. Decoded after PATCH as a
 // safety net so a typo in ALLOW never accidentally grants one of these.
+// These are the genuinely account-owning / self-escalating perms that a
+// mod (even a staff-lead) should never hold; reserve for the owner.
 const FORBIDDEN = Object.freeze({
-  BAN_MEMBERS:              2,
   ADMINISTRATOR:            3,
-  MANAGE_CHANNELS:          4,
   MANAGE_GUILD:             5,
   MENTION_EVERYONE:        17,
   VIEW_GUILD_INSIGHTS:     19,
-  MANAGE_ROLES:            28,
   MANAGE_WEBHOOKS:         29,
   MANAGE_GUILD_EXPRESSIONS:30,
 });
@@ -77,6 +82,7 @@ function dumpFlags(bitfield, flagMap, label) {
 async function main() {
   const args = new Set(process.argv.slice(2));
   const dryRun = args.has('--dry-run');
+  const list   = args.has('--list');
   const verify = !args.has('--no-verify');
 
   const token  = process.env.DISCORD_BOT_TOKEN;
@@ -84,6 +90,26 @@ async function main() {
   const role   = process.env.MOD_ROLE_ID;
   if (!token)  { console.error('Missing env DISCORD_BOT_TOKEN'); process.exit(1); }
   if (!guild)  { console.error('Missing env AQUILO_GUILD_ID');   process.exit(1); }
+
+  // --list: dump every role (id, name, position, perms) so we can
+  // confirm WHICH role the mods hold + verify the bot's own role sits
+  // above it in the hierarchy. No PATCH, MOD_ROLE_ID not required.
+  if (list) {
+    const res = await fetch(`https://discord.com/api/v10/guilds/${encodeURIComponent(guild)}/roles`, {
+      headers: { Authorization: 'Bot ' + token, 'User-Agent': 'loadout-discord set-mod-permissions' },
+    });
+    if (!res.ok) { console.error(`GET roles failed: ${res.status} ${(await res.text()).slice(0,300)}`); process.exit(3); }
+    const roles = await res.json();
+    roles.sort((a, b) => b.position - a.position); // highest first
+    console.log('pos  managed  id                    name');
+    for (const r of roles) {
+      console.log(`${String(r.position).padStart(3)}  ${r.managed ? 'BOT ' : '    '}     ${r.id.padEnd(20)}  ${r.name}`);
+    }
+    console.log('\nThe bot can only PATCH a role BELOW its own "BOT"-managed role.');
+    console.log('Set MOD_ROLE_ID to the role your mods hold, then re-run without --list.');
+    return;
+  }
+
   if (!role)   { console.error('Missing env MOD_ROLE_ID');       process.exit(1); }
 
   const bf = computeBitfield(ALLOW);

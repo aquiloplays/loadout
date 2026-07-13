@@ -175,7 +175,7 @@ export async function setFo4ccThumbnail(env, guildId, url) {
 
 export async function announceRotation(env, current) {
   if (!env.DISCORD_BOT_TOKEN || !current) return { ok: false, error: 'no-bot-token' };
-  const channelId = String(env.SCHEDULE_CHANNEL_ID || '1507973920282640485').trim();
+  const channelId = String(env.SCHEDULE_CHANNEL_ID || '').trim();
   if (!channelId) return { ok: false, error: 'no-channel' };
   const embed = {
     title: `🔁 Tonight's Featured Run: ${current.name}`,

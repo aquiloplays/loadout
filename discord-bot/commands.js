@@ -29,6 +29,9 @@ import { handleQueueSlash } from './queue.js';
 // Aquilo-bot fold-in. Single dispatcher that owns the aquilo command
 // family, see discord-bot/aquilo/worker.js dispatchAquiloInteraction.
 import { dispatchAquiloInteraction } from './aquilo/worker.js';
+// Multi-tenant per-guild config proxy. Swaps env for one that returns a
+// guild's /setup overrides (config:<guildId>:<KEY>) before every handler.
+import { envForGuild } from './aquilo/config.js';
 // NOTE (Bolts economy sunset 2026-06): the /bet (sports betting),
 // /boltbound (card-battler) and /play (quick games) command imports
 // were removed here. The Boltbound files (cards*.js, boltbound-*.js)
@@ -73,6 +76,14 @@ export async function handleInteraction(req, env, body, ctx) {
   if (!guild || !userId) {
     return json({ type: RESP_CHAT, data: { content: 'This command must be run in a server.', flags: FLAG_EPHEMERAL } });
   }
+
+  // Multi-tenant: from here on, `env` is the per-guild config proxy. Every
+  // handler below reads env.X transparently — the proxy returns this
+  // guild's /setup override when present, else the deploy-time default
+  // (and bindings like STATE/DB always fall straight through). This is
+  // what stops a second guild's commands from resolving Aquilo's channel
+  // and role ids. Failure to load config falls back to raw env.
+  try { env = await envForGuild(env, guild); } catch { /* keep raw env */ }
 
   if (data.type === TYPE_MESSAGE_COMPONENT) {
     // Route by custom_id prefix so each menu's components stay scoped.

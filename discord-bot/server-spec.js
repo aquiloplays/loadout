@@ -13,21 +13,39 @@
 // via Discord role IDs that don't exist until the first build).
 // Specific overwrites are applied in a second pass after roles exist.
 
-// Standard moderator permission bitfield, shared by every server's mod
-// role (Moderator / Vault-Tec Staff): kick, ban, timeout, manage
-// messages/nicknames/threads, voice mute/deafen/move, view audit log.
-// Deliberately EXCLUDES Administrator / Manage Guild / Manage Roles /
-// Manage Channels: staff moderate, they don't own the server.
+// Staff-lead / "power mod" permission bitfield, shared by every
+// server's mod role (Moderator / Vault-Tec Staff). Full moderation
+// (kick, ban, timeout, manage messages/nicknames/threads, voice
+// mute/deafen/move, view audit log) PLUS server management the team
+// needs day-to-day: Manage Channels (create/edit channels) and Manage
+// Roles (assign roles below their own). Kept in sync BYTE-FOR-BYTE with
+// the ALLOW set in set-mod-permissions.mjs (1402739223766) so neither
+// apply path silently reverts the other.
+// Still EXCLUDES Administrator / Manage Guild / Manage Webhooks /
+// Manage Guild Expressions / View Guild Insights / Mention @everyone:
+// staff run the community, they don't own the account.
 const MOD_PERMS = (
   (1n << 1n)  | // KICK_MEMBERS
   (1n << 2n)  | // BAN_MEMBERS
+  (1n << 4n)  | // MANAGE_CHANNELS
+  (1n << 6n)  | // ADD_REACTIONS
   (1n << 7n)  | // VIEW_AUDIT_LOG
+  (1n << 10n) | // VIEW_CHANNEL
+  (1n << 11n) | // SEND_MESSAGES
   (1n << 13n) | // MANAGE_MESSAGES
+  (1n << 14n) | // EMBED_LINKS
+  (1n << 15n) | // ATTACH_FILES
+  (1n << 16n) | // READ_MESSAGE_HISTORY
+  (1n << 18n) | // USE_EXTERNAL_EMOJIS
   (1n << 22n) | // MUTE_MEMBERS
   (1n << 23n) | // DEAFEN_MEMBERS
   (1n << 24n) | // MOVE_MEMBERS
   (1n << 27n) | // MANAGE_NICKNAMES
+  (1n << 28n) | // MANAGE_ROLES
+  (1n << 31n) | // USE_APPLICATION_COMMANDS
+  (1n << 33n) | // MANAGE_EVENTS
   (1n << 34n) | // MANAGE_THREADS
+  (1n << 38n) | // SEND_MESSAGES_IN_THREADS
   (1n << 40n)   // MODERATE_MEMBERS (timeout)
 ).toString();
 

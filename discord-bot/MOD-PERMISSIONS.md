@@ -1,31 +1,40 @@
 # Aquilo mod role permissions
 
-Reproducible record of the best-practice permission bitfield applied
-to the Aquilo Staff (mod) role on Discord.
+Reproducible record of the staff-lead ("power mod") permission bitfield
+applied to the Aquilo mod role on Discord.
+
+> **2026-07-07 update:** widened from moderation-only to staff-lead so
+> the mod team can create/edit channels, assign roles, and ban. Added
+> **Ban Members (2)**, **Manage Channels (4)**, **Manage Roles (28)**.
+> Run `node discord-bot/set-mod-permissions.mjs --list` first to confirm
+> the role id below still matches the role your mods actually hold.
 
 ## Target role
 
-- Role name: Aquilo Staff
-- Role id: `1507973879442964660`
+- Role name: Aquilo Staff / 🛡️ Moderator
+- Role id: `1507973879442964660`  ← verify with `--list` before applying
 - Applied via PATCH `https://discord.com/api/v10/guilds/{guild_id}/roles/{role_id}`
 
 ## Permission bitfield
 
 ```
-1402470788290
+1402739223766
 ```
 
-Hex: `0x14689c5ecc2`
+Hex: `0x14699c5ecd6`
 
 Computed by ORing the bit positions of the flags below. Reproduce with
 `node discord-bot/set-mod-permissions.mjs --dry-run` (the script
 self-verifies that every ALLOW flag is set and no FORBIDDEN flag is
 set before issuing the PATCH).
 
-## Flags granted (19)
+## Flags granted (22)
 
 | Flag                       | Bit | Why                                              |
 |----------------------------|----:|--------------------------------------------------|
+| Ban Members                |   2 | Permanent removal of bad actors                  |
+| Manage Channels            |   4 | Create / edit / reorder channels                 |
+| Manage Roles               |  28 | Assign roles positioned below their own          |
 | View Channels              |  10 | See the channel they're modding                  |
 | Send Messages              |  11 | Reply / warn in channel                          |
 | Send Messages in Threads   |  38 | Reply inside forum / thread channels             |
@@ -46,22 +55,21 @@ set before issuing the PATCH).
 | Deafen Members (voice)     |  23 | Server-wide voice deafen                         |
 | Move Members (voice)       |  24 | Drag between voice channels                      |
 
-## Flags explicitly NOT granted (9)
+## Flags explicitly NOT granted (6)
 
 | Flag                       | Bit | Why withheld                                     |
 |----------------------------|----:|--------------------------------------------------|
 | Administrator              |   3 | Bypasses every other check, never to mods        |
-| Ban Members                |   2 | Permanent; timeout + kick covers most cases      |
-| Manage Guild               |   5 | Edits server settings                            |
-| Manage Channels            |   4 | Create / delete channels                         |
-| Manage Roles               |  28 | Privilege escalation risk                        |
+| Manage Guild               |   5 | Edits server-wide settings / integrations        |
 | Manage Webhooks            |  29 | Webhooks can exfiltrate data                     |
 | Manage Guild Expressions   |  30 | Emoji / sticker management, mods don't need it   |
 | View Guild Insights        |  19 | Member analytics, privacy                        |
 | Mention @everyone          |  17 | Avoid mass-ping mistakes                         |
 
-Reserve Ban Members + Manage Guild + Manage Roles for the server owner
-or staff-lead role only.
+Reserve Manage Guild + Administrator for the server owner only. Note
+that Manage Roles + Manage Channels are now granted, so keep the mod
+role positioned correctly in the hierarchy — a holder can assign any
+role below their own and edit any channel.
 
 ## How to apply
 
@@ -97,7 +105,7 @@ curl -X PATCH \
   -H "Authorization: Bot $DISCORD_BOT_TOKEN" \
   -H "Content-Type: application/json" \
   -H "X-Audit-Log-Reason: aquilo: set best-practice mod permissions" \
-  -d '{"permissions":"1402470788290"}' \
+  -d '{"permissions":"1402739223766"}' \
   "https://discord.com/api/v10/guilds/$AQUILO_GUILD_ID/roles/1507973879442964660"
 ```
 
@@ -113,12 +121,20 @@ The bot must:
 
 After running the script, manually verify:
 
-- A user with the mod role can right-click a member and see Timeout.
+- A user with the mod role can right-click a member and see Timeout, Kick, Ban.
 - A user with the mod role can delete another member's message.
-- A user with the mod role CANNOT manage roles (Server Settings >
-  Roles is greyed out).
-- A user with the mod role CANNOT ban (right-click member > Ban is
-  greyed out / hidden).
+- A user with the mod role can open Server Settings > Roles and assign
+  roles positioned below the mod role.
+- A user with the mod role can create a new channel.
+- A user with the mod role CANNOT open Server Settings > general (Manage
+  Guild withheld) and CANNOT grant themselves a higher role.
+
+If any of the *granted* actions still fail, the cause is NOT this
+bitfield — check, in order: (1) **Server Settings > Safety Setup >
+"Require 2FA for moderator actions"** is ON and the mod lacks 2FA on
+their account; (2) role **hierarchy** — the target member's top role is
+at or above the mod role; (3) a **channel-level permission override**
+denying the action in that specific channel.
 
 Run `--dry-run` any time you want to confirm the intended bitfield
 without touching Discord.

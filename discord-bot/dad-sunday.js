@@ -83,7 +83,7 @@ export async function announceDadSunday(env, current) {
   // Mirror Triple-C: Dad Game Sunday lock-ins announce in the 📅
   // schedule channel alongside the pinned weekly embed (task brief #5).
   const channelId = String(env.TRIPLE_C_ANNOUNCE_CHANNEL || env.SCHEDULE_CHANNEL_ID
-    || '1507973920282640485').trim();
+    || '').trim();
   if (!channelId) return { ok: false, error: 'no-channel' };
   const embed = {
     title: `🛋️ Dad Game Sunday is now: ${current.name}`,

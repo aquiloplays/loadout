@@ -881,6 +881,9 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/guild-finalize/')) {
       return handleGuildFinalize(req, env, path);
     }
+    if (method === 'POST' && path.startsWith('/admin/guild-seed-config/')) {
+      return handleGuildSeedConfig(req, env, path);
+    }
     if (method === 'POST' && path.startsWith('/admin/guild-automod/')) {
       return handleGuildAutomod(req, env, path);
     }
@@ -1352,6 +1355,17 @@ export default {
   // Errors caught per job so a single bad source can't break the rest.
   async scheduled(event, env, ctx) {
     try {
+      // Multi-tenant: resolve the active guild's per-guild config so cron
+      // jobs that read channel/role wiring (live-status refresh, weekly
+      // recap, schedule-rotation, triple-c, dad-sunday) keep working after
+      // the deploy-time [vars] are neutralized — they read the seeded KV
+      // instead. No-op until an active guild has seeded config (envForGuild
+      // returns raw env). aquiloScheduledTick re-wraps itself; harmless.
+      try {
+        const { getActiveGuildId, envForGuild } = await import('./aquilo/config.js');
+        const activeId = await getActiveGuildId(env);
+        if (activeId) env = await envForGuild(env, activeId);
+      } catch (e) { /* keep raw env */ }
       // 2026-05-29 sprint, what was the `:17` hourly cron is now the
       // every-minute trigger so the live-status-embed dashboard can
       // refresh per minute. The original hourly work is gated by
@@ -6163,6 +6177,55 @@ async function handleGuildFinalize(req, env, path) {
   return new Response(JSON.stringify(result, null, 2), {
     status: result.ok ? 200 : 207,
     headers: { 'content-type': 'application/json' },
+  });
+}
+
+// ---- /admin/guild-seed-config/:guildId  --------------------------------
+//
+// One-time multi-tenant migration. Snapshots this guild's deploy-time
+// [vars] wiring (SEED_KEYS — channel/role ids, targets, tunables) into
+// per-guild KV at config:<guildId>:<KEY>, so the guild reads its config
+// from KV instead of the global defaults. MUST be run against the Aquilo
+// guild BEFORE the [vars] are neutralized (Deploy B), while env[key] still
+// holds the real ids. Idempotent + re-runnable. Same admin auth as
+// guild-finalize.
+//
+// Body (JSON, optional):
+//   { keys?: ["SCHEDULE_CHANNEL_ID", ...],  // subset override; default = all SEED_KEYS
+//     activate?: true }                      // also set config:active_guild_id
+//
+// Returns: { ok, guildId, seeded:[...], skipped:[...], activated }
+async function handleGuildSeedConfig(req, env, path) {
+  const guildId = path.split('/').filter(Boolean)[2];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return new Response('bad signature', { status: 401 });
+
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; } catch { opts = {}; }
+
+  const { SEED_KEYS, setGuildConfigValue, setActiveGuildId } = await import('./aquilo/config.js');
+  const keys = Array.isArray(opts.keys) && opts.keys.length ? opts.keys : SEED_KEYS;
+
+  const seeded = [];
+  const skipped = [];
+  for (const key of keys) {
+    const v = env[key];
+    if (v != null && String(v) !== '') {
+      await setGuildConfigValue(env, guildId, key, String(v));
+      seeded.push(key);
+    } else {
+      skipped.push(key);
+    }
+  }
+  let activated = null;
+  if (opts.activate) {
+    await setActiveGuildId(env, guildId);
+    activated = guildId;
+  }
+  return new Response(JSON.stringify({ ok: true, guildId, seeded, skipped, activated }, null, 2), {
+    status: 200, headers: { 'content-type': 'application/json' },
   });
 }
 

@@ -428,6 +428,21 @@ export async function aquiloScheduledTick(event, env, ctx) {
 // verifies the Ed25519 signature with the unified app's public key
 // before reaching this code; we just dispatch.
 export async function dispatchAquiloInteraction(data, env, ctx) {
+  // Tenant gate. An un-onboarded guild must not reach ensureBootstrap
+  // (which reads SCHEDULE_CHANNEL_ID and would otherwise post into the
+  // grandfathered Aquilo server), nor any aquilo handler. Aquilo is
+  // grandfathered via AQUILO_VAULT_GUILD_ID; a new admin lifts the gate
+  // by running /loadout-setup, which writes the tenant record. Fail-open
+  // on a lookup error to preserve the pre-gate best-effort behavior.
+  if (data.guild_id) {
+    try {
+      const { isRegisteredTenant } = await import('../tenants.js');
+      if (!(await isRegisteredTenant(env, data.guild_id))) {
+        return json(ephemeral("This server isn't set up yet — an admin can run **/loadout-setup** to get started."));
+      }
+    } catch (e) { /* gate lookup failed: fall through (fail-open) */ }
+  }
+
   // Wrap env with the per-guild config Proxy. Handlers read env.X
   // transparently; the Proxy returns the KV-stored override when
   // /setup has written one, otherwise the deploy-time default.

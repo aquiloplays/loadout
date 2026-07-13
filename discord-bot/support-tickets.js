@@ -131,14 +131,17 @@ async function staffRoleId(env, guildId) {
   let id = null;
   try { id = await env.LOADOUT_BOLTS.get(`support-tickets:staff-role:${guildId}`); }
   catch { /* ignore */ }
-  return id || env.STAFF_ROLE_ID || STAFF_ROLE_ID_FALLBACK || null;
+  // Multi-tenant: no hardcoded fallback — an unconfigured guild returns
+  // null (no staff role) rather than leaking the Aquilo mod-role id.
+  return id || env.STAFF_ROLE_ID || null;
 }
 
 async function supportChannelId(env, guildId) {
   let id = null;
   try { id = await env.LOADOUT_BOLTS.get(`support-tickets:channel:${guildId}`); }
   catch { /* ignore */ }
-  return id || env.SUPPORT_CHANNEL_ID || '1505948032187760640';
+  // Multi-tenant: no hardcoded fallback — unconfigured guild → null.
+  return id || env.SUPPORT_CHANNEL_ID || null;
 }
 
 async function modLogChannelId(env, guildId) {
