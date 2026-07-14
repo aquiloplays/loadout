@@ -92,10 +92,34 @@ async function vaultPlatformToken(env, platform, owner) {
   } catch { return null; }
 }
 
-// Resolve a dock key to { login, provider, platformId, twitchId } or
-// null. provider defaults to twitch (legacy recs); ONLY twitch logins
-// go through loginToId — resolving a Kick/YT login as a Twitch name
-// could silently pick up an unrelated Twitch user.
+// Resolve a Twitch id's CURRENT login + display, id-first so a channel
+// rename never orphans a dock. Briefly cached (renames are rare) and
+// falls back to the caller's stored snapshot when Helix is unreachable.
+async function freshTwitchIdentity(env, twitchId, fbLogin, fbDisplay) {
+  const ck = 'aqdock:idlogin:' + twitchId;
+  try {
+    const c = await env.LOADOUT_BOLTS.get(ck, { type: 'json' });
+    if (c && c.login) return c;
+  } catch { /* miss */ }
+  try {
+    const { getUserById } = await import('./twitch-helix.js');
+    const u = await getUserById(env, twitchId);
+    if (u && u.login) {
+      const id = { login: String(u.login).toLowerCase(), display: String(u.display_name || u.login) };
+      try { await env.LOADOUT_BOLTS.put(ck, JSON.stringify(id), { expirationTtl: 21600 }); } catch { /* best effort */ }
+      return id;
+    }
+  } catch { /* keep snapshot */ }
+  return { login: fbLogin, display: fbDisplay || fbLogin };
+}
+
+// Resolve a dock key to { login, display, provider, platformId, twitchId }
+// or null. provider defaults to twitch (legacy recs). For Twitch docks the
+// numeric uid is PERMANENT and authoritative — the stored login is only a
+// snapshot that goes stale after a rename — so resolve the id from uid and
+// refresh the login from it; fall back to the login lookup only for pre-uid
+// legacy records. A Kick/YT login is NEVER looked up as a Twitch name (it
+// could silently pick up an unrelated Twitch user).
 export async function dockOwner(env, k) {
   if (!/^[a-z0-9]{8,40}$/.test(String(k || ''))) return null;
   let rec = null;
@@ -103,11 +127,22 @@ export async function dockOwner(env, k) {
   if (!rec || !rec.login) return null;
   const provider = rec.provider || 'twitch';
   let twitchId = null;
+  let login = rec.login;
+  let display = rec.display || rec.login;
   if (provider === 'twitch') {
-    const who = await loginToId(env, rec.login);
-    twitchId = (who && who.id) || null;
+    const uid = rec.uid ? String(rec.uid).replace(/^tw:/, '') : '';
+    if (/^\d{1,20}$/.test(uid)) {
+      twitchId = uid;
+      const id = await freshTwitchIdentity(env, uid, rec.login, rec.display);
+      login = id.login;
+      display = id.display;
+    } else {
+      const who = await loginToId(env, rec.login);
+      twitchId = (who && who.id) || null;
+      if (who) { login = who.login; display = who.display; }
+    }
   }
-  return { login: rec.login, provider, platformId: rec.platformId || null, twitchId };
+  return { login, display, provider, platformId: rec.platformId || null, twitchId };
 }
 
 // Current per-platform stream info, best-effort each.
@@ -909,13 +944,26 @@ export async function handleAquiloDock(req, env, path) {
     const sess = await accountSessionFrom(req, env);
     if (!sess || sess.provider !== 'twitch' || !sess.login) return json({ ok: false, error: 'signin-twitch' }, 401);
     const login = String(sess.login).toLowerCase();
+    const uid = sess.uid ? String(sess.uid).replace(/^tw:/, '') : '';
+    const uidKey = /^\d{1,20}$/.test(uid) ? 'aqdock:uid:' + uid : null;
+    // Prefer the uid pointer (permanent, survives a Twitch rename); fall
+    // back to the legacy per-login pointer for keys minted before it.
     let key = null;
-    try { key = await env.LOADOUT_BOLTS.get(KEY.byLogin(login)); } catch { /* fresh */ }
+    try {
+      if (uidKey) key = await env.LOADOUT_BOLTS.get(uidKey);
+      if (!key) key = await env.LOADOUT_BOLTS.get(KEY.byLogin(login));
+    } catch { /* fresh */ }
     if (!key) {
       key = randKey();
-      await env.LOADOUT_BOLTS.put(KEY.byLogin(login), key);
       await env.LOADOUT_BOLTS.put(KEY.byKey(key), JSON.stringify({ login, uid: sess.uid, createdAt: Date.now() }));
     }
+    // (Re)write both pointers so a later sign-in — even under a NEW login
+    // after a rename — resolves back to the same key/URL. The key record's
+    // login is just a snapshot; state/dockOwner refresh it from the uid.
+    try {
+      if (uidKey) await env.LOADOUT_BOLTS.put(uidKey, key);
+      await env.LOADOUT_BOLTS.put(KEY.byLogin(login), key);
+    } catch { /* best effort */ }
     return json({ ok: true, key, login });
   }
 
@@ -923,23 +971,19 @@ export async function handleAquiloDock(req, env, path) {
     const url = new URL(req.url);
     const k = String(url.searchParams.get('key') || '');
     if (!/^[a-z0-9]{8,40}$/.test(k)) return json({ ok: false, error: 'bad-key' }, 400);
-    let rec = null;
-    try { rec = await env.LOADOUT_BOLTS.get(KEY.byKey(k), { type: 'json' }); } catch { /* miss */ }
-    if (!rec || !rec.login) return json({ ok: false, error: 'unknown-key' }, 404);
-    const login = rec.login;
-    const provider = rec.provider || 'twitch';
-
-    // Only Twitch-anchored docks resolve a Twitch id — a Kick/YT login
-    // must never be looked up as if it were a Twitch name.
-    const who = provider === 'twitch' ? await loginToId(env, login) : null;
-    const twitchId = who && who.id;
+    // id-first resolution (rename-proof): dockOwner refreshes the login +
+    // display from the permanent uid for Twitch docks, so a channel rename
+    // never leaves the dock pinned to a dead login.
+    const owner = await dockOwner(env, k);
+    if (!owner) return json({ ok: false, error: 'unknown-key' }, 404);
+    const { login, provider, twitchId } = owner;
 
     // Connection pills + product presence, all best-effort.
     const out = {
       ok: true,
       login,
       provider,
-      display: (who && who.display) || rec.display || login,
+      display: owner.display || login,
       connections: { twitch: false, kick: false, youtube: false, spotify: false },
       rotationDockKey: null,
       multigoalRev: 0,
@@ -952,8 +996,8 @@ export async function handleAquiloDock(req, env, path) {
     };
     // Platform-anchored docks: their own platform is connected by
     // construction (the vault record was written at pairing).
-    if (provider !== 'twitch' && rec.platformId) {
-      const vkey = (provider === 'kick' ? 'vault:kick:' : 'vault:yt:') + rec.platformId;
+    if (provider !== 'twitch' && owner.platformId) {
+      const vkey = (provider === 'kick' ? 'vault:kick:' : 'vault:yt:') + owner.platformId;
       try {
         const conn = !!(await env.LOADOUT_BOLTS.get(vkey));
         if (provider === 'kick') out.connections.kick = conn;
