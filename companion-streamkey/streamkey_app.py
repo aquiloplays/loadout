@@ -58,16 +58,26 @@ class App:
                 self.quit()
 
     def _first_run_autostart(self):
-        # Enable start-with-Windows once, the first time we ever run, so the
-        # companion is available when OBS opens. The user can toggle it off.
+        # First launch ever: enable start-with-Windows so the companion is up
+        # when OBS opens (user can toggle it off).
+        #
+        # Every later launch: if it's still enabled, re-apply. enable() is
+        # idempotent and re-points the watchdog + Run key at the current stable
+        # exe path — this self-heals installs whose watchdog was written by an
+        # older build against a since-moved download (the 0x80070002 "cannot
+        # find the file specified" dialog every 2 minutes).
         marker = os.path.join(tok.config_dir(), "first-run.done")
-        if os.path.exists(marker):
-            return
-        autostart.enable()
-        try:
-            open(marker, "w").close()
-        except OSError:
-            pass
+        if not os.path.exists(marker):
+            autostart.enable()
+            try:
+                open(marker, "w").close()
+            except OSError:
+                pass
+        elif autostart.is_enabled():
+            try:
+                autostart.enable()
+            except Exception:
+                pass
 
     def run(self):
         # Local server (daemon) so the dock can reach it immediately.
