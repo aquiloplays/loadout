@@ -19,16 +19,57 @@ toggle so there is no confusing two-switch state.
 No-op cleanly off Windows so CI imports do not raise.
 """
 import os
+import shutil
 import subprocess
 import sys
 
 TASK_NAME = "AquiloStreamkeyWatchdog"
+APP_DIR_NAME = "AquiloStreamkey"
+INSTALLED_EXE_NAME = "AquiloStreamkey.exe"
 
 
+def _local_appdata():
+    return (
+        os.environ.get("LOCALAPPDATA")
+        or os.environ.get("APPDATA")
+        or os.path.expanduser("~")
+    )
+
+
+def installed_exe():
+    """Path the watchdog and autostart should relaunch.
+
+    When frozen, we do NOT trust ``sys.executable`` directly: the user usually
+    runs the download straight from their Downloads folder, and both the
+    watchdog (a Task Scheduler entry that fires every 2 min) and the Start-with-
+    Windows Run key would then bake in that volatile path. Moving, renaming, or
+    deleting the download later makes the watchdog pop a "cannot find the file
+    specified" dialog every two minutes.
+
+    So we install a stable copy under ``%LOCALAPPDATA%\\AquiloStreamkey`` and
+    hand back that path, refreshing it to the running version each time. If the
+    copy can't be made (locked / permissions), we fall back to the live exe
+    path so behaviour is never worse than before.
+    """
+    if not getattr(sys, "frozen", False):
+        return os.path.abspath(sys.argv[0])
+    live = sys.executable
+    try:
+        d = os.path.join(_local_appdata(), APP_DIR_NAME)
+        os.makedirs(d, exist_ok=True)
+        stable = os.path.join(d, INSTALLED_EXE_NAME)
+        # Already running from the installed copy → nothing to copy.
+        if os.path.exists(stable) and os.path.samefile(stable, live):
+            return stable
+        shutil.copy2(live, stable)  # refresh to the version being run now
+        return stable
+    except OSError:
+        return live
+
+
+# Back-compat alias for existing callers.
 def _exe_path():
-    if getattr(sys, "frozen", False):
-        return sys.executable
-    return os.path.abspath(sys.argv[0])
+    return installed_exe()
 
 
 def _vbs_path():

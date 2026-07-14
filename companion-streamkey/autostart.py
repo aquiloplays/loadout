@@ -22,9 +22,11 @@ except ImportError:  # non-Windows
 
 
 def _command():
-    # When frozen by PyInstaller, sys.executable IS the companion exe.
+    # When frozen, launch the stable installed copy (under %LOCALAPPDATA%), not
+    # the volatile download path — see watchdog_task.installed_exe(). This keeps
+    # Start-with-Windows working after the user moves or deletes the download.
     if getattr(sys, "frozen", False):
-        return f'"{sys.executable}"'
+        return f'"{watchdog_task.installed_exe()}"'
     return f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}"'
 
 
