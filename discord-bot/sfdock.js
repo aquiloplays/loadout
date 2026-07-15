@@ -7,6 +7,7 @@
 //   POST /api/sfdock/clip         { token }                 -> stub
 //   GET  /api/sfdock/profile?id=  -> { ok, overlays, updatedAt }   (public read)
 //   POST /api/sfdock/profile      { id?, editKey?, overlays } -> { ok, id, editKey, updatedAt }
+//   GET  /api/sfdock/cosmetics?ch= -> { ok, flairs, firstWords }  (public read; overlay cosmeticsUrl)
 //
 // Premium (auto-translate) gates on a Patreon pledge to the Aquilo campaign
 // using the same campaign-scoped entitlement path as the Rotation presets
@@ -129,6 +130,89 @@ async function handleProfileSave(env, body, ip) {
   return json({ ok: true, id, editKey: ek, updatedAt });
 }
 
+// ── Viewer cosmetics read (KV: LOADOUT_BOLTS key `sfcos:<ch>`) ────────────
+// Per-channel { flairs, firstWords } served to the chat overlay's
+// `cosmeticsUrl`. READ-ONLY + public here: the unguessable channel login is a
+// public identifier, the served data is cosmetic, and the Twitch extension
+// owns the authenticated write/purchase path (spend goes through the
+// extension's channel Bolts economy — see SF-VIEWER-COSMETICS-BACKEND.md).
+// Shape mirrors what the overlay merges (chat/index.html fetchCloudCosmetics):
+//   flairs[login]     = { badge, color }   badge = emoji or https image URL
+//   firstWords[login] = <effect in FX_EFFECTS>
+const COSMETICS_PREFIX = 'sfcos:';
+// Must stay in sync with the overlay's _FX_EFFECTS palette (chat/index.html).
+const FX_EFFECTS = new Set([
+  'confetti', 'shake', 'flash', 'emote-rain', 'hype-text', 'firework',
+  'hearts', 'snow', 'rainbow', 'sparkles', 'bubbles', 'bounce', 'zoom',
+]);
+const MAX_COSMETIC_LOGINS = 5000;   // cap the served map so a bloated blob can't bloat the overlay
+
+// Mirror of the overlay's safeColor() — only serve CSS-safe color tokens so a
+// stored value can never smuggle style/markup through to the overlay.
+function safeCosmeticColor(c) {
+  c = String(c == null ? '' : c).trim();
+  if (!c) return '';
+  if (c === 'var(--accent)') return c;
+  if (/^#[0-9a-fA-F]{3,8}$/.test(c)) return c;
+  if (/^rgba?\([0-9.,%\s/]+\)$/.test(c)) return c;
+  if (/^hsla?\([0-9.,%\s/deg]+\)$/.test(c)) return c;
+  if (/^[a-zA-Z]{3,20}$/.test(c)) return c;
+  return '';
+}
+
+// A badge is an emoji/short text OR an https image URL. Reject http:// and any
+// non-URL that looks like markup; the overlay renders https badges as <img>.
+function safeCosmeticBadge(b) {
+  const s = String(b == null ? '' : b).trim().slice(0, 300);
+  if (!s) return '';
+  if (/^https?:\/\//i.test(s)) return /^https:\/\/[^\s"'<>]+$/i.test(s) ? s : '';
+  if (/[<>]/.test(s)) return '';
+  return s;
+}
+
+function sanitizeCosmetics(rec) {
+  const flairs = {};
+  const firstWords = {};
+  if (!rec || typeof rec !== 'object') return { flairs, firstWords };
+  const rf = (rec.flairs && typeof rec.flairs === 'object') ? rec.flairs : {};
+  let n = 0;
+  for (const login of Object.keys(rf)) {
+    if (n >= MAX_COSMETIC_LOGINS) break;
+    const lk = String(login).toLowerCase();
+    if (!/^[a-z0-9_]{1,25}$/.test(lk)) continue;
+    const v = rf[login] || {};
+    const badge = safeCosmeticBadge(v.badge);
+    const color = safeCosmeticColor(v.color);
+    if (!badge && !color) continue;   // nothing renderable — skip
+    flairs[lk] = { badge, color };
+    n++;
+  }
+  const rw = (rec.firstWords && typeof rec.firstWords === 'object') ? rec.firstWords : {};
+  let m = 0;
+  for (const login of Object.keys(rw)) {
+    if (m >= MAX_COSMETIC_LOGINS) break;
+    const lk = String(login).toLowerCase();
+    if (!/^[a-z0-9_]{1,25}$/.test(lk)) continue;
+    const fx = String(rw[login] || '');
+    if (!FX_EFFECTS.has(fx)) continue;
+    firstWords[lk] = fx;
+    m++;
+  }
+  return { flairs, firstWords };
+}
+
+async function handleCosmeticsGet(env, url) {
+  const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=30', ...CORS };
+  const ch = String(url.searchParams.get('ch') || '').trim().toLowerCase().replace(/^@/, '');
+  if (!/^[a-z0-9_]{2,25}$/.test(ch)) {
+    return new Response(JSON.stringify({ ok: false, error: 'bad-channel', flairs: {}, firstWords: {} }), { status: 400, headers });
+  }
+  let rec = null;
+  try { rec = await env.LOADOUT_BOLTS.get(COSMETICS_PREFIX + ch, { type: 'json' }); } catch { /* miss -> empty */ }
+  const { flairs, firstWords } = sanitizeCosmetics(rec);
+  return new Response(JSON.stringify({ ok: true, ch, flairs, firstWords }), { status: 200, headers });
+}
+
 // ── Translate cache + per-token daily quota ──────────────────────────────
 const TRANSLATE_CACHE_TTL = 7 * 24 * 3600;   // identical messages are cheap to dedupe
 const TRANSLATE_DAILY_CAP = 2000;            // per Patreon token; owners exempt
@@ -140,6 +224,12 @@ export async function handleSfDock(req, env, path) {
   // Public profile read (GET), overlays fetch their look by id on boot.
   if (path === '/api/sfdock/profile' && req.method === 'GET') {
     return handleProfileGet(env, url);
+  }
+
+  // Public viewer-cosmetics read (GET); the chat overlay's cosmeticsUrl points
+  // here and merges the equipped flairs + first-words effects per viewer.
+  if (path === '/api/sfdock/cosmetics' && req.method === 'GET') {
+    return handleCosmeticsGet(env, url);
   }
 
   if (req.method !== 'POST') return json({ ok: false, error: 'method' }, 405);
