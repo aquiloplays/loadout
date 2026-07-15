@@ -790,6 +790,13 @@ export default {
       const { handlePrintflair } = await import('./printflair.js');
       return handlePrintflair(req, env, path);
     }
+    // Channel-point reward creator: StreamFusion's Printer pane creates a
+    // reward (e.g. "Cards Against Humanity") on Twitch and/or Kick. Auth via
+    // the same x-aquilo-print-key machine key SF holds for the gallery.
+    if (path.startsWith('/api/rewards/')) {
+      const { handleRewards } = await import('./rewards.js');
+      return handleRewards(req, env, path);
+    }
     // Warden local-bridge ingest: TikTok chat relayed from StreamFusion on
     // the streamer's machine (TikFinity has no cloud API). View-only feed.
     if (path === '/api/warden-ingest') {
