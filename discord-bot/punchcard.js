@@ -1073,6 +1073,52 @@ async function createCheckinReward(env, ch, chan, opts = {}) {
   return { ok: false, status: 'failed', error: j.message || 'helix' };
 }
 
+// Generic channel-point reward creator for OTHER products (e.g. StreamFusion's
+// CAH print reward) that piggyback on the streamer's already-connected
+// PunchCard token — the one broadcaster token in this worker that carries
+// channel:manage:redemptions (see STREAMER_SCOPES). Unlike createCheckinReward
+// it does NOT bind chan.rewardId (that belongs to the check-in reward). `ch` is
+// the streamer login. Returns a plain shape rewards.js relays to the app.
+export async function createChannelPointReward(env, ch, spec = {}) {
+  ch = chanName(ch);
+  if (!ch) return { ok: false, error: 'bad-channel' };
+  const chan = await loadChan(env, ch);
+  if (!chan || !chan.tw || !chan.tw.rt) return { ok: false, error: 'not-connected', needsReauth: true };
+  // Pre-flight scope check when we recorded the granted scopes (older
+  // connections predate the field → undefined, so we just try and let a
+  // 401/403 map to needsReauth below).
+  const scopes = Array.isArray(chan.tw.scopes) ? chan.tw.scopes : null;
+  if (scopes && scopes.indexOf('channel:manage:redemptions') === -1) {
+    return { ok: false, error: 'scope', needsReauth: true };
+  }
+  const title = String(spec.title || '').trim().slice(0, 45);   // Twitch title cap
+  if (!title) return { ok: false, error: 'no-title' };
+  const cost = Math.min(1000000, Math.max(1, parseInt(spec.cost, 10) || 1));
+  const body = {
+    title,
+    cost,
+    prompt: String(spec.prompt || '').slice(0, 200),
+    is_user_input_required: !!spec.requiresInput,
+    is_enabled: true,
+    background_color: /^#[0-9a-fA-F]{6}$/.test(spec.color || '') ? spec.color : '#1b1b1b',
+  };
+  const j = await chanHelix(env, ch, chan, '/channel_points/custom_rewards',
+    { broadcaster_id: chan.userId }, { method: 'POST', body });
+  if (!j._error && j.data && j.data[0] && j.data[0].id) {
+    return { ok: true, rewardId: j.data[0].id, title: j.data[0].title || title };
+  }
+  // Duplicate title = the reward already exists → adopt its id.
+  if (j.status === 400 && /DUPLICATE_REWARD|duplicate|already/i.test(j.message || '')) {
+    const list = await chanHelix(env, ch, chan, '/channel_points/custom_rewards', { broadcaster_id: chan.userId });
+    const found = !list._error && (list.data || []).find(
+      (r) => String(r.title).trim().toLowerCase() === title.toLowerCase());
+    return { ok: true, rewardId: found ? found.id : null, title, existed: true };
+  }
+  if (j.status === 403) return { ok: false, error: 'affiliate-required' };
+  if (j.status === 401) return { ok: false, error: 'scope', needsReauth: true };
+  return { ok: false, error: 'helix-failed', status: j.status, detail: j.message || 'unknown' };
+}
+
 async function handleRewardCreate(env, body) {
   const ch = chanName(body.ch);
   const chan = await authedChan(env, ch, String(body.k || ''));
