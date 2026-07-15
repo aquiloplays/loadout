@@ -69,7 +69,9 @@ async function callHaiku(env, prompt, maxTokens) {
 
 // ── Overlay profile storage (KV: LOADOUT_BOLTS) ──────────────────────────
 const PROFILE_PREFIX = 'sf:ovl:';
-const OVERLAY_KEYS = ['chat', 'alerts', 'shoutout', 'vertical', 'ticker'];
+// chatUndercam = the optional second chat instance (a streamer's separate
+// under-cam chat) — same shape as `chat`, loaded by the overlay via ?slot=.
+const OVERLAY_KEYS = ['chat', 'chatUndercam', 'alerts', 'shoutout', 'vertical', 'ticker'];
 const MAX_PROFILE_BYTES = 64 * 1024;     // a fully-loaded 5-overlay cfg is < 8KB
 const CREATE_CAP_PER_HOUR = 60;          // soft anti-spam on anonymous creates
 
