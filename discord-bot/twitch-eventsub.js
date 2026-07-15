@@ -39,6 +39,7 @@ import {
   getStreamInfo,
   getUserById,
   getRecentClips,
+  helixFetch,
 } from './twitch-helix.js';
 import {
   EVENT_TYPE_HANDLERS,
@@ -54,6 +55,7 @@ const REPLAY_TTL_S = 10 * 60;
 // with EXACTLY the shape the site's StreamRecapCard consumes via
 // GET /community/recap-latest:
 //   { endedAt, startedAt, durationMin, game, title, peakViewers,
+//     followers: number | null,   // follower count snapshot at stream-end
 //     topClip: null | { url, title, thumbnail } }
 //
 // Session facts come from the live-status dashboard's KV record
@@ -134,6 +136,21 @@ export async function persistLatestRecap(env, broadcasterId, preRec = null) {
       console.warn('[recap-latest] top-clip lookup failed:', e?.message || e);
     }
 
+    // Follower count at stream-end. Snapshotting it per stream turns the
+    // recap archive into a follower-growth series the site can chart
+    // (audience growth over time, aligned to streams). Best-effort — a
+    // Helix failure just leaves followers: null for this recap. Reuses
+    // the same /channels/followers call web-stats.js uses (first=1 keeps
+    // the payload tiny; `total` carries the full count).
+    let followers = null;
+    try {
+      const j = await helixFetch(env, '/channels/followers', { broadcaster_id: broadcasterId, first: 1 }, { userToken: true });
+      const t = Number(j?.total);
+      if (Number.isFinite(t) && t >= 0) followers = t;
+    } catch (e) {
+      console.warn('[recap-latest] follower snapshot failed:', e?.message || e);
+    }
+
     const recap = {
       endedAt,
       startedAt,
@@ -141,6 +158,7 @@ export async function persistLatestRecap(env, broadcasterId, preRec = null) {
       game:  String(rec?.game || legacy?.lastGame || ''),
       title: String(rec?.title || legacy?.lastTitle || ''),
       peakViewers,
+      followers,
       topClip,
     };
     await env.LOADOUT_BOLTS.put(RECAP_LATEST_KEY, JSON.stringify(recap));
