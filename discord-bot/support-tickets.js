@@ -152,6 +152,50 @@ async function modLogChannelId(env, guildId) {
   return null;
 }
 
+// Dedicated "🎫 Tickets" category — every ticket becomes a private channel
+// filed here. Resolved from KV cache, else an existing Tickets/Support
+// category, else created once (and cached). Runs off the critical path.
+async function ticketsCategoryId(env, guildId) {
+  try {
+    const cached = await env.LOADOUT_BOLTS.get(`support-tickets:category:${guildId}`);
+    if (cached) return cached;
+  } catch { /* ignore */ }
+  const chans = await dapi(env, 'GET', `/guilds/${encodeURIComponent(guildId)}/channels`);
+  if (chans.ok && Array.isArray(chans.body)) {
+    const found = chans.body.find((c) => c.type === 4 && /ticket|support/i.test(c.name || ''));
+    if (found?.id) {
+      try { await env.LOADOUT_BOLTS.put(`support-tickets:category:${guildId}`, String(found.id)); } catch { /* ignore */ }
+      return String(found.id);
+    }
+  }
+  const created = await dapi(env, 'POST', `/guilds/${encodeURIComponent(guildId)}/channels`, {
+    name: '🎫 Tickets',
+    type: 4,
+    permission_overwrites: [{ id: String(guildId), type: 0, deny: String(PERM_VIEW_CHANNEL) }],
+  });
+  if (created.ok && created.body?.id) {
+    try { await env.LOADOUT_BOLTS.put(`support-tickets:category:${guildId}`, String(created.body.id)); } catch { /* ignore */ }
+    return String(created.body.id);
+  }
+  return null;
+}
+
+// The person who must always see + be pinged about new tickets (the owner),
+// even without the Staff role. Env override → KV cache → guild owner_id.
+async function ownerUserId(env, guildId) {
+  if (env.OWNER_USER_ID) return String(env.OWNER_USER_ID);
+  try {
+    const cached = await env.LOADOUT_BOLTS.get(`support-tickets:owner:${guildId}`);
+    if (cached) return cached;
+  } catch { /* ignore */ }
+  const g = await dapi(env, 'GET', `/guilds/${encodeURIComponent(guildId)}`);
+  if (g.ok && g.body?.owner_id) {
+    try { await env.LOADOUT_BOLTS.put(`support-tickets:owner:${guildId}`, String(g.body.owner_id)); } catch { /* ignore */ }
+    return String(g.body.owner_id);
+  }
+  return null;
+}
+
 // ── State: D1 helpers ─────────────────────────────────────────
 
 async function insertTicket(env, payload) {
@@ -733,6 +777,28 @@ export async function handleSupportTicketModal(data, env) {
   return ephemeral(`✅ Ticket #${opened.ticketId} opened, head to <#${opened.threadId}> to follow it. Staff are pinged.`);
 }
 
+// Deferred wrapper. Discord requires a response within ~3s; we ack with a
+// deferred ephemeral immediately (see commands.js) and run the real work
+// here in ctx.waitUntil, then edit the ack with the result. This is what
+// makes opening a ticket feel instant instead of timing out.
+export async function handleSupportTicketModalDeferred(data, env) {
+  let content = 'Something went wrong opening your ticket — please try again or ping a mod.';
+  try {
+    const resp = await handleSupportTicketModal(data, env);
+    content = resp?.data?.content || content;
+  } catch (e) {
+    content = 'Error opening your ticket: ' + (e?.message || 'unknown') + '. Please ping a mod.';
+  }
+  const appId = env.DISCORD_APP_ID;
+  const token = data.token;
+  if (!appId || !token) return;
+  await fetch(`https://discord.com/api/v10/webhooks/${appId}/${token}/messages/@original`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  }).catch(() => {});
+}
+
 // ── Open a ticket, create thread + first message + state ─────
 
 export async function openTicket(env, opts) {
@@ -745,78 +811,51 @@ export async function openTicket(env, opts) {
     return { ok: false, error: 'too-many-open', openCount };
   }
 
-  const supportChId = await supportChannelId(env, guildId);
-  if (!supportChId) return { ok: false, error: 'no-support-channel' };
-
-  // Create a PRIVATE thread under #support. Name format per Clay:
-  // `🎟 <category> · <subject> by username`. Trim to Discord's 100-char limit.
-  const safeSubject = subject.replace(/[\r\n\t]+/g, ' ').slice(0, 80);
-  const threadName = `${categoryEmoji(category)} ${categoryLabel(category).split(' (')[0]} · ${safeSubject} · ${requesterName}`.slice(0, 100);
-  const threadResp = await dapi(env, 'POST',
-    `/channels/${supportChId}/threads`, {
-      name: threadName,
-      auto_archive_duration: 10080,   // 7 days
-      type: THREAD_TYPE_PRIVATE,
-      invitable: false,                // staff add the requester explicitly
-    });
-  if (!threadResp.ok || !threadResp.body?.id) {
-    return { ok: false, error: 'thread-create-failed', status: threadResp.status, body: threadResp.body };
-  }
-  const threadId = String(threadResp.body.id);
-
-  // Add the requester to the thread.
-  await dapi(env, 'PUT',
-    `/channels/${threadId}/thread-members/${encodeURIComponent(requesterUserId)}`).catch(() => {});
-
-  // Add every Staff role member to the thread. Best-effort, if the
-  // role isn't configured we skip; if the API fails per-user we still
-  // continue (staff can self-join via the parent channel visibility).
+  const catId   = await ticketsCategoryId(env, guildId);
   const staffId = await staffRoleId(env, guildId);
-  let staffAdded = 0;
-  if (staffId) {
-    try {
-      const members = await dapi(env, 'GET',
-        `/guilds/${encodeURIComponent(guildId)}/roles/${encodeURIComponent(staffId)}/members?limit=100`);
-      // Discord's `/roles/:r/members` is gated behind a community-tier
-      // boost on some servers, fall back to a member list filter.
-      if (!members.ok || !Array.isArray(members.body)) {
-        const all = await dapi(env, 'GET',
-          `/guilds/${encodeURIComponent(guildId)}/members?limit=1000`);
-        if (all.ok && Array.isArray(all.body)) {
-          for (const m of all.body) {
-            if (Array.isArray(m.roles) && m.roles.includes(staffId) && m.user?.id) {
-              await dapi(env, 'PUT',
-                `/channels/${threadId}/thread-members/${encodeURIComponent(m.user.id)}`).catch(() => {});
-              staffAdded++;
-              if (staffAdded >= 40) break;
-            }
-          }
-        }
-      } else {
-        for (const m of members.body) {
-          if (m.user?.id) {
-            await dapi(env, 'PUT',
-              `/channels/${threadId}/thread-members/${encodeURIComponent(m.user.id)}`).catch(() => {});
-            staffAdded++;
-            if (staffAdded >= 40) break;
-          }
-        }
-      }
-    } catch { /* tolerate fan-out failure */ }
+  const ownerId = await ownerUserId(env, guildId);
+
+  // Create a PRIVATE CHANNEL under the 🎫 Tickets category. Visibility is by
+  // permission overwrite (opener + Staff role + owner), so we never add
+  // members one-by-one — instant, correctly categorised, and the owner
+  // always sees it (fixing the "a mod had to add me" problem).
+  const ALLOW = String(PERM_VIEW_CHANNEL | PERM_SEND_MESSAGES | PERM_READ_HISTORY);
+  const overwrites = [
+    { id: String(guildId),         type: 0, deny:  String(PERM_VIEW_CHANNEL) },
+    { id: String(requesterUserId), type: 1, allow: ALLOW },
+  ];
+  if (staffId) overwrites.push({ id: String(staffId), type: 0, allow: ALLOW });
+  if (ownerId && ownerId !== String(requesterUserId)) overwrites.push({ id: String(ownerId), type: 1, allow: ALLOW });
+
+  const slug = `${category}-${requesterName}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'ticket';
+  const chanName = `${slug}-${Date.now().toString(36).slice(-3)}`.slice(0, 90);
+  const safeSubject = subject.replace(/[\r\n\t]+/g, ' ').slice(0, 200);
+
+  const chanBody = {
+    name: chanName,
+    type: 0,
+    topic: `${categoryEmoji(category)} ${categoryLabel(category).split(' (')[0]} · ${safeSubject} · by ${requesterName}`.slice(0, 1024),
+    permission_overwrites: overwrites,
+  };
+  if (catId) chanBody.parent_id = catId;
+
+  const chanResp = await dapi(env, 'POST', `/guilds/${encodeURIComponent(guildId)}/channels`, chanBody);
+  if (!chanResp.ok || !chanResp.body?.id) {
+    return { ok: false, error: 'channel-create-failed', status: chanResp.status, body: chanResp.body };
   }
+  const threadId = String(chanResp.body.id); // the ticket's own channel; kept as thread_id so downstream (posts, admin, close, PWA) keeps working
 
   // Insert the D1 record.
   const ticketId = await insertTicket(env, {
-    guildId, channelId: supportChId, threadId, requesterUserId,
+    guildId, channelId: threadId, threadId, requesterUserId,
     category, subject, description, priority: 'normal',
   });
   if (!ticketId) {
-    // D1 failed but the thread exists, surface a partial-success.
+    // D1 failed but the channel exists, surface a partial-success.
     return { ok: false, error: 'd1-insert-failed', threadId };
   }
 
-  // Post the first message in the thread, the requester's bundle +
-  // staff close button.
+  // Post the first message: the requester's bundle + staff/owner ping + controls.
   const firstMsg = await postFirstThreadMessage(env, {
     ticketId,
     threadId,
@@ -826,6 +865,7 @@ export async function openTicket(env, opts) {
     subject,
     description,
     staffRoleId: staffId,
+    ownerUserId: ownerId,
   });
 
   // Mirror to the timeline.
@@ -845,11 +885,14 @@ export async function openTicket(env, opts) {
   postNewTicketModLog(env, ticketId).catch(() => {});
   sendNewTicketStaffFanout(env, ticketId).catch(() => {});
 
-  return { ok: true, ticketId, threadId, channelId: supportChId };
+  return { ok: true, ticketId, threadId, channelId: threadId };
 }
 
-async function postFirstThreadMessage(env, { ticketId, threadId, requesterUserId, requesterName, category, subject, description, staffRoleId }) {
-  const mention = staffRoleId ? `<@&${staffRoleId}> ` : '';
+async function postFirstThreadMessage(env, { ticketId, threadId, requesterUserId, requesterName, category, subject, description, staffRoleId, ownerUserId }) {
+  const mentions = [];
+  if (staffRoleId) mentions.push(`<@&${staffRoleId}>`);
+  if (ownerUserId && ownerUserId !== String(requesterUserId)) mentions.push(`<@${ownerUserId}>`);
+  const mention = mentions.length ? mentions.join(' ') + ' ' : '';
   const payload = {
     content: mention + `New ${categoryLabel(category)} ticket from <@${requesterUserId}>.`,
     embeds: [{
@@ -867,8 +910,8 @@ async function postFirstThreadMessage(env, { ticketId, threadId, requesterUserId
     }],
     components: adminControlRows(ticketId),
     allowed_mentions: {
-      // Ping the requester + the staff role only, never @everyone.
-      users: [String(requesterUserId)],
+      // Ping the requester + staff role + owner only, never @everyone.
+      users: [String(requesterUserId), ...(ownerUserId && ownerUserId !== String(requesterUserId) ? [String(ownerUserId)] : [])],
       roles: staffRoleId ? [String(staffRoleId)] : [],
     },
   };

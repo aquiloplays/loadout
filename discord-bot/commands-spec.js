@@ -50,6 +50,14 @@ export const COMMANDS = [
       { type: TYPE_STRING, name: 'topic', description: 'What\'s the ticket about? (optional)', required: false },
     ],
   },
+  // AI FAQ helper — answers common questions instantly to deflect tickets.
+  {
+    name: 'ask',
+    description: 'Ask the Aquilo assistant (accounts, tools, schedule, Patreon, streaks…)',
+    options: [
+      { type: TYPE_STRING, name: 'question', description: 'What would you like to know?', required: true },
+    ],
+  },
   // Community daily check-in, unified with aquilo.gg/checkin (one
   // check-in per ET day per user regardless of surface).
   {
