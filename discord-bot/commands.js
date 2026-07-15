@@ -314,6 +314,18 @@ export async function handleInteraction(req, env, body, ctx) {
       return json(await handleTicketCommand(env, data));
     }
 
+    case 'ask': {
+      // AI FAQ helper — answers common Aquilo questions to deflect tickets.
+      // Defers (an LLM call can exceed Discord's 3s) then edits the ack.
+      if (ctx?.waitUntil) {
+        const { handleAskDeferred } = await import('./ai-faq.js');
+        ctx.waitUntil(handleAskDeferred(data, env));
+        return json({ type: 5, data: { flags: FLAG_EPHEMERAL } });
+      }
+      const { handleAskInline } = await import('./ai-faq.js');
+      return json(await handleAskInline(data, env));
+    }
+
     case 'checkin': {
       // Daily community check-in. Same core as POST /web/checkin, // one check-in per ET day per user, regardless of surface.
       const { handleCheckinCommand } = await import('./community-checkin.js');
