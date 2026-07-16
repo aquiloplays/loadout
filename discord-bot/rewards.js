@@ -88,7 +88,10 @@ async function createReward(req, env) {
   if (!Number.isFinite(rawCost) || rawCost < 1) return json({ ok: false, error: 'no-cost' }, 400);
   const cost = Math.min(1000000, rawCost);
 
-  const spec = { title, cost, prompt, requiresInput, color };
+  // streamerId rides in the spec so the Twitch path can fall back to the
+  // broadcaster vault token (one-consent onboarding) when there's no PunchCard
+  // connection — see createChannelPointReward.
+  const spec = { title, cost, prompt, requiresInput, color, streamerId };
   const out = { ok: true, tw: null, kk: null };
   if (platforms.includes('tw')) out.tw = await createTwitch(env, channel, spec);
   if (platforms.includes('kk')) out.kk = await createKick(env, streamerId, spec);

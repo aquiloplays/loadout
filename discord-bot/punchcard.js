@@ -1083,7 +1083,15 @@ export async function createChannelPointReward(env, ch, spec = {}) {
   ch = chanName(ch);
   if (!ch) return { ok: false, error: 'bad-channel' };
   const chan = await loadChan(env, ch);
-  if (!chan || !chan.tw || !chan.tw.rt) return { ok: false, error: 'not-connected', needsReauth: true };
+  if (!chan || !chan.tw || !chan.tw.rt) {
+    // Fallback: no PunchCard connection — use the broadcaster vault token from
+    // the unified /twitch/connect (it carries channel:manage:redemptions), so a
+    // streamer who onboarded via aquilo.gg/setup can create rewards without a
+    // separate PunchCard authorization. Needs the broadcaster's Twitch id.
+    const twitchId = String(spec.streamerId || '').replace(/\D/g, '');
+    if (twitchId && env.VAULT_SERVICE_SECRET) return await _createRewardViaVault(env, twitchId, spec);
+    return { ok: false, error: 'not-connected', needsReauth: true };
+  }
   // Pre-flight scope check when we recorded the granted scopes (older
   // connections predate the field → undefined, so we just try and let a
   // 401/403 map to needsReauth below).
@@ -1117,6 +1125,49 @@ export async function createChannelPointReward(env, ch, spec = {}) {
   if (j.status === 403) return { ok: false, error: 'affiliate-required' };
   if (j.status === 401) return { ok: false, error: 'scope', needsReauth: true };
   return { ok: false, error: 'helix-failed', status: j.status, detail: j.message || 'unknown' };
+}
+
+// Fallback reward-create using the broadcaster VAULT token (from the unified
+// /twitch/connect, which grants channel:manage:redemptions). Mirrors
+// createChannelPointReward's Helix contract but sources the token +
+// broadcaster_id from auth.aquilo.gg instead of a PunchCard pc:chan record —
+// so a streamer who onboarded via aquilo.gg/setup needs only one Twitch consent.
+async function _createRewardViaVault(env, twitchId, spec = {}) {
+  let tok, clientId;
+  try {
+    const r = await fetch('https://auth.aquilo.gg/twitch/vault/token', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ service: env.VAULT_SERVICE_SECRET, twitchId, role: 'broadcaster' }),
+    });
+    const d = await r.json().catch(() => null);
+    if (d && d.ok && d.access_token) { tok = d.access_token; clientId = d.client_id || env.TWITCH_CLIENT_ID; }
+  } catch { /* fall through to needsReauth */ }
+  if (!tok) return { ok: false, error: 'not-connected', needsReauth: true };
+  const title = String(spec.title || '').trim().slice(0, 45);
+  if (!title) return { ok: false, error: 'no-title' };
+  const cost = Math.min(1000000, Math.max(1, parseInt(spec.cost, 10) || 1));
+  const body = {
+    title, cost,
+    prompt: String(spec.prompt || '').slice(0, 200),
+    is_user_input_required: !!spec.requiresInput,
+    is_enabled: true,
+    background_color: /^#[0-9a-fA-F]{6}$/.test(spec.color || '') ? spec.color : '#1b1b1b',
+  };
+  const base = 'https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=' + encodeURIComponent(twitchId);
+  const hdr = { 'Authorization': 'Bearer ' + tok, 'Client-Id': clientId, 'Content-Type': 'application/json' };
+  const resp = await fetch(base, { method: 'POST', headers: hdr, body: JSON.stringify(body) });
+  const j = await resp.json().catch(() => ({}));
+  if (resp.ok && j.data && j.data[0] && j.data[0].id) return { ok: true, rewardId: j.data[0].id, title: j.data[0].title || title };
+  const msg = String(j.error || j.message || '');
+  if (resp.status === 400 && /DUPLICATE|duplicate|already/i.test(msg)) {
+    const lr = await fetch(base, { headers: { 'Authorization': 'Bearer ' + tok, 'Client-Id': clientId } });
+    const lj = await lr.json().catch(() => ({}));
+    const found = (lj.data || []).find((rw) => String(rw.title).trim().toLowerCase() === title.toLowerCase());
+    return { ok: true, rewardId: found ? found.id : null, title, existed: true };
+  }
+  if (resp.status === 403) return { ok: false, error: 'affiliate-required' };
+  if (resp.status === 401) return { ok: false, error: 'scope', needsReauth: true };
+  return { ok: false, error: 'helix-failed', status: resp.status, detail: msg || 'unknown' };
 }
 
 async function handleRewardCreate(env, body) {
