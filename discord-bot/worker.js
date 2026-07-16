@@ -109,6 +109,25 @@ async function handleClaimCommand(env, data) {
     claimedAt: Date.now()
   }));
 
+  // Multi-tenancy bridge: if this claim carried the streamer's Twitch id (minted
+  // from the signed-in wizard via /api/tenant/bot-claim), bind their Discord
+  // guild to their tenant directory record so per-channel ownership + guild
+  // features resolve. Best-effort — the guild is claimed locally regardless.
+  if (raw.twitchId && env.VAULT_SERVICE_SECRET) {
+    try {
+      await fetch('https://auth.aquilo.gg/tenant/patch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          service: env.VAULT_SERVICE_SECRET,
+          twitchId: raw.twitchId,
+          discordGuildId: guildId,
+          ownerDiscordId: userId
+        })
+      });
+    } catch (e) { /* bridge is best-effort; guild is still claimed */ }
+  }
+
   return {
     type: 4,
     data: {
@@ -1844,6 +1863,9 @@ async function mintClaim(req, env) {
   let body;
   try { body = await req.json(); } catch { body = {}; }
   const ownerName = (body.ownerName || '').slice(0, 64);
+  // Optional: the signed-in streamer's Twitch id, sent by the site's
+  // /api/tenant/bot-claim so the guild-claim can bridge guild -> tenant.
+  const twitchId = String(body.twitchId || '').replace(/\D/g, '').slice(0, 20);
 
   const code = randomCode(8);
   const secret = randomSecret();
@@ -1852,6 +1874,7 @@ async function mintClaim(req, env) {
   await env.LOADOUT_BOLTS.put('claim:' + code, JSON.stringify({
     secret,
     ownerName,
+    twitchId,
     mintedUtc: Date.now(),
     ttlExpiresUtc: Date.now() + ttlMs
   }), { expirationTtl: 600 });
