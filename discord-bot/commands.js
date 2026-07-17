@@ -326,6 +326,14 @@ export async function handleInteraction(req, env, body, ctx) {
       return json(await handleAskInline(data, env));
     }
 
+    case 'link':
+    case 'bolts':
+    case 'daily':
+    case 'pull': {
+      // Discord↔stream bridge: verified pairing + unified-wallet commands.
+      const { handleBridgeCommand } = await import('./discord-bridge.js');
+      return json(await handleBridgeCommand(env, data, cmd));
+    }
     case 'checkin': {
       // Daily community check-in. Same core as POST /web/checkin, // one check-in per ET day per user, regardless of surface.
       const { handleCheckinCommand } = await import('./community-checkin.js');

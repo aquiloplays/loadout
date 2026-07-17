@@ -170,6 +170,23 @@ export async function handleExt(req, env, ctx) {
       const sub = route === 'powerdeck' ? 'state' : route.slice('powerdeck/'.length);
       return await handlePanelPowerdeck(env, guildId, userId, sub, req, gameMeta);
     }
+    if (route === 'predict' || route.indexOf('predict/') === 0) {
+      const { handlePredict } = await import('./ext-predict.js');
+      const sub = route === 'predict' ? 'state' : route.slice('predict/'.length);
+      return await handlePredict(env, guildId, userId, sub, req, gameMeta);
+    }
+    // Bolts gacha — personal pulls on the revived lootbox machinery.
+    if (route === 'loot' || route.indexOf('loot/') === 0) {
+      const { handleGacha } = await import('./ext-lootbox.js');
+      const sub = route === 'loot' ? 'state' : route.slice('loot/'.length);
+      return await handleGacha(env, guildId, userId, sub, req, gameMeta);
+    }
+    // Discord↔stream bridge — the panel side of the /link code handshake.
+    if (route === 'link' || route.indexOf('link/') === 0) {
+      const { handleLinkExt } = await import('./discord-bridge.js');
+      const sub = route === 'link' ? 'state' : route.slice('link/'.length);
+      return await handleLinkExt(env, guildId, userId, sub, req);
+    }
     // Bolts earn engine: watch-time heartbeat + follow/sub bonuses.
     if (route === 'earn' || route.indexOf('earn/') === 0) {
       const { handleEarn } = await import('./ext-earn.js');

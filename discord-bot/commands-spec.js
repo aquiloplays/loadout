@@ -586,4 +586,23 @@ export const COMMANDS = [
     description: '(admin) Add a trivia question to the daily rotation',
     default_member_permissions: '8192',     // MANAGE_MESSAGES
   },
+  // ── Discord↔stream bridge (discord-bridge.js) ──────────────────────
+  // One Bolts wallet across stream + Discord, verified via the /link
+  // code handshake (entered in the Twitch extension's Loot tab).
+  {
+    name: 'link',
+    description: 'Link this Discord account to your stream Bolts wallet',
+  },
+  {
+    name: 'bolts',
+    description: 'Check your Bolts balance (one wallet across stream + Discord)',
+  },
+  {
+    name: 'daily',
+    description: 'Claim your Discord daily Bolts (20h cooldown)',
+  },
+  {
+    name: 'pull',
+    description: 'Spend Bolts on a loot pull — same pity meter as the stream',
+  },
 ];

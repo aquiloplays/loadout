@@ -553,3 +553,104 @@ export async function readLootBoxCatalog(env) {
   const c = await loadCatalog(env);
   return json({ catalog: c, sku: PRODUCT_SKU, bits: 50 });
 }
+
+// ── Bolts gacha (2026-07-15 revival) ─────────────────────────────────────────
+// Personal Bolts-priced pulls, reusing this module's rarity/roll machinery on
+// a DEDICATED gacha catalog (`lootbox:gacha:v1`) — the Bits community catalog
+// above was tuned for real-money purchases and is tied to the sunset hero bag.
+// Prizes: `bolts` credit the live wallet EXACTLY (no booster multiplier, so
+// the tuned EV holds); everything else lands in a collectible badge bag.
+// Pity: an epic-or-better is guaranteed every `pityAt` pulls.
+// Default EV ≈ 79 Bolts per 100-Bolt pull — a sink, never a faucet.
+
+import { getWallet as gwGacha, putWallet as pwGacha, spend as spendGacha } from './wallet.js';
+
+const GACHA_KEY = 'lootbox:gacha:v1';
+const GACHA_BAG = (g, u) => `lootbag:${g}:${u}`;
+
+export const GACHA_DEFAULT = {
+  pullCost: 100,
+  pityAt: 8,
+  weights: { common: 62, rare: 26, epic: 9.5, legendary: 2.5 },
+  items: [
+    { slot: 'bolts', rarity: 'common',    name: '40 Bolts',  amount: 40 },
+    { slot: 'bolts', rarity: 'common',    name: '60 Bolts',  amount: 60 },
+    { slot: 'bolts', rarity: 'common',    name: '80 Bolts',  amount: 80 },
+    { slot: 'badge', rarity: 'common',    name: 'Rusty Bolt',    glyph: '🔩' },
+    { slot: 'badge', rarity: 'common',    name: 'Paper Clip',    glyph: '📎' },
+    { slot: 'bolts', rarity: 'rare',      name: '150 Bolts', amount: 150 },
+    { slot: 'bolts', rarity: 'rare',      name: '220 Bolts', amount: 220 },
+    { slot: 'badge', rarity: 'rare',      name: 'Blue Feather',  glyph: '🪶' },
+    { slot: 'badge', rarity: 'rare',      name: 'Static Charge', glyph: '⚡' },
+    { slot: 'bolts', rarity: 'epic',      name: '450 Bolts', amount: 450 },
+    { slot: 'badge', rarity: 'epic',      name: 'Storm Crown',   glyph: '👑' },
+    { slot: 'badge', rarity: 'epic',      name: 'Violet Flame',  glyph: '🔮' },
+    { slot: 'bolts', rarity: 'legendary', name: '1,500 Bolts', amount: 1500 },
+    { slot: 'badge', rarity: 'legendary', name: 'Golden Aquilo', glyph: '🐦' },
+  ],
+};
+
+async function loadGachaCatalog(env) {
+  try {
+    const c = await env.LOADOUT_BOLTS.get(GACHA_KEY, { type: 'json' });
+    if (c && Array.isArray(c.items) && c.items.length) return c;
+  } catch { /* fall through */ }
+  return GACHA_DEFAULT;
+}
+
+// Pity roll: restrict the rarity draw to epic+legendary (keeping their
+// relative ratio); falls back to a normal roll if those pools are empty.
+function rollGacha(catalog, forceEpicPlus) {
+  if (!forceEpicPlus) return rollItem(catalog);
+  const w = catalog.weights || GACHA_DEFAULT.weights;
+  const hi = Object.assign({}, catalog, { weights: { epic: Math.max(0.0001, w.epic || 0), legendary: Math.max(0.0001, w.legendary || 0) } });
+  return rollItem(hi) || rollItem(catalog);
+}
+
+export async function handleGacha(env, guildId, userId, sub, req, gameMeta) {
+  if (req.method === 'OPTIONS') return json({ ok: true });
+  const cat = await loadGachaCatalog(env);
+  const cost = Math.max(1, Math.floor(cat.pullCost || 100));
+  const pityAt = Math.max(2, Math.floor(cat.pityAt || 8));
+  const bagKey = GACHA_BAG(guildId, userId);
+  const bag = (await env.LOADOUT_BOLTS.get(bagKey, { type: 'json' }).catch(() => null)) || { badges: [], pulls: 0, pity: 0 };
+
+  if (sub === 'state' || sub === '') {
+    const w = await gwGacha(env, guildId, userId);
+    return json({
+      ok: true, cost, pityAt, pity: bag.pity || 0, pulls: bag.pulls || 0,
+      badges: (bag.badges || []).slice(-24).reverse(), balance: w.balance || 0,
+      preview: cat.items.map((i) => ({ name: i.name, rarity: i.rarity || 'common', slot: i.slot, glyph: i.glyph || '' })),
+    });
+  }
+
+  if (sub === 'pull' && req.method === 'POST') {
+    const sp = await spendGacha(env, guildId, userId, cost, 'gacha pull');
+    if (!sp.ok) return json({ ok: false, error: 'insufficient', balance: sp.balance || 0, need: cost }, 402);
+    const pityHit = (bag.pity || 0) + 1 >= pityAt;
+    const item = rollGacha(cat, pityHit) || { slot: 'bolts', rarity: 'common', name: cost + ' Bolts back', amount: cost };
+    const rare = ['epic', 'legendary'].indexOf(String(item.rarity || '').toLowerCase()) !== -1;
+    bag.pulls = (bag.pulls || 0) + 1;
+    bag.pity = rare ? 0 : (bag.pity || 0) + 1;
+    let balance = (sp.wallet && sp.wallet.balance) || 0;
+    if (item.slot === 'bolts' && item.amount > 0) {
+      // Exact credit (earn() would apply the booster multiplier and break EV).
+      const w = await gwGacha(env, guildId, userId);
+      w.balance += Math.floor(item.amount);
+      w.lifetimeEarned = (w.lifetimeEarned || 0) + Math.floor(item.amount);
+      await pwGacha(env, guildId, userId, w);
+      balance = w.balance;
+    } else {
+      bag.badges = (bag.badges || []).concat([{ name: item.name, rarity: item.rarity || 'common', glyph: item.glyph || '', at: Date.now() }]).slice(-60);
+    }
+    await env.LOADOUT_BOLTS.put(bagKey, JSON.stringify(bag));
+    return json({
+      ok: true,
+      prize: { name: item.name, rarity: item.rarity || 'common', slot: item.slot, glyph: item.glyph || '', amount: Math.floor(item.amount || 0) },
+      pityHit, pity: bag.pity, pityAt, balance,
+      badges: (bag.badges || []).slice(-24).reverse(),
+    });
+  }
+
+  return json({ ok: false, error: 'not-found' }, 404);
+}
